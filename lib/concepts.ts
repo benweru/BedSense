@@ -1,4 +1,4 @@
-import type { ConceptId, ConceptKind, CropId } from "@/lib/types";
+import type { ConceptCounts, ConceptId, ConceptKind, CropId } from "@/lib/types";
 
 export type ConceptSpec = {
   id: ConceptId;
@@ -35,6 +35,14 @@ export const CONCEPTS: readonly ConceptSpec[] = [
     swatch: "#c44536",
   },
   {
+    id: "plant",
+    phrase: "vegetable plant",
+    kind: "crop",
+    crop: null,
+    color: "rgba(47, 111, 78, 0.5)",
+    swatch: "#2f6f4e",
+  },
+  {
     id: "yellow-leaf",
     phrase: "yellow leaf",
     kind: "symptom",
@@ -51,6 +59,10 @@ export const CONCEPTS: readonly ConceptSpec[] = [
     swatch: "#5d7a45",
   },
 ];
+
+export function emptyConceptCounts(): ConceptCounts {
+  return { onion: 0, beetroot: 0, chili: 0, plant: 0, "yellow-leaf": 0, weed: 0 };
+}
 
 export function conceptById(id: ConceptId): ConceptSpec {
   const found = CONCEPTS.find((concept) => concept.id === id);

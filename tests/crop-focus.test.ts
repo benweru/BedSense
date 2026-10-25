@@ -9,17 +9,38 @@ describe("onion-first crop focus", () => {
     });
   });
 
-  it("gives onion a weight so a near-tie stays mixed with onion leading", () => {
+  it("follows beetroot when that frame is only beetroot", () => {
+    expect(chooseCropFocus({ onion: 0, beetroot: 10, chili: 0 })).toEqual({
+      cropFocus: "beetroot",
+      primaryCrop: "beetroot",
+    });
+  });
+
+  it("follows chili when that frame is only chili", () => {
+    expect(chooseCropFocus({ onion: 0, beetroot: 0, chili: 6 })).toEqual({
+      cropFocus: "chili",
+      primaryCrop: "chili",
+    });
+  });
+
+  it("treats onion and beetroot in one frame as unusual multi-crop, with onion leading a near-tie", () => {
     expect(chooseCropFocus({ onion: 10, beetroot: 10, chili: 0 })).toEqual({
       cropFocus: "mixed",
       primaryCrop: "onion",
     });
   });
 
-  it("names beetroot when it clearly covers more of the bed", () => {
-    expect(chooseCropFocus({ onion: 2, beetroot: 10, chili: 1 })).toEqual({
-      cropFocus: "beetroot",
+  it("treats a beetroot-heavy frame that also contains onion as multi-crop, not one planting", () => {
+    expect(chooseCropFocus({ onion: 2, beetroot: 10, chili: 0 })).toEqual({
+      cropFocus: "mixed",
       primaryCrop: "beetroot",
+    });
+  });
+
+  it("treats beetroot and chili in one frame as multi-crop", () => {
+    expect(chooseCropFocus({ onion: 0, beetroot: 4, chili: 9 })).toEqual({
+      cropFocus: "mixed",
+      primaryCrop: "chili",
     });
   });
 

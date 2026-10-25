@@ -1,7 +1,8 @@
+import { cleanContextAsk, cleanPlantName, contextIsEmpty, contextPromptBlock, fallbackPlantName } from "@/lib/context";
 import { copy, normalizeLocale } from "@/lib/copy";
 import { MUSE_MODELS, postMeta, type MuseModel } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
-import type { ConceptCounts, ConceptId, Locale } from "@/lib/types";
+import type { ConceptCounts, ConceptId, CropId, FarmerContext, Locale } from "@/lib/types";
 
 export type TriageDraft = {
   observations: string[];
@@ -12,6 +13,8 @@ export type TriageDraft = {
   agronomistCallout: string;
   model: MuseModel | null;
   triageSource: "muse" | "local-fallback";
+  detectedPlant: string;
+  contextAsk: string | null;
 };
 
 export async function adviseBed(options: {
@@ -20,6 +23,8 @@ export async function adviseBed(options: {
   locale: Locale;
   counts: ConceptCounts;
   failedConcepts: readonly ConceptId[];
+  context: FarmerContext;
+  primaryCrop: CropId | null;
 }): Promise<TriageDraft> {
   const summary = copy[options.locale].countLine(options.counts);
   for (const model of MUSE_MODELS) {
@@ -36,7 +41,7 @@ export async function adviseBed(options: {
             {
               role: "user",
               content: [
-                { type: "text", text: userPrompt(options.locale, summary) },
+                { type: "text", text: userPrompt(options.locale, summary, options.context) },
                 { type: "image_url", image_url: { url: options.imageUrl } },
               ],
             },
@@ -55,18 +60,26 @@ export async function adviseBed(options: {
         counts: options.counts,
         failedConcepts: options.failedConcepts,
       });
-      return { ...finalized, model, triageSource: "muse" };
+      return {
+        ...finalized,
+        model,
+        triageSource: "muse",
+        detectedPlant: cleanPlantName(parsed.detectedPlant) ?? fallbackPlantName(options.locale, options.primaryCrop),
+        contextAsk: cleanContextAsk(parsed.contextAsk),
+      };
     } catch {
       // Try the standard Muse Spark model, then the local backup.
     }
   }
-  return localFallback(options.locale, options.counts, options.failedConcepts);
+  return localFallback(options.locale, options.counts, options.failedConcepts, options.context, options.primaryCrop);
 }
 
 export function localFallback(
   locale: Locale,
   counts: ConceptCounts,
   failedConcepts: readonly ConceptId[],
+  context: FarmerContext,
+  primaryCrop: CropId | null,
 ): TriageDraft {
   const text = copy[locale];
   const finalized = finalizeTriage({
@@ -78,34 +91,50 @@ export function localFallback(
     counts,
     failedConcepts,
   });
-  return { ...finalized, model: null, triageSource: "local-fallback" };
+  return {
+    ...finalized,
+    model: null,
+    triageSource: "local-fallback",
+    detectedPlant: fallbackPlantName(locale, primaryCrop),
+    contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
+  };
 }
 
 export function developerPrompt(locale: Locale): string {
   const language = locale === "sw" ? "Swahili" : "English";
   return [
     "You are BedSense, a field triage assistant for any vegetable farm bed.",
-    "Onion is the primary crop. Beetroot and chili are secondary.",
+    "A photo is one bed. The farmer does not pick a crop first. Identify the plant from the photo.",
+    "Name that plant in detectedPlant. It may be any farm plant, not a fixed list.",
+    "BedSense works well with onion, and is often used for beetroot and chili. Those are common crops, each grown on its own bed. They are not a limit on what you can advise.",
+    "Onion and beetroot are never on the same bed. Chili is a separate secondary crop on its own bed.",
+    "If more than one of onion, beetroot, and chili is in the frame, that is unusual: multi-crop on one photo, not the planting pattern.",
+    "Do not invent where the beds are.",
     "You do not diagnose disease and you do not prescribe pesticides or treatment rates.",
     "Never give a spray dose, a mixing rate, millilitres, grams, or litres per area or per tank.",
+    "If the farmer mentions products already used, treat that as history. Do not recommend a new dose.",
     "If a treatment would need a product, tell the farmer to ask an agronomist instead.",
-    "Return exactly three next checks in actions. Each check is a practical, non-chemical thing to look at or do next on the bed: look, feel soil moisture, remove the worst leaves from the bed, improve airflow, photograph again, visit an extension officer.",
+    "Return exactly three next checks in actions, even when you are unsure. Each check is a practical, non-chemical thing to look at or do next on the bed: look, feel soil moisture, remove the worst leaves from the bed, improve airflow, photograph again, visit an extension officer.",
+    "If one extra fact would make those checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
+    "Do not ask the farmer to choose onion, beetroot, or chili from a list.",
     `Reply in ${language}.`,
     "Return one JSON object only, with this shape:",
-    '{"observations":["short field note","short field note"],"actions":["check","check","check"],"confidence":"low|medium|high","confidenceScore":0.5}',
+    '{"detectedPlant":"plant name","observations":["short field note","short field note"],"actions":["check","check","check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":""}',
     "observations has 2 or 3 items. actions has exactly 3 items. confidenceScore is from 0 to 1.",
   ].join(" ");
 }
 
-function userPrompt(locale: Locale, summary: string): string {
+export function userPrompt(locale: Locale, summary: string, context: FarmerContext): string {
   const language = normalizeLocale(locale) === "sw" ? "Swahili" : "English";
   return [
-    "This is a phone photo of one farm bed.",
+    "This is a phone photo of one farm bed. Name the plant you see. It can be any farm plant.",
+    "Onion, beetroot, and chili are grown on different beds. More than one of them in this frame is unusual, not the planting pattern.",
+    "SAM marks are hints, not a crop the farmer selected.",
     `Segmentation counts: ${summary}`,
-    "Use the photo and those counts.",
-    "Say what is worth checking. Do not state a disease as a fact.",
+    contextPromptBlock(context),
+    "Use the photo, those marks, and any context. Say what is worth checking. Do not state a disease as a fact.",
     `Write the JSON in ${language}.`,
-  ].join(" ");
+  ].join("\n");
 }
 
 export function chatOutputText(payload: { kind: "json"; value: unknown } | { kind: "sse"; events: Record<string, unknown>[] }): string {
@@ -137,6 +166,8 @@ export function parseModelJson(text: string): {
   actions: unknown;
   confidence: unknown;
   confidenceScore: unknown;
+  detectedPlant: unknown;
+  contextAsk: unknown;
 } {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -149,5 +180,7 @@ export function parseModelJson(text: string): {
     actions: record.actions,
     confidence: record.confidence,
     confidenceScore: record.confidenceScore,
+    detectedPlant: record.detectedPlant,
+    contextAsk: record.contextAsk,
   };
 }

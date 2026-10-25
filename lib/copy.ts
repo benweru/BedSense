@@ -1,11 +1,17 @@
 import type { ConceptCounts, ConceptId, ConfidenceLevel, CropFocus, CropId, Locale } from "@/lib/types";
 
+export type PlantLineInput = {
+  detectedPlant?: string | null;
+  cropFocus: CropFocus;
+  primaryCrop: CropId | null;
+};
+
 export type Copy = {
   kicker: string;
   title: string;
   lede: string;
-  primary: string;
-  secondary: string;
+  supportLine: string;
+  supportNote: string;
   capture: string;
   upload: string;
   hint: string;
@@ -37,11 +43,26 @@ export type Copy = {
   backupNote: string;
   footer: string;
   concepts: Record<ConceptId, string>;
+  unknownPlant: string;
+  contextTitle: string;
+  contextHint: string;
+  contextAskLabel: string;
+  contextUpdate: string;
+  contextAskDefault: string;
+  contextNoted: string;
+  contextFields: {
+    stage: string;
+    practices: string;
+    chemicals: string;
+    weather: string;
+    issues: string;
+    notes: string;
+  };
   fallbackActions: [string, string, string];
   disclaimer: string;
   agronomistCallout: string;
   countLine: (counts: ConceptCounts) => string;
-  focusLine: (focus: CropFocus, primary: CropId | null) => string;
+  plantLine: (input: PlantLineInput) => string;
   segmentFailed: (name: string) => string;
   levelLabel: (level: ConfidenceLevel) => string;
 };
@@ -49,14 +70,15 @@ export type Copy = {
 const en: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Photograph any vegetable farm bed. SAM 3.1 marks the plants. Muse Spark returns exactly three next checks: practical, non-chemical things to look at or do next on the bed. Triage steps only — not a diagnosis, and not a treatment rate.",
-  primary: "First",
-  secondary: "Also",
+  lede: "Photograph any plant on a vegetable farm bed. You do not pick a crop first. SAM 3.1 and Muse Spark read the photo and return exactly three next checks: practical, non-chemical things to look at or do next. Triage steps only — not a diagnosis, and not a treatment rate.",
+  supportLine: "Works well with onion. Often used for beetroot and chili.",
+  supportNote:
+    "Each of those crops grows on its own bed. Onion and beetroot are never on the same bed, and chili is a separate bed too. Any other farm plant is welcome.",
   capture: "Take a photo",
   upload: "Choose a photo",
-  hint: "Fill the frame with the bed. Morning light and a steady phone help.",
+  hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
-  analyzing: "SAM 3.1 is marking the bed. Muse Spark will return three next checks.",
+  analyzing: "Reading the plant in this photo. Three next checks come next.",
   retake: "New photo",
   retry: "Try again",
   observations: "What stands out",
@@ -70,7 +92,7 @@ const en: Copy = {
   historyEmpty: "Your last five checks stay on this phone.",
   clear: "Clear",
   marks: "Marks",
-  noMasks: "No plants were marked in this frame. Try a closer photo of the bed.",
+  noMasks: "No familiar crop marks landed in this frame. The photo is still read.",
   errorGeneric: "The check did not finish. Try another photo.",
   errorFormat: "This photo did not open. Take it again or choose a JPEG.",
   language: "Language",
@@ -86,8 +108,24 @@ const en: Copy = {
     onion: "Onion",
     beetroot: "Beetroot",
     chili: "Chili",
+    plant: "Other plant",
     "yellow-leaf": "Yellow leaf",
     weed: "Weed",
+  },
+  unknownPlant: "Farm plant",
+  contextTitle: "Add context (optional)",
+  contextHint: "Plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, or a note. This is not required.",
+  contextAskLabel: "A clearer check would use this",
+  contextUpdate: "Update the check",
+  contextAskDefault: "If you know it, add the plant’s age and when you last watered.",
+  contextNoted: "The notes you added are part of this check.",
+  contextFields: {
+    stage: "Plant age or stage",
+    practices: "Current practices",
+    chemicals: "Chemicals already used",
+    weather: "Recent weather or irrigation",
+    issues: "Known issues",
+    notes: "Anything else",
   },
   fallbackActions: [
     "Press a finger a few centimetres into the soil and water only if it feels dry.",
@@ -99,18 +137,15 @@ const en: Copy = {
   agronomistCallout:
     "Ask an agronomist. Show them this photo and these three next checks before you buy or mix any spray.",
   countLine: (counts) =>
-    `Marks — onion ${counts.onion}, beetroot ${counts.beetroot}, chili ${counts.chili}, yellow leaf ${counts["yellow-leaf"]}, weed ${counts.weed}.`,
-  focusLine: (focus, primary) => {
-    if (focus === "unknown" || !primary) {
-      return "No onion, beetroot, or chili plants were marked. Try a closer photo of the bed.";
+    `Marks — onion ${counts.onion}, beetroot ${counts.beetroot}, chili ${counts.chili}, other plant ${counts.plant}, yellow leaf ${counts["yellow-leaf"]}, weed ${counts.weed}.`,
+  plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
+    const named = detectedPlant?.trim() || (primaryCrop === "onion" ? "Onion" : primaryCrop === "beetroot" ? "Beetroot" : primaryCrop === "chili" ? "Chili" : "");
+    if (cropFocus === "mixed") {
+      const lead = named || "This frame";
+      return `${lead} is in this frame with another crop. A photo is one bed. Onion, beetroot, and chili are grown on different beds, so more than one of them here is unusual.`;
     }
-    if (focus === "onion") return "Onion is the crop this check follows first.";
-    if (focus === "mixed") {
-      const name = primary === "onion" ? "Onion" : primary === "beetroot" ? "Beetroot" : "Chili";
-      return `${name} leads the marks on a mixed bed. Onion is still the crop BedSense watches first.`;
-    }
-    const name = focus === "beetroot" ? "Beetroot" : "Chili";
-    return `${name} is the strongest mark. Onion stays the crop BedSense is built around.`;
+    if (named) return `This looks like ${named}.`;
+    return "This looks like a farm plant. The three next checks still apply.";
   },
   segmentFailed: (name) => `${name} segmentation did not return, so those marks may be missing.`,
   levelLabel: (level) => (level === "low" ? "Low" : level === "medium" ? "Medium" : "High"),
@@ -119,14 +154,15 @@ const en: Copy = {
 const sw: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Piga picha ya kitanda chochote cha mboga shambani. SAM 3.1 inaweka alama kwenye mimea. Muse Spark inarudisha ukaguzi tatu hasa: mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya kwenye kitanda. Hatua za mapitio tu — si utambuzi, wala kipimo cha tiba.",
-  primary: "Kwanza",
-  secondary: "Pia",
+  lede: "Piga picha ya mmea wowote kwenye kitanda cha mboga shambani. Huchagui zao kwanza. SAM 3.1 na Muse Spark zinasoma picha na kurudisha ukaguzi tatu hasa: mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya. Hatua za mapitio tu — si utambuzi, wala kipimo cha tiba.",
+  supportLine: "Hufanya kazi vizuri na kitunguu. Hutumika mara nyingi kwa beetroot na pilipili.",
+  supportNote:
+    "Kila moja ya mazao hayo iko kwenye kitanda chake. Kitunguu na beetroot havipandwi kamwe kwenye kitanda kimoja, na pilipili iko kwenye kitanda chake. Mmea mwingine wowote shambani unakubalika.",
   capture: "Piga picha",
   upload: "Chagua picha",
-  hint: "Jaza fremu na kitanda. Mwanga wa asubuhi na simu tulivu husaidia.",
+  hint: "Jaza fremu na mmea mmoja au kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
-  analyzing: "SAM 3.1 inaweka alama kwenye kitanda. Muse Spark itarudisha ukaguzi tatu.",
+  analyzing: "Inasoma mmea kwenye picha hii. Ukaguzi tatu unafuata.",
   retake: "Picha nyingine",
   retry: "Jaribu tena",
   observations: "Kinachoonekana",
@@ -140,7 +176,7 @@ const sw: Copy = {
   historyEmpty: "Ukaguzi tano wa mwisho unabaki kwenye simu hii.",
   clear: "Futa",
   marks: "Alama",
-  noMasks: "Hakuna mimea iliyowekwa alama. Jaribu picha ya karibu zaidi ya kitanda.",
+  noMasks: "Hakuna alama za mazao ya kawaida kwenye fremu hii. Picha bado inasomwa.",
   errorGeneric: "Ukaguzi haujakamilika. Jaribu picha nyingine.",
   errorFormat: "Picha hii haikufunguka. Piga tena au chagua JPEG.",
   language: "Lugha",
@@ -156,8 +192,24 @@ const sw: Copy = {
     onion: "Kitunguu",
     beetroot: "Beetroot",
     chili: "Pilipili",
+    plant: "Mmea mwingine",
     "yellow-leaf": "Jani njano",
     weed: "Magugu",
+  },
+  unknownPlant: "Mmea wa shamba",
+  contextTitle: "Ongeza muktadha (si lazima)",
+  contextHint: "Umri au hatua ya mmea, mazoea, kemikali zilizotumika, hali ya hewa au umwagiliaji, matatizo unayoyajua, au maelezo. Haihitajiki.",
+  contextAskLabel: "Ukaguzi ulio wazi zaidi ungetumia hili",
+  contextUpdate: "Sasisha ukaguzi",
+  contextAskDefault: "Ikiwa unajua, ongeza umri wa mmea na lini ulimwagilia mara ya mwisho.",
+  contextNoted: "Maelezo uliyoongeza yameingia kwenye ukaguzi huu.",
+  contextFields: {
+    stage: "Umri au hatua ya mmea",
+    practices: "Mazoea ya sasa",
+    chemicals: "Kemikali zilizotumika",
+    weather: "Hali ya hewa au umwagiliaji",
+    issues: "Matatizo unayoyajua",
+    notes: "Mengineyo",
   },
   fallbackActions: [
     "Bonyeza kidole sentimita chache kwenye udongo; mwagilia tu ikiwa umekauka.",
@@ -169,18 +221,17 @@ const sw: Copy = {
   agronomistCallout:
     "Muulize mtaalamu wa kilimo. Mwonyeshe picha hii na ukaguzi tatu kabla ya kununua au kuchanganya dawa yoyote.",
   countLine: (counts) =>
-    `Alama — kitunguu ${counts.onion}, beetroot ${counts.beetroot}, pilipili ${counts.chili}, jani njano ${counts["yellow-leaf"]}, magugu ${counts.weed}.`,
-  focusLine: (focus, primary) => {
-    if (focus === "unknown" || !primary) {
-      return "Hakuna kitunguu, beetroot, wala pilipili vilivyowekwa alama. Jaribu picha ya karibu zaidi.";
+    `Alama — kitunguu ${counts.onion}, beetroot ${counts.beetroot}, pilipili ${counts.chili}, mmea mwingine ${counts.plant}, jani njano ${counts["yellow-leaf"]}, magugu ${counts.weed}.`,
+  plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
+    const named =
+      detectedPlant?.trim() ||
+      (primaryCrop === "onion" ? "Kitunguu" : primaryCrop === "beetroot" ? "Beetroot" : primaryCrop === "chili" ? "Pilipili" : "");
+    if (cropFocus === "mixed") {
+      const lead = named || "Fremu hii";
+      return `${lead} iko kwenye fremu hii pamoja na zao lingine. Picha ni kitanda kimoja. Kitunguu, beetroot, na pilipili hukuzwa kwenye vitanda tofauti, kwa hiyo mchanganyiko huu si wa kawaida.`;
     }
-    if (focus === "onion") return "Kitunguu ndicho zao linalofuatiliwa kwanza katika ukaguzi huu.";
-    if (focus === "mixed") {
-      const name = primary === "onion" ? "Kitunguu" : primary === "beetroot" ? "Beetroot" : "Pilipili";
-      return `${name} linaongoza alama kwenye kitanda kilichochanganyika. Kitunguu bado ndicho zao ambalo BedSense inalinda kwanza.`;
-    }
-    const name = focus === "beetroot" ? "Beetroot" : "Pilipili";
-    return `${name} ndiyo alama kali zaidi. Kitunguu kinabaki zao ambalo BedSense imejengwa kulizungumzia.`;
+    if (named) return `Hii inaonekana kama ${named}.`;
+    return "Hii inaonekana kama mmea wa shamba. Ukaguzi tatu bado unatumika.";
   },
   segmentFailed: (name) => `Alama za ${name} hazijarudi, kwa hiyo zinaweza kukosekana.`,
   levelLabel: (level) => (level === "low" ? "Chini" : level === "medium" ? "Wastani" : "Juu"),

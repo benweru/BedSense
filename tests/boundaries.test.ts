@@ -107,13 +107,71 @@ describe("public project boundaries", () => {
     expect(readme).toContain("onion");
     expect(readme).toContain("beetroot");
     expect(readme).toContain("chili");
+    expect(readme).toContain("never on the same bed");
+    expect(readme).toContain("its own bed");
+    expect(readme).toContain("chili is a separate bed");
+    expect(readme).toContain("do not pick a crop");
+    expect(readme).toContain("works well with onion");
+    expect(readme).toContain("any other farm plant");
     expect(copy.en.lede.toLowerCase()).toContain("exactly three next checks");
     expect(copy.en.lede.toLowerCase()).toContain("not a treatment rate");
+    expect(copy.en.lede.toLowerCase()).toContain("do not pick a crop");
+    expect(copy.en.supportLine.toLowerCase()).toContain("works well with");
+    expect(copy.en.supportLine.toLowerCase()).toContain("often used for");
+    expect(copy.en.supportNote.toLowerCase()).toContain("never on the same bed");
+    expect(copy.en.supportNote.toLowerCase()).toContain("its own bed");
+    expect(copy.en.supportNote.toLowerCase()).toContain("any other farm plant");
     expect(copy.en.actions.toLowerCase()).toContain("three next checks");
     expect(copy.en.actionsHint.toLowerCase()).toContain("not a diagnosis");
+    expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "onion", detectedPlant: "Onion" }).toLowerCase()).toContain("unusual");
+    expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "beetroot", detectedPlant: "Beetroot" }).toLowerCase()).not.toContain("mixed bed");
     expect(copy.sw.lede).toContain("ukaguzi tatu");
+    expect(copy.sw.lede).toContain("Huchagui zao");
+    expect(copy.sw.supportNote).toContain("kitanda chake");
+    expect(copy.sw.supportNote).toContain("havipandwi kamwe");
     expect(copy.sw.lede).not.toMatch(/Kenya/i);
     expect(copy.sw.actions).toContain("Ukaguzi tatu");
     expect(copy.sw.actionsHint).toContain("kipimo cha tiba");
+    expect(copy.sw.plantLine({ cropFocus: "mixed", primaryCrop: "onion", detectedPlant: "Kitunguu" })).toContain("si wa kawaida");
+    expect(copy.sw.plantLine({ cropFocus: "mixed", primaryCrop: "chili", detectedPlant: "Pilipili" })).not.toContain("kilichochanganyika");
+
+    const layout = readFileSync("app/layout.tsx", "utf8").toLowerCase();
+    expect(layout).toContain("its own bed");
+    expect(layout).toContain("works well with");
+    const muse = readFileSync("lib/server/muse.ts", "utf8").toLowerCase();
+    expect(muse).toContain("never on the same bed");
+    expect(muse).toContain("its own bed");
+    expect(muse).toContain("do not invent where the beds are");
+    expect(muse).toContain("any farm plant");
+    expect(muse).toContain("contextask");
+    const dev = readFileSync("docs/development.md", "utf8").toLowerCase();
+    expect(dev).toContain("never on the same bed");
+    expect(dev).toContain("unusual multi-crop frame");
+    expect(dev).toContain("contextask");
+    const ui = readFileSync("components/bed-sense-app.tsx", "utf8");
+    expect(ui).not.toContain("<select");
+    expect(ui).not.toContain("only these crops");
+  });
+
+  it("does not describe onion, beetroot, and chili as sharing a bed", () => {
+    const files = [
+      "README.md",
+      "app/layout.tsx",
+      "package.json",
+      "docs/development.md",
+      "lib/copy.ts",
+      "lib/crop-focus.ts",
+      "lib/types.ts",
+      "lib/server/muse.ts",
+      "lib/server/mock.ts",
+      "components/bed-sense-app.tsx",
+    ];
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      expect(text, file).not.toMatch(/share(?:s|d)? (?:the same |a )?bed/i);
+      expect(text, file).not.toMatch(/co-?plant/i);
+      expect(text, file).not.toMatch(/mixed bed/i);
+      expect(text, file).not.toMatch(/kilichochanganyika/i);
+    }
   });
 });

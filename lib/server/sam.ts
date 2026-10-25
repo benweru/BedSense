@@ -1,6 +1,7 @@
 import { decodeMaskToRaster, parseImageStream, recordsOfKind, type ResponsesEvent } from "@meta-sam/parser";
 import { CONCEPTS, conceptById } from "@/lib/concepts";
 import { areaFractionFromRaster, downsampleRaster } from "@/lib/grid";
+import { preferSpecificCrops } from "@/lib/plant-marks";
 import { postMeta, SAM_MODEL, textFromPayload, type MetaPayload } from "@/lib/server/meta";
 import { AnalyzeError, type ConceptId, type MaskMark } from "@/lib/types";
 
@@ -57,7 +58,7 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
   }
 
   return {
-    masks: passes.flatMap((pass) => pass.masks),
+    masks: preferSpecificCrops(passes.flatMap((pass) => pass.masks)),
     failed: passes.filter((pass) => pass.failed).map((pass) => pass.conceptId),
     sourceSize: passes.find((pass) => pass.sourceSize)?.sourceSize ?? null,
   };

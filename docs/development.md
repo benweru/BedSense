@@ -42,19 +42,20 @@ Muse Spark is called as `muse-spark-1.3-contributor` first (contributor mode, lo
 ```mermaid
 flowchart LR
   phone[Phone photo or camera] --> resize[Resize on device]
-  resize --> api["POST /api/analyze"]
+  resize --> context[Optional context]
+  context --> api["POST /api/analyze"]
   api --> sam["SAM 3.1 · POST /v1/responses"]
   sam --> marks[Masks, boxes, counts]
   marks --> muse["Muse Spark · POST /v1/chat/completions"]
   muse --> guard[Dosage guard and fixed disclaimer]
-  guard --> ui[Marks, observations, 3 next checks, confidence]
+  guard --> ui[Plant name, marks, 3 next checks, context ask]
 ```
 
 1. The browser keeps the last five checks in `localStorage` and can switch the chrome between English and Kiswahili. Model text follows the language selected when you take the photo.
 2. `/api/analyze` accepts a JPEG, PNG, or WebP data URL. The key never goes to the client.
-3. The segmentation model id is `sam-3.1`. It runs five concept prompts, one noun phrase each: `onion plant`, `beetroot plant`, `chili pepper plant`, `yellow leaf`, `weed`. Requests use `metadata.mask_encoding=one_bit` and `metadata.include_confidence=true`. Masks are decoded with `@meta-sam/parser` and sent to the phone as a small grid drawn over the photo.
-4. Onion area is weighted slightly higher when the bed is a near-tie, so the primary crop stays onion-first. A bed that is clearly beetroot or chili is labeled that way, and the copy still says onion is what BedSense is built around.
-5. Muse Spark sees the photo plus the counts and must return JSON: observations, exactly three `actions`, and a confidence score. Each action is one next check shown in the app: a practical, non-chemical thing to look at or do on the bed. The three checks are triage steps for any vegetable farm bed. They are not a diagnosis and not a treatment rate. Onion stays first; beetroot and chili stay secondary. A server-side guard drops any spray rate (millilitres, grams, litres per tank or hectare, including common Swahili units) and replaces it with a safe check. The disclaimer and the ask-an-agronomist callout are fixed copy, not model prose.
+3. The segmentation model id is `sam-3.1`. It runs six concept prompts, one noun phrase each: `onion plant`, `beetroot plant`, `chili pepper plant`, `vegetable plant`, `yellow leaf`, `weed`. Requests use `metadata.mask_encoding=one_bit` and `metadata.include_confidence=true`. Masks are decoded with `@meta-sam/parser` and sent to the phone as a small grid drawn over the photo. A generic plant mask that sits on onion, beetroot, or chili is dropped so those crops keep their own outline.
+4. The farmer does not pick a crop. A photo is one bed, and it can be any farm plant. Onion, beetroot, and chili are familiar crops: BedSense works well with onion and is often used for beetroot and chili. Each grows on its own bed. Onion and beetroot are never on the same bed, and chili is a separate bed as well. The code does not describe where those beds are. If more than one of those three is marked in a frame, crop focus is `mixed`: an unusual multi-crop frame, not the planting pattern. Onion area is weighted slightly higher, so when the scores are close the familiar primary mark stays onion. Muse names the plant from the photo, including plants other than those three.
+5. Muse Spark sees the photo, the counts, and any optional context, and must return JSON: `detectedPlant`, observations, exactly three `actions`, a confidence score, and `contextAsk`. Optional context fields are plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, and a free-text note. They are not required. `contextAsk` is one short question when a missing fact would improve the check, or empty. Each action is one next check shown in the app: a practical, non-chemical thing to look at or do on the bed. The three checks are triage steps for any vegetable farm bed. They are not a diagnosis and not a treatment rate. A server-side guard drops any spray rate (millilitres, grams, litres per tank or hectare, including common Swahili units) and replaces it with a safe check. The disclaimer and the ask-an-agronomist callout are fixed copy, not model prose.
 
 ## Scripts
 
