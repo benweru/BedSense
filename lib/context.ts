@@ -42,6 +42,14 @@ export function contextIsEmpty(context: FarmerContext): boolean {
   return CONTEXT_FIELDS.every((field) => context[field].length === 0);
 }
 
+/** Voice transcripts land in the same fields a typed note uses. */
+export function appendToContext(context: FarmerContext, field: ContextField, transcript: string): FarmerContext {
+  const addition = clip(transcript, LIMITS[field]);
+  if (!addition) return context;
+  const joined = context[field] ? `${context[field]} ${addition}` : addition;
+  return { ...context, [field]: clip(joined, LIMITS[field]) };
+}
+
 export function contextPromptBlock(context: FarmerContext): string {
   if (contextIsEmpty(context)) {
     return "Farmer context: none. Still read the photo and the named plant, and return three next checks. Put one short question in contextAsk only if a missing fact would change those checks.";
