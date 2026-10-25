@@ -72,6 +72,8 @@ export type MaskMark = {
   box: MaskBox;
   grid: MaskGrid;
   areaFraction: number;
+  /** Which attached photo this mark belongs to. Missing means the first photo. */
+  frame?: number;
 };
 
 export type ConceptCounts = Record<ConceptId, number>;
@@ -91,6 +93,12 @@ export type AnalyzeResult = {
     height: number;
     mime: string;
   };
+  /** One entry per attached photo, in the same order as `images`. Absent on older checks. */
+  frames?: {
+    width: number;
+    height: number;
+    mime: string;
+  }[];
   cropFocus: CropFocus;
   primaryCrop: CropId | null;
   detectedPlant: string;

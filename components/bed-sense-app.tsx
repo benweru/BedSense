@@ -31,12 +31,14 @@ type Phase = "idle" | "preparing" | "analyzing" | "ready" | "error";
 export function BedSenseApp() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
+  const addRef = useRef<HTMLInputElement>(null);
   const plantRef = useRef<HTMLInputElement>(null);
   const locale = useLocale();
   const history = useHistory();
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<string | null>(null);
-  const [prepared, setPrepared] = useState<PreparedPhoto | null>(null);
+  const [photos, setPhotos] = useState<PreparedPhoto[]>([]);
+  const [frame, setFrame] = useState(0);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<FarmerContext>(emptyFarmerContext);
@@ -60,18 +62,28 @@ export function BedSenseApp() {
     writeLocale(next);
   }
 
-  async function onFile(file: File | undefined) {
-    if (!file) return;
+  async function onFiles(list: FileList | undefined, mode: "replace" | "append") {
+    const incoming = [...(list ?? [])];
+    if (incoming.length === 0) return;
+    const room = mode === "append" ? Math.max(0, 3 - photos.length) : 3;
+    if (room === 0) {
+      setError(text.photoLimit);
+      return;
+    }
+    const chosen = incoming.slice(0, room);
+    const overflow = incoming.length > room;
     setProgressStep(0);
     setPhase("preparing");
-    setError(null);
+    setError(overflow ? text.photoLimit : null);
     setResult(null);
-    setPreview(null);
-    setPrepared(null);
     try {
-      const photo = await preparePhoto(file);
-      setPrepared(photo);
-      setPreview(photo.dataUrl);
+      const made: PreparedPhoto[] = [];
+      for (const file of chosen) made.push(await preparePhoto(file));
+      const next = mode === "append" ? [...photos, ...made].slice(0, 3) : made;
+      const shown = mode === "append" ? photos.length : 0;
+      setPhotos(next);
+      setFrame(shown);
+      setPreview(next[shown]?.dataUrl ?? next[0]?.dataUrl ?? null);
       if (!parseFarmerPlant(plantName)) {
         setPlantError(true);
         setPhase("idle");
@@ -79,7 +91,8 @@ export function BedSenseApp() {
         return;
       }
       setPlantError(false);
-      await runCheck(photo);
+      if (mode === "replace" && next.length === 1) await runCheck(next);
+      else setPhase("idle");
     } catch {
       setPhase("error");
       setError(text.errorFormat);
@@ -87,17 +100,17 @@ export function BedSenseApp() {
   }
 
   async function submitPrepared() {
-    if (!prepared) return;
+    if (photos.length === 0) return;
     if (!parseFarmerPlant(plantName)) {
       setPlantError(true);
       plantRef.current?.focus();
       return;
     }
     setPlantError(false);
-    await runCheck(prepared);
+    await runCheck(photos);
   }
 
-  async function runCheck(photo: PreparedPhoto) {
+  async function runCheck(batch: PreparedPhoto[]) {
     const named = parseFarmerPlant(plantName);
     if (!named) {
       setPlantError(true);
@@ -114,10 +127,11 @@ export function BedSenseApp() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          image: photo.dataUrl,
+          image: batch[0]?.dataUrl,
+          images: batch.map((photo) => photo.dataUrl),
           locale,
-          width: photo.width,
-          height: photo.height,
+          width: batch[0]?.width,
+          height: batch[0]?.height,
           context,
           plantName: named,
         }),
@@ -143,9 +157,9 @@ export function BedSenseApp() {
       }
       setResult(body);
       if (body.contextAsk) setContextOpen(true);
-      setPreview(photo.dataUrl);
+      setPreview(batch[frame]?.dataUrl ?? batch[0]?.dataUrl ?? null);
       setPhase("ready");
-      const thumbnail = await makeThumbnail(photo.dataUrl);
+      const thumbnail = await makeThumbnail(batch[0]?.dataUrl ?? "");
       const entry: HistoryEntry = {
         id: body.id,
         createdAt: body.createdAt,
@@ -164,7 +178,8 @@ export function BedSenseApp() {
     if (entry.result.farmerPlant) setPlantName(entry.result.farmerPlant);
     if (entry.result.contextAsk) setContextOpen(true);
     setPreview(entry.thumbnail);
-    setPrepared(null);
+    setPhotos([]);
+    setFrame(0);
     setError(null);
     setPhase("ready");
   }
@@ -176,7 +191,8 @@ export function BedSenseApp() {
   function reset() {
     setPhase("idle");
     setPreview(null);
-    setPrepared(null);
+    setPhotos([]);
+    setFrame(0);
     setResult(null);
     setError(null);
     if (cameraRef.current) cameraRef.current.value = "";
@@ -237,20 +253,27 @@ export function BedSenseApp() {
             {text.plantNameMissing}
           </p>
         ) : null}
-        {prepared && !busy ? (
+        {photos.length > 0 && !busy ? (
           <button
             type="button"
             onClick={() => void submitPrepared()}
             className="mt-3 min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper"
           >
-            {text.checkPhoto}
+            {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
           </button>
         ) : null}
       </div>
 
       <section className="mt-5 rounded-[1.6rem] border border-ink/10 bg-white/55 p-3 shadow-[0_10px_30px_rgba(36,48,36,0.05)]">
         {preview ? (
-          <MaskCanvas src={preview} alt={text.title} result={result} />
+          <MaskCanvas
+            src={photos[frame]?.dataUrl ?? preview}
+            alt={text.title}
+            result={result}
+            frame={photos.length > 0 ? frame : 0}
+            width={photos[frame]?.width}
+            height={photos[frame]?.height}
+          />
         ) : (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-[1.35rem] border border-dashed border-leaf/40 bg-sand/50 px-6 text-center">
             <p className="font-serif text-2xl">{text.capture}</p>
@@ -283,16 +306,78 @@ export function BedSenseApp() {
           accept="image/*"
           capture="environment"
           aria-label={text.capture}
-          onChange={(event) => void onFile(event.target.files?.[0])}
+          onChange={(event) => {
+            void onFiles(event.target.files ?? undefined, "replace");
+            event.target.value = "";
+          }}
         />
         <input
           ref={libraryRef}
           className="sr-only"
           type="file"
           accept="image/*"
+          multiple
           aria-label={text.upload}
-          onChange={(event) => void onFile(event.target.files?.[0])}
+          onChange={(event) => {
+            void onFiles(event.target.files ?? undefined, "replace");
+            event.target.value = "";
+          }}
         />
+        <input
+          ref={addRef}
+          className="sr-only"
+          type="file"
+          accept="image/*"
+          multiple
+          aria-label={text.addAngle}
+          onChange={(event) => {
+            void onFiles(event.target.files ?? undefined, "append");
+            event.target.value = "";
+          }}
+        />
+        {photos.length > 0 ? (
+          <div className="mt-3 flex gap-2 overflow-x-auto">
+            {photos.map((photo, index) => (
+              <div key={`${photo.width}x${photo.height}-${index}`} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-pressed={frame === index}
+                  onClick={() => {
+                    setFrame(index);
+                    setPreview(photo.dataUrl);
+                  }}
+                  className={`overflow-hidden rounded-xl border-2 ${frame === index ? "border-leaf" : "border-transparent"}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photo.dataUrl} alt="" className="h-16 w-16 object-cover" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = photos.filter((_, item) => item !== index);
+                    setPhotos(next);
+                    const shown = Math.min(frame, Math.max(0, next.length - 1));
+                    setFrame(shown);
+                    setPreview(next[shown]?.dataUrl ?? null);
+                    if (next.length === 0) setResult(null);
+                  }}
+                  className="mt-1 block text-xs font-semibold text-leaf"
+                >
+                  {text.removePhoto}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {photos.length > 0 && photos.length < 3 && !busy ? (
+          <button
+            type="button"
+            onClick={() => addRef.current?.click()}
+            className="mt-3 min-h-11 w-full rounded-2xl bg-sand px-3 text-sm font-semibold text-ink"
+          >
+            {text.addAngle}
+          </button>
+        ) : null}
         {busy ? <CheckProgress text={text} step={progressStep} /> : null}
         {error ? (
           <p className="mt-3 text-sm text-beet" role="alert">
@@ -304,10 +389,10 @@ export function BedSenseApp() {
             <button type="button" onClick={reset} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-leaf">
               {text.retake}
             </button>
-            {prepared && phase === "error" ? (
+            {photos.length > 0 && phase === "error" ? (
               <button
                 type="button"
-                onClick={() => void runCheck(prepared)}
+                onClick={() => void runCheck(photos)}
                 className="min-h-11 rounded-xl px-3 text-sm font-semibold text-soil"
               >
                 {text.retry}
@@ -329,9 +414,9 @@ export function BedSenseApp() {
               disabled={busy}
               open={contextOpen}
               onOpenChange={setContextOpen}
-              canUpdate={Boolean(prepared)}
+              canUpdate={photos.length > 0}
               onUpdate={() => {
-                if (prepared) void runCheck(prepared);
+                if (photos.length > 0) void runCheck(photos);
               }}
               ask={result.contextAsk}
             />
