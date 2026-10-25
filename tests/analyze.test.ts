@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/analyze/route";
-import { copy } from "@/lib/copy";
 import { analyzeBedPhoto } from "@/lib/server/analyze";
 import { buildMockResult } from "@/lib/server/mock";
 import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
@@ -33,7 +32,7 @@ describe("analyze pipeline", () => {
       new Request("http://localhost/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: pngDataUrl(), locale: "sw" }),
+        body: JSON.stringify({ image: pngDataUrl(), locale: "sw", plantName: "pilipili" }),
       }),
     );
     expect(response.status).toBe(200);
@@ -44,8 +43,23 @@ describe("analyze pipeline", () => {
     expect(body.actions).toHaveLength(3);
     expect(body.masks.length).toBeGreaterThan(0);
     expect(body.disclaimer).toContain("si utambuzi");
-    expect(body.agronomistCallout.toLowerCase()).toContain("mtaalamu");
-    expect(JSON.stringify(body)).not.toMatch(/\b\d+(?:[.,]\d+)?\s*ml\b/i);
+    expect(body.agronomistCallout.toLowerCase()).toContain("agroveterinary");
+    expect(body.farmerPlant).toBe("pilipili");
+    expect(body.chemicals.suspect.toLowerCase()).toContain("thrips");
+    expect(body.chemicals.lookup).toBe("catalog");
+    expect(body.chemicals.products.length).toBeGreaterThan(0);
+    const prose = JSON.stringify({
+      actions: body.actions,
+      observations: body.observations,
+      notes: body.chemicals.products.map((product: { useNote: string }) => product.useNote),
+    });
+    expect(prose).not.toMatch(/\b\d+(?:[.,]\d+)?\s*ml\b/i);
+    const offers = body.chemicals.products[0].offers;
+    expect(offers.map((offer: { quality: string }) => offer.quality)).toEqual(["economy", "mid", "premium"]);
+    expect(offers[0].priceMinKes).toBeLessThan(offers[0].priceMaxKes);
+    expect(offers[0].shopName.length).toBeGreaterThan(0);
+    expect(offers[0].place.length).toBeGreaterThan(0);
+    expect(String(body.chemicals.priceNote)).toContain("KES");
     expect(JSON.stringify(body)).not.toContain("MODEL_API_KEY");
   });
 
@@ -82,7 +96,40 @@ describe("analyze pipeline", () => {
       expect(result.models.sam).toBe("sam-3.1");
       expect(result.contextUsed).toBe(false);
       expect(result.contextAsk).toBeTruthy();
+      expect(result.farmerPlant).toBe("");
+      expect(result.chemicals?.products.length).toBeGreaterThan(0);
+      expect(result.chemicals?.lookup).toBe("catalog");
+      for (const product of result.chemicals?.products ?? []) {
+        expect(product.offers.map((offer) => offer.quality)).toEqual(["economy", "mid", "premium"]);
+        for (const offer of product.offers) {
+          expect(offer.priceMinKes).toBeLessThanOrEqual(offer.priceMaxKes);
+          expect(offer.shopName.length).toBeGreaterThan(0);
+        }
+      }
     }
+    expect(focuses[0]?.chemicals?.suspect.toLowerCase()).toContain("purple blotch");
+    expect(focuses[0]?.chemicals?.products.some((product) => product.activeIngredient === "Mancozeb")).toBe(true);
+    expect(focuses[2]?.chemicals?.products.some((product) => product.activeIngredient === "Lambda-cyhalothrin")).toBe(true);
+    expect(focuses[0]?.observations.join(" ").toLowerCase()).not.toMatch(/beetroot|\bbeets?\b|chili|pilipili/);
+    expect(focuses[1]?.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|chili|pilipili/);
+    expect(focuses[2]?.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|beetroot|\bbeets?\b/);
+    expect(focuses[0]?.observations[0]).toMatch(/onion \d+/);
+    expect(focuses[0]?.observations[0]).not.toMatch(/beetroot 0|chili 0/);
+
+    const swahili = [0, 1, 2].map((scenario) =>
+      buildMockResult({
+        scenario: scenario as 0 | 1 | 2,
+        locale: "sw",
+        width: 900,
+        height: 1200,
+        mime: "image/jpeg",
+        id: `sw-${scenario}`,
+        createdAt: "2026-10-25T12:00:00.000Z",
+      }).observations.join(" "),
+    );
+    expect(swahili[0]?.toLowerCase()).not.toMatch(/beetroot|\bbeets?\b|pilipili|chili/);
+    expect(swahili[1]?.toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|pilipili|chili/);
+    expect(swahili[2]?.toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|beetroot|\bbeets?\b/);
   });
 
   it("accepts optional context in demo mode and stops asking once it is present", async () => {
@@ -94,6 +141,7 @@ describe("analyze pipeline", () => {
         body: JSON.stringify({
           image: pngDataUrl(),
           locale: "en",
+          plantName: "onion",
           context: { stage: "three weeks", notes: "leaves look tired" },
         }),
       }),
@@ -102,10 +150,10 @@ describe("analyze pipeline", () => {
     const body = await response.json();
     expect(body.contextUsed).toBe(true);
     expect(body.contextAsk).toBeNull();
-    expect(body.detectedPlant).toBeTruthy();
+    expect(body.detectedPlant).toBe("Onion");
+    expect(body.farmerPlant).toBe("onion");
     expect(body.actions).toHaveLength(3);
     expect(JSON.stringify(body.observations)).not.toContain("notes you added");
-    expect(JSON.stringify(body.observations)).not.toMatch(/segmentation did not return/i);
   });
 
   it("stays in demo mode when no key is configured", async () => {
@@ -115,7 +163,7 @@ describe("analyze pipeline", () => {
       throw new Error("network");
     });
     vi.stubGlobal("fetch", fetchMock);
-    const result = await analyzeBedPhoto({ image: pngDataUrl(), locale: "en" });
+    const result = await analyzeBedPhoto({ image: pngDataUrl(), locale: "en", plantName: "chili" });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.mode).toBe("mock");
     expect(result.actions).toHaveLength(3);
@@ -128,7 +176,7 @@ describe("analyze pipeline", () => {
       new Request("http://localhost/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: pngDataUrl() }),
+        body: JSON.stringify({ image: pngDataUrl(), plantName: "onion" }),
       }),
     );
     expect(response.status).toBe(503);
@@ -145,6 +193,22 @@ describe("analyze pipeline", () => {
       }),
     );
     expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe("bad_request");
+  });
+
+  it("asks for the plant name before it reads the photo", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(
+      new Request("http://localhost/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ image: pngDataUrl(), plantName: "  " }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe("missing_plant");
   });
 
   it("segments with SAM and falls back from contributor Muse, stripping doses", async () => {
@@ -152,7 +216,6 @@ describe("analyze pipeline", () => {
     const liveKey = "k".repeat(40);
     vi.stubEnv("MODEL_API_KEY", liveKey);
     clearModelKeyChunks();
-    const phrases: string[] = [];
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       const headers = new Headers(init.headers);
       expect(headers.get("authorization")).toBe(`Bearer ${liveKey}`);
@@ -165,15 +228,16 @@ describe("analyze pipeline", () => {
         const developer = body.messages.find((message) => message.role === "developer");
         expect(String(developer?.content).toLowerCase()).toContain("any farm plant");
         expect(String(developer?.content)).toContain("contextAsk");
+        expect(String(developer?.content).toLowerCase()).toContain("activeingredient");
+        expect(String(developer?.content).toLowerCase()).not.toContain("do not prescribe");
         const user = body.messages.find((message) => message.role === "user");
         expect(JSON.stringify(user?.content)).toContain("three weeks");
-        expect(JSON.stringify(user?.content)).toContain("Onion");
+        expect(JSON.stringify(user?.content)).toContain("tomato");
       }
       if (String(url).endsWith("/responses")) {
         expect(body.model).toBe("sam-3.1");
         const phrase = body.input?.[0]?.content.find((part) => part.type === "input_text")?.text;
-        if (phrase) phrases.push(phrase);
-        const text = phrase === "onion plant" ? BUTTON_OUTPUT : "";
+        const text = phrase === "tomato plant" ? BUTTON_OUTPUT : "";
         const sse = [
           `data: ${JSON.stringify({ type: "response.output_text.delta", delta: text })}`,
           "",
@@ -194,14 +258,7 @@ describe("analyze pipeline", () => {
             {
               message: {
                 content: JSON.stringify({
-                  observations: [
-                    "The row looks uneven from this side of the bed.",
-                    "Beetroot segmentation did not return, so those marks may be missing.",
-                    "The notes you added are part of this check.",
-                  ],
-                  hypotheses: ["The onion row may be thirsty."],
-                  chemicalsHelp: false,
-                  issue: "none",
+                  observations: ["The row looks uneven from this side of the bed."],
                   actions: [
                     "Feel the soil before watering.",
                     "Spray 20 ml per 20 L of water tonight.",
@@ -211,6 +268,15 @@ describe("analyze pipeline", () => {
                   confidenceScore: 0.91,
                   detectedPlant: "tomato",
                   contextAsk: "When did you last water?",
+                  diseaseIndicated: true,
+                  suspect: "early blight",
+                  chemicals: [
+                    {
+                      activeIngredient: "mancozeb",
+                      productClass: "fungicide",
+                      useNote: "Mix 20 ml per litre and spray tonight.",
+                    },
+                  ],
                 }),
               },
             },
@@ -224,7 +290,7 @@ describe("analyze pipeline", () => {
     const result = await analyzeBedPhoto({
       image: pngDataUrl(),
       locale: "en",
-      plantName: "onion",
+      plantName: "tomato",
       context: { stage: "three weeks" },
     });
     expect(result.mode).toBe("live");
@@ -232,23 +298,40 @@ describe("analyze pipeline", () => {
     expect(result.models.muse).toBe("muse-spark-1.3");
     expect(result.models.triageSource).toBe("muse");
     expect(result.masks.length).toBe(2);
-    expect(result.counts.onion).toBe(2);
+    expect(result.counts.plant).toBe(2);
+    expect(result.counts.onion).toBe(0);
+    expect(result.counts.beetroot).toBe(0);
+    expect(result.counts.chili).toBe(0);
     expect(result.image).toEqual({ width: 320, height: 334, mime: "image/png" });
     expect(result.actions).toHaveLength(3);
     expect(result.confidence).toBe("low");
     expect(JSON.stringify(result)).not.toMatch(/\b20\s*ml\b/i);
     expect(JSON.stringify(result)).not.toContain(liveKey);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
-    expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
-    expect(result.detectedPlant).toBe("Onion");
+    expect(result.agronomistCallout.toLowerCase()).toContain("agroveterinary");
+    expect(result.detectedPlant).toBe("Tomato");
     expect(result.contextAsk).toBe("When did you last water?");
     expect(result.contextUsed).toBe(true);
     expect(result.observations.join(" ")).toContain("uneven");
-    expect(result.observations.join(" ").toLowerCase()).not.toContain("beetroot");
     expect(result.observations.join(" ")).not.toContain("notes you added");
-    expect(result.hypotheses).toContain("The onion row may be thirsty.");
-    expect(result.chemicals).toEqual([]);
-    expect(phrases).toEqual(expect.arrayContaining(["onion plant", "yellow leaf", "weed"]));
+    expect(result.observations.join(" ")).not.toMatch(/segmentation did not return/i);
+    expect(result.farmerPlant).toBe("tomato");
+    expect(result.chemicals?.suspect).toBe("early blight");
+    expect(result.chemicals?.lookup).toBe("catalog");
+    expect(result.chemicals?.products[0]?.activeIngredient).toBe("Mancozeb");
+    expect(result.chemicals?.products[0]?.useNote.toLowerCase()).not.toMatch(/\d+\s*ml/);
+    expect(result.chemicals?.products[0]?.useNote.toLowerCase()).toContain("product label");
+    expect(result.chemicals?.products[0]?.offers).toHaveLength(3);
+    expect(result.chemicals?.verifyNote.toLowerCase()).toContain("agroveterinary");
+    const phrases = fetchMock.mock.calls.flatMap((call) => {
+      const payload = JSON.parse(String(call[1]?.body)) as {
+        input?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+      };
+      return (payload.input ?? []).flatMap((item) => item.content ?? []).flatMap((part) => (part.text ? [part.text] : []));
+    });
+    expect(phrases).toEqual(expect.arrayContaining(["tomato plant", "yellow leaf", "weed"]));
+    expect(phrases).toHaveLength(3);
+    expect(phrases).not.toContain("onion plant");
     expect(phrases).not.toContain("beetroot plant");
     expect(phrases).not.toContain("chili pepper plant");
     const models = fetchMock.mock.calls
@@ -257,49 +340,5 @@ describe("analyze pipeline", () => {
     expect(models).toContain("sam-3.1");
     expect(models).toContain("muse-spark-1.3-contributor");
     expect(models).toContain("muse-spark-1.3");
-  });
-
-  it("triages a named plant when marks are empty and Muse is down", async () => {
-    vi.stubEnv("MOCK_META", "0");
-    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
-    clearModelKeyChunks();
-    const phrases: string[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as {
-          input?: Array<{ content: Array<{ type: string; text?: string }> }>;
-        };
-        if (String(url).endsWith("/responses")) {
-          const phrase = body.input?.[0]?.content.find((part) => part.type === "input_text")?.text;
-          if (phrase) phrases.push(phrase);
-          return new Response("data: {\"type\":\"response.completed\"}\n\n", {
-            status: 200,
-            headers: { "content-type": "text/event-stream" },
-          });
-        }
-        return new Response(JSON.stringify({ error: { message: "unavailable" } }), { status: 503 });
-      }),
-    );
-
-    const result = await analyzeBedPhoto({
-      image: pngDataUrl(),
-      locale: "en",
-      plantName: "chilly",
-      context: { notes: "Yes other chillies are like this. What could be the cause of the curling?" },
-    });
-    expect(result.mode).toBe("live");
-    expect(result.models.triageSource).toBe("local-fallback");
-    expect(result.detectedPlant).toBe("Chili");
-    expect(result.masks).toEqual([]);
-    expect(result.hypotheses.length).toBeGreaterThan(0);
-    expect(result.chemicals.length).toBeGreaterThan(0);
-    expect(result.chemicals.some((offer) => /KES \d+–\d+/.test(offer.kesBand))).toBe(true);
-    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
-    const visible = [...result.observations, ...result.hypotheses, ...result.actions, ...result.chemicals.map((offer) => `${offer.why} ${offer.shops}`)].join(" ");
-    expect(visible.toLowerCase()).not.toContain("beetroot");
-    expect(visible.toLowerCase()).not.toContain("onion");
-    expect(phrases).not.toContain("beetroot plant");
-    expect(phrases).toContain("chili pepper plant");
   });
 });

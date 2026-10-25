@@ -2,7 +2,7 @@
   "name": "bedsense",
   "version": "1.0.0",
   "private": true,
-  "description": "BedSense — name the plant, then photograph a bed, a leaf, or fruit. Works well with onion; often used for beetroot and chili, each on its own bed. SAM 3.1 and Muse Spark return exactly three next checks and likely causes. Not a diagnosis, and not a treatment rate.",
+  "description": "BedSense — photograph any plant on your farm bed. Meta intelligence models return diagnoses and practical next steps. Meta Global AI Developer Hackathon indie demo.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",

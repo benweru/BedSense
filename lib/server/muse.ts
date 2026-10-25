@@ -1,24 +1,25 @@
+import { adviseChemicals } from "@/lib/agrovet";
 import { cleanContextAsk, cleanPlantName, contextIsEmpty, contextPromptBlock, fallbackPlantName } from "@/lib/context";
 import { copy, normalizeLocale } from "@/lib/copy";
-import { contextText, inferIssue } from "@/lib/issues";
+import { contextText, inferIssue, issueActives, issueTriage, issueUsesChemicals } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
+import { parseFarmerPlant } from "@/lib/plant-name";
 import { MUSE_MODELS, postMeta, type MuseModel } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
-import type { ChemicalOffer, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
+import type { ChemicalAdvice, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
 
 export type TriageDraft = {
   observations: string[];
   actions: [string, string, string];
   confidence: "low" | "medium" | "high";
   confidenceScore: number;
-  hypotheses: string[];
-  chemicals: ChemicalOffer[];
   disclaimer: string;
   agronomistCallout: string;
   model: MuseModel | null;
   triageSource: "muse" | "local-fallback";
   detectedPlant: string;
   contextAsk: string | null;
+  chemicals: ChemicalAdvice | null;
 };
 
 export async function adviseBed(options: {
@@ -28,10 +29,9 @@ export async function adviseBed(options: {
   counts: ConceptCounts;
   context: FarmerContext;
   primaryCrop: CropId | null;
-  plantName: string;
+  farmerPlant: string;
 }): Promise<TriageDraft> {
-  const summary = copy[options.locale].countLine(options.counts) || "none";
-  const named = displayPlantName(options.locale, options.plantName);
+  const summary = copy[options.locale].countLine(options.counts);
   for (const model of MUSE_MODELS) {
     try {
       const payload = await postMeta(
@@ -40,13 +40,13 @@ export async function adviseBed(options: {
           model,
           stream: true,
           reasoning_effort: "low",
-          max_completion_tokens: 900,
+          max_completion_tokens: 1400,
           messages: [
             { role: "developer", content: developerPrompt(options.locale) },
             {
               role: "user",
               content: [
-                { type: "text", text: userPrompt(options.locale, summary, options.context, options.plantName) },
+                { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant) },
                 { type: "image_url", image_url: { url: options.imageUrl } },
               ],
             },
@@ -56,32 +56,38 @@ export async function adviseBed(options: {
       );
       const text = chatOutputText(payload);
       const parsed = parseModelJson(text);
+      const issue = inferIssue(contextText(options.context));
       const finalized = finalizeTriage({
         locale: options.locale,
         observations: parsed.observations,
         actions: parsed.actions,
-        hypotheses: parsed.hypotheses,
         confidence: parsed.confidence,
         confidenceScore: parsed.confidenceScore,
         counts: options.counts,
-        plantName: named || options.plantName,
+        plantName: options.farmerPlant,
         context: options.context,
-        chemicalsHelp: parsed.chemicalsHelp,
-        issue: parsed.issue,
+        issue: issue ? undefined : "none",
       });
-      const fromModel = cleanPlantName(parsed.detectedPlant);
       return {
         ...finalized,
         model,
         triageSource: "muse",
-        detectedPlant: named || (fromModel ? displayPlantName(options.locale, fromModel) : "") || fallbackPlantName(options.locale, options.primaryCrop),
+        detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
         contextAsk: cleanContextAsk(parsed.contextAsk),
+        chemicals: chemicalsFromModelOrIssue({
+          locale: options.locale,
+          diseaseIndicated: parsed.diseaseIndicated,
+          suspect: parsed.suspect,
+          chemicals: parsed.chemicals,
+          context: options.context,
+          farmerPlant: options.farmerPlant,
+        }),
       };
     } catch {
       // Try the standard Muse Spark model, then the local backup.
     }
   }
-  return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.plantName);
+  return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.farmerPlant);
 }
 
 export function localFallback(
@@ -89,10 +95,9 @@ export function localFallback(
   counts: ConceptCounts,
   context: FarmerContext,
   primaryCrop: CropId | null,
-  plantName: string,
+  farmerPlant: string,
 ): TriageDraft {
   const text = copy[locale];
-  const display = displayPlantName(locale, plantName) || fallbackPlantName(locale, primaryCrop);
   const issue = inferIssue(contextText(context));
   const finalized = finalizeTriage({
     locale,
@@ -101,60 +106,105 @@ export function localFallback(
     confidence: issue ? "medium" : "low",
     confidenceScore: issue ? 0.56 : 0.33,
     counts,
-    plantName: display,
+    plantName: farmerPlant,
     context,
-    issue: issue ?? "none",
   });
   return {
     ...finalized,
     model: null,
     triageSource: "local-fallback",
-    detectedPlant: display,
+    detectedPlant: namedPlant(locale, null, farmerPlant, primaryCrop),
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
+    chemicals: chemicalsFromModelOrIssue({
+      locale,
+      diseaseIndicated: false,
+      suspect: "",
+      chemicals: [],
+      context,
+      farmerPlant,
+    }),
   };
+}
+
+function namedPlant(locale: Locale, modelName: unknown, farmerPlant: string, primaryCrop: CropId | null): string {
+  const fromModel = cleanPlantName(modelName);
+  if (fromModel) {
+    const folded = displayPlantName(locale, fromModel);
+    return folded || fromModel;
+  }
+  return displayPlantName(locale, farmerPlant) || parseFarmerPlant(farmerPlant) || fallbackPlantName(locale, primaryCrop);
+}
+
+function chemicalsFromModelOrIssue(options: {
+  locale: Locale;
+  diseaseIndicated: unknown;
+  suspect: unknown;
+  chemicals: unknown;
+  context: FarmerContext;
+  farmerPlant: string;
+}): ChemicalAdvice | null {
+  const fromModel = adviseChemicals({
+    locale: options.locale,
+    diseaseIndicated: options.diseaseIndicated,
+    suspect: options.suspect,
+    chemicals: options.chemicals,
+  });
+  if (fromModel && fromModel.products.length > 0) return fromModel;
+  const issue = inferIssue(contextText(options.context));
+  if (!issue || !issueUsesChemicals(issue)) return fromModel;
+  const plant = displayPlantName(options.locale, options.farmerPlant) || copy[options.locale].unknownPlant;
+  const story = issueTriage(options.locale, plant, issue);
+  return adviseChemicals({
+    locale: options.locale,
+    diseaseIndicated: true,
+    suspect: story.hypotheses[0],
+    chemicals: issueActives(issue),
+  });
 }
 
 export function developerPrompt(locale: Locale): string {
   const language = locale === "sw" ? "Swahili" : "English";
   return [
     "You are BedSense, a field triage assistant for any vegetable farm bed.",
-    "The farmer names the plant. That name is the subject. It may be any farm plant, not a fixed list.",
-    "A photo may be a whole bed or a close-up of a leaf or fruit, including a plant held in the hand.",
-    "BedSense works well with onion, and is often used for beetroot and chili. Those are common crops, each grown on its own bed. They are not a limit on what you can advise.",
-    "Onion and beetroot are never on the same bed. Chili is a separate bed as well.",
-    "If more than one of onion, beetroot, and chili is marked in the frame, that is unusual: multi-crop on one photo, not the planting pattern.",
+    "A photo is one bed. The farmer names the plant in free text to assist you. Prefer that name in detectedPlant unless the photo clearly shows a different plant.",
+    "The plant may be any farm plant, not a fixed list.",
+    "Onion, beetroot, and chili are common crops, each grown on its own bed. They are not a limit on what you can advise.",
+    "Onion and beetroot are never on the same bed. Chili is a separate secondary crop on its own bed.",
+    "If more than one of onion, beetroot, and chili is in the frame, that is unusual: multi-crop on one photo, not the planting pattern.",
     "Do not invent where the beds are.",
-    "Do not mention a crop the farmer did not name unless the segmentation counts for that crop are above zero.",
-    "Empty or failed segmentation is common on close-ups. Still read the photo, the plant name, and the context.",
-    "Offer likely causes as hypotheses when the photo or the context shows curling, spots, wilting, yellowing, insects, or deformed growth. Do not state a lab confirmation.",
-    "Never give a spray dose, a mixing rate, millilitres, grams, or litres per area or per tank.",
-    "If the farmer mentions products already used, treat that as history. Do not recommend a new dose.",
-    "When a shop product would help, set chemicalsHelp to true and set issue to the symptom. Do not invent shops or prices.",
-    "When water, nutrition, or a wilt that a spray will not fix is the better explanation, set chemicalsHelp to false.",
-    "Return exactly three next checks in actions. Make them specific to this plant and what you see.",
-    "If one extra fact would make those checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
-    "Do not ask the farmer to choose onion, beetroot, or chili from a list.",
+    "observations describe only what stands out for the plants actually in the photo: symptoms, vigor, spacing, damage, soil, or how many of those plants are in the frame.",
+    "Do not mention a crop that is not in the photo. Do not say another crop is missing, secondary, or grown on a different bed.",
+    "If SAM returned no marks, still triage from the photo, the plant name, and the farmer's notes. Empty marks are not a reason to skip observations, the three checks, or chemicals when a problem is visible or described.",
+    "Do not say that segmentation failed, that marks may be missing, or that no plants were marked.",
+    "Return exactly three next checks in actions, even when you are unsure. Each check is a practical thing to look at or do next on the bed: look, feel soil moisture, remove the worst leaves from the bed, improve airflow, photograph again, visit an extension officer.",
+    "Do not put a spray rate or a product dose in actions.",
+    "If you find or strongly suspect a disease or pest, set diseaseIndicated to true, name it briefly in suspect, and recommend one or two chemicals that would help.",
+    "Each chemical has activeIngredient (the common name, such as mancozeb), productClass (such as fungicide or insecticide), and useNote (typical use, with no numeric rate).",
+    "Do not invent an exact spray rate, mixing rate, millilitres, grams, or litres per area or per tank. Say the rate must follow the product label.",
+    "This chemical advice is for the farmer to verify with a local agroveterinary officer before buying or spraying.",
+    "If no disease or pest is indicated, set diseaseIndicated to false, suspect to an empty string, and chemicals to an empty array.",
+    "If the farmer mentions products already used, treat that as history. Do not turn that history into a new numeric dose.",
+    "If one extra fact would make the checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
+    "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
     `Reply in ${language}.`,
     "Return one JSON object only, with this shape:",
-    '{"detectedPlant":"plant name","observations":["short field note","short field note"],"hypotheses":["likely cause","likely cause"],"actions":["check","check","check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","chemicalsHelp":false,"issue":"curl|deformity|spots|wilt|yellowing|insects|none"}',
-    "observations has 2 or 3 items. hypotheses has 1 to 3 items, or is empty when nothing looks wrong. actions has exactly 3 items. confidenceScore is from 0 to 1.",
+    '{"detectedPlant":"plant name","observations":["short field note","short field note"],"actions":["check","check","check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
+    "observations has 2 or 3 items. actions has exactly 3 items. confidenceScore is from 0 to 1. chemicals has at most 2 items.",
   ].join(" ");
 }
 
-export function userPrompt(locale: Locale, summary: string, context: FarmerContext, plantName = ""): string {
+export function userPrompt(locale: Locale, summary: string, context: FarmerContext, farmerPlant: string): string {
   const language = normalizeLocale(locale) === "sw" ? "Swahili" : "English";
-  const named = displayPlantName(locale, plantName);
   return [
-    named
-      ? `The farmer named the plant: ${named}. That is the crop in this photo. It may be any farm plant.`
-      : "The farmer did not name the plant. Name the plant you see. It may be any farm plant.",
-    "Onion, beetroot, and chili are grown on different beds. More than one of them in this frame is unusual, not the planting pattern. Do not mention a crop that is not the named plant unless the segmentation counts show it above zero.",
-    "SAM marks may be empty on a close-up, a hand-held photo, or a fruit-only shot. Empty marks are not a reason to skip triage.",
-    `Segmentation counts: ${summary}`,
+    "This is a phone photo of one farm bed.",
+    `The farmer names the plant: ${farmerPlant}. Use that name.`,
+    "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",
+    "If no marks were returned, still read the photo, the plant name, and the notes. Empty marks are not a reason to skip the check.",
+    `In frame: ${summary}`,
     contextPromptBlock(context),
-    "Use the photo first, then the plant name, then the context. If you see curling, spots, wilting, yellowing, insects, or deformed fruit, say so in observations and hypotheses.",
-    "observations are short notes about this frame only. Do not mention segmentation failures or crops that are absent.",
-    "Never give a dose, a mixing rate, or millilitres, grams, or litres.",
+    "Use the photo, the plant name, those marks, and any context.",
+    "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
+    "If a disease or pest looks likely, name chemicals by active ingredient. Do not give a numeric spray rate.",
     `Write the JSON in ${language}.`,
   ].join("\n");
 }
@@ -190,9 +240,9 @@ export function parseModelJson(text: string): {
   confidenceScore: unknown;
   detectedPlant: unknown;
   contextAsk: unknown;
-  hypotheses: unknown;
-  chemicalsHelp: unknown;
-  issue: unknown;
+  diseaseIndicated: unknown;
+  suspect: unknown;
+  chemicals: unknown;
 } {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
@@ -207,8 +257,8 @@ export function parseModelJson(text: string): {
     confidenceScore: record.confidenceScore,
     detectedPlant: record.detectedPlant,
     contextAsk: record.contextAsk,
-    hypotheses: record.hypotheses,
-    chemicalsHelp: record.chemicalsHelp,
-    issue: record.issue,
+    diseaseIndicated: record.diseaseIndicated,
+    suspect: record.suspect,
+    chemicals: record.chemicals,
   };
 }

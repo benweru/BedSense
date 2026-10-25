@@ -3,11 +3,22 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MaskCanvas } from "@/components/mask-canvas";
 import { CONCEPTS } from "@/lib/concepts";
-import { emptyFarmerContext } from "@/lib/context";
+import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, rememberCheck } from "@/lib/history";
+import { parseFarmerPlant } from "@/lib/plant-name";
 import { clearHistoryStore, useHistory, useLocale, writeHistory, writeLocale } from "@/lib/phone-store";
-import { CONTEXT_FIELDS, type AnalyzeResult, type ChemicalOffer, type ContextField, type FarmerContext, type HistoryEntry, type Locale } from "@/lib/types";
+import {
+  CONTEXT_FIELDS,
+  QUALITY_BANDS,
+  type AnalyzeResult,
+  type ChemicalAdvice,
+  type ContextField,
+  type FarmerContext,
+  type HistoryEntry,
+  type Locale,
+  type ShopOffer,
+} from "@/lib/types";
 
 type PreparedPhoto = {
   dataUrl: string;
@@ -20,6 +31,7 @@ type Phase = "idle" | "preparing" | "analyzing" | "ready" | "error";
 export function BedSenseApp() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
+  const plantRef = useRef<HTMLInputElement>(null);
   const locale = useLocale();
   const history = useHistory();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -30,8 +42,8 @@ export function BedSenseApp() {
   const [context, setContext] = useState<FarmerContext>(emptyFarmerContext);
   const [contextOpen, setContextOpen] = useState(false);
   const [plantName, setPlantName] = useState("");
+  const [plantError, setPlantError] = useState(false);
   const text = copy[locale];
-  const plantReady = plantName.trim().length >= 2;
 
   useEffect(() => {
     document.documentElement.lang = locale === "sw" ? "sw" : "en";
@@ -52,6 +64,13 @@ export function BedSenseApp() {
       const photo = await preparePhoto(file);
       setPrepared(photo);
       setPreview(photo.dataUrl);
+      if (!parseFarmerPlant(plantName)) {
+        setPlantError(true);
+        setPhase("idle");
+        plantRef.current?.focus();
+        return;
+      }
+      setPlantError(false);
       await runCheck(photo);
     } catch {
       setPhase("error");
@@ -59,7 +78,25 @@ export function BedSenseApp() {
     }
   }
 
+  async function submitPrepared() {
+    if (!prepared) return;
+    if (!parseFarmerPlant(plantName)) {
+      setPlantError(true);
+      plantRef.current?.focus();
+      return;
+    }
+    setPlantError(false);
+    await runCheck(prepared);
+  }
+
   async function runCheck(photo: PreparedPhoto) {
+    const named = parseFarmerPlant(plantName);
+    if (!named) {
+      setPlantError(true);
+      setPhase("idle");
+      plantRef.current?.focus();
+      return;
+    }
     setPhase("analyzing");
     setError(null);
     try {
@@ -72,11 +109,18 @@ export function BedSenseApp() {
           width: photo.width,
           height: photo.height,
           context,
-          plantName: plantName.trim(),
+          plantName: named,
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
       if (!response.ok) {
+        if (body.error === "missing_plant") {
+          setPlantError(true);
+          setPhase("idle");
+          setError(text.plantNameMissing);
+          plantRef.current?.focus();
+          return;
+        }
         setPhase("error");
         setError(body.error === "unsupported_image" || body.error === "image_too_large" ? text.errorFormat : text.errorGeneric);
         return;
@@ -101,6 +145,7 @@ export function BedSenseApp() {
 
   function restore(entry: HistoryEntry) {
     setResult(entry.result);
+    if (entry.result.farmerPlant) setPlantName(entry.result.farmerPlant);
     if (entry.result.contextAsk) setContextOpen(true);
     setPreview(entry.thumbnail);
     setPrepared(null);
@@ -148,34 +193,44 @@ export function BedSenseApp() {
       <h1 className="mt-4 font-serif text-5xl leading-none tracking-tight">{text.title}</h1>
       <p className="mt-3 text-[1.02rem] leading-6 text-ink/80">{text.lede}</p>
 
-      <div className="mt-5">
-        <p id="supported-crops" className="text-sm leading-5 text-ink/80">
-          {text.supportLine}
-        </p>
-        <ul aria-labelledby="supported-crops" className="mt-2 flex gap-2 overflow-x-auto pb-1">
-          {CONCEPTS.filter((concept) => concept.crop).map((concept) => (
-            <li key={concept.id} className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm shadow-sm">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: concept.swatch }} />
-              <span className="font-semibold">{text.concepts[concept.id]}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-sm leading-5 text-ink/70">{text.supportNote}</p>
-      </div>
-
-      <label className="mt-5 block">
-        <span className="text-sm font-semibold">{text.plantNameLabel}</span>
+      <div id="home-plant-name" className="mt-5">
+        <label htmlFor="plant-name" className="block text-sm font-semibold">
+          {text.plantNameLabel}
+        </label>
         <input
-          required
+          ref={plantRef}
+          id="plant-name"
+          name="plantName"
           value={plantName}
-          placeholder={text.plantNamePlaceholder}
-          disabled={busy}
+          required
           autoComplete="off"
-          onChange={(event) => setPlantName(event.target.value)}
-          className="mt-1 min-h-12 w-full rounded-2xl border border-ink/15 bg-white px-3 text-base font-normal"
+          placeholder={text.plantNamePlaceholder}
+          aria-invalid={plantError || undefined}
+          aria-describedby="plant-name-hint"
+          onChange={(event) => {
+            setPlantName(event.target.value);
+            if (parseFarmerPlant(event.target.value)) setPlantError(false);
+          }}
+          className="mt-2 min-h-12 w-full rounded-2xl border border-ink/15 bg-white px-3 text-base"
         />
-      </label>
-      <p className="mt-1 text-sm leading-5 text-ink/70">{plantReady ? text.plantNameHint : text.plantNameRequired}</p>
+        <p id="plant-name-hint" className="mt-2 text-sm leading-5 text-ink/70">
+          {text.plantNameHint}
+        </p>
+        {plantError ? (
+          <p className="mt-2 text-sm text-beet" role="alert">
+            {text.plantNameMissing}
+          </p>
+        ) : null}
+        {prepared && !busy ? (
+          <button
+            type="button"
+            onClick={() => void submitPrepared()}
+            className="mt-3 min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper"
+          >
+            {text.checkPhoto}
+          </button>
+        ) : null}
+      </div>
 
       <section className="mt-5 rounded-[1.6rem] border border-ink/10 bg-white/55 p-3 shadow-[0_10px_30px_rgba(36,48,36,0.05)]">
         {preview ? (
@@ -190,7 +245,7 @@ export function BedSenseApp() {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
-            disabled={busy || !plantReady}
+            disabled={busy}
             onClick={() => cameraRef.current?.click()}
             className="min-h-12 rounded-2xl bg-soil px-3 text-sm font-semibold text-paper disabled:opacity-60"
           >
@@ -198,7 +253,7 @@ export function BedSenseApp() {
           </button>
           <button
             type="button"
-            disabled={busy || !plantReady}
+            disabled={busy}
             onClick={() => libraryRef.current?.click()}
             className="min-h-12 rounded-2xl bg-sand px-3 text-sm font-semibold text-ink disabled:opacity-60"
           >
@@ -262,7 +317,7 @@ export function BedSenseApp() {
               disabled={busy}
               open={contextOpen}
               onOpenChange={setContextOpen}
-              canUpdate={Boolean(prepared) && plantReady}
+              canUpdate={Boolean(prepared)}
               onUpdate={() => {
                 if (prepared) void runCheck(prepared);
               }}
@@ -305,7 +360,8 @@ export function BedSenseApp() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={entry.thumbnail} alt="" className="h-20 w-full object-cover" />
                 <span className="block px-2 py-2 text-xs font-semibold">
-                  {entry.result.detectedPlant ||
+                  {entry.result.farmerPlant ||
+                    entry.result.detectedPlant ||
                     (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks)}
                   <span className="mt-0.5 block font-normal text-ink/60">{text.levelLabel(entry.result.confidence)}</span>
                 </span>
@@ -333,6 +389,7 @@ function ResultCard({
   const score = Math.round(result.confidenceScore * 100);
   return (
     <section className="mt-6 space-y-4" aria-live="polite">
+      <div id="result-reading" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-leaf">
@@ -355,58 +412,45 @@ function ResultCard({
         </p>
       </div>
 
-      {CONCEPTS.some((concept) => result.counts[concept.id] > 0) ? (
-        <ul className="flex flex-wrap gap-2">
-          {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
-            <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs">
-              <span className="h-2 w-2 rounded-full" style={{ background: concept.swatch }} />
-              {text.concepts[concept.id]} {result.counts[concept.id]}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ul className="flex flex-wrap gap-2">
+        {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
+          <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs">
+            <span className="h-2 w-2 rounded-full" style={{ background: concept.swatch }} />
+            {text.concepts[concept.id]} {result.counts[concept.id]}
+          </li>
+        ))}
+      </ul>
 
       {result.masks.length === 0 ? <p className="text-sm text-ink/75">{text.noMasks}</p> : null}
 
-      <div>
+      <div id="result-stands-out">
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.observations}</h3>
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-3 space-y-2">
           {result.observations.map((item) => (
-            <li key={item} className="rounded-2xl bg-white/80 px-3 py-3 text-sm leading-5">
+            <li key={item} className="rounded-2xl bg-white px-3 py-3 text-sm leading-6 shadow-sm">
               {item}
             </li>
           ))}
         </ul>
       </div>
 
-      {(result.hypotheses ?? []).length > 0 ? (
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.hypotheses}</h3>
-          <p className="mt-1 text-sm leading-5 text-ink/70">{text.hypothesesHint}</p>
-          <ul className="mt-2 space-y-2">
-            {result.hypotheses.map((item) => (
-              <li key={item} className="rounded-2xl bg-[#f8ebe7] px-3 py-3 text-sm leading-5">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <div>
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.actions}</h3>
-        <p className="mt-1 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
-        <ol className="mt-2 space-y-2">
+      <div id="result-checks" className="rounded-[1.4rem] bg-white/80 p-3 shadow-sm">
+        <h3 className="font-serif text-2xl leading-none text-soil">{text.actions}</h3>
+        <p className="mt-2 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
+        <ol className="mt-4 space-y-3">
           {result.actions.map((action, index) => (
-            <li key={action} className="flex gap-3 rounded-2xl bg-soil px-3 py-3 text-sm leading-5 text-paper">
-              <span className="font-serif text-2xl leading-none text-onion">{index + 1}</span>
-              <span>{action}</span>
+            <li key={action} className="flex items-start gap-3 rounded-2xl bg-paper px-3 py-3 ring-1 ring-ink/10">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-soil font-serif text-xl text-onion">
+                {index + 1}
+              </span>
+              <span className="pt-2 text-[0.95rem] leading-6">{action}</span>
             </li>
           ))}
         </ol>
       </div>
+      </div>
 
-      <ChemicalList text={text} offers={result.chemicals ?? []} />
+      {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
 
       {contextSlot}
 
@@ -425,26 +469,62 @@ function ResultCard({
   );
 }
 
-function ChemicalList({ text, offers }: { text: Copy; offers: ChemicalOffer[] }) {
-  if (offers.length === 0) return null;
+function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) {
   return (
-    <div>
-      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
-      <p className="mt-1 text-sm leading-5 text-ink/70">{text.chemicalsHint}</p>
-      <ul className="mt-2 space-y-2">
-        {offers.map((offer) => (
-          <li key={`${offer.quality}-${offer.name}`} className="rounded-2xl bg-white px-3 py-3 text-sm leading-5">
-            <span className="block font-semibold">{offer.name}</span>
-            <span className="mt-0.5 block font-semibold text-leaf">
-              {text.qualityLabel(offer.quality)} · {offer.kesBand}
-            </span>
-            <span className="mt-1 block">{offer.shops}</span>
-            <span className="mt-1 block text-ink/80">{offer.why}</span>
-          </li>
-        ))}
-      </ul>
+    <div className="space-y-4">
+      <div id="result-chemicals" className="rounded-[1.4rem] border border-leaf/25 bg-white/80 px-3 py-4">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
+        <p className="mt-2 text-sm leading-5">
+          <span className="font-semibold">{text.chemicalsSuspect}. </span>
+          {advice.suspect}
+        </p>
+        <p className="mt-2 text-sm leading-5 text-ink/80">{advice.verifyNote}</p>
+        <ul className="mt-3 space-y-3">
+          {advice.products.map((product) => (
+            <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-3 py-3">
+              <p className="font-semibold">{product.activeIngredient}</p>
+              <p className="text-sm text-ink/70">{product.productClass}</p>
+              <p className="mt-1 text-sm leading-5">{product.useNote}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div id="result-shops" className="rounded-[1.4rem] border border-leaf/25 bg-white/80 px-3 py-4">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsWhere}</h3>
+        <ul className="mt-3 space-y-3">
+          {advice.products.map((product) => (
+            <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-3 py-3">
+              <p className="font-semibold">{product.activeIngredient}</p>
+              {product.offers.length === 0 ? <p className="mt-1 text-sm leading-5">{text.chemicalsNoShop}</p> : null}
+              <ul className="mt-2 space-y-2">
+                {orderedOffers(product.offers).map((offer) => (
+                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl bg-white px-3 py-2 text-sm leading-5">
+                    <span className="font-semibold">{text.quality[offer.quality]}</span>
+                    <span className="text-ink/70"> · {offer.brand} · {offer.pack}</span>
+                    <span className="mt-0.5 block">
+                      {offer.shopName} · {offer.shopKind} · {offer.place}
+                    </span>
+                    <span className="mt-0.5 block font-semibold">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm leading-5 text-ink/70">{advice.priceNote}</p>
+      </div>
     </div>
   );
+}
+
+function orderedOffers(offers: readonly ShopOffer[]): ShopOffer[] {
+  return [...offers].sort((a, b) => QUALITY_BANDS.indexOf(a.quality) - QUALITY_BANDS.indexOf(b.quality));
+}
+
+function kesRange(min: number, max: number): string {
+  const format = new Intl.NumberFormat("en-KE");
+  return `KES ${format.format(min)}–${format.format(max)}`;
 }
 
 function ContextForm({
@@ -518,7 +598,7 @@ function ContextForm({
           {canUpdate ? (
             <button
               type="button"
-              disabled={disabled || !canUpdate}
+              disabled={disabled || contextIsEmpty(context)}
               onClick={onUpdate}
               className="min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper disabled:opacity-60"
             >

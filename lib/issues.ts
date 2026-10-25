@@ -51,6 +51,15 @@ export function issueUsesChemicals(issue: IssueId): boolean {
   return issue === "curl" || issue === "deformity" || issue === "spots" || issue === "insects";
 }
 
+/** Catalog actives for a symptom. The same list is used for every plant. */
+export function issueActives(issue: IssueId): { activeIngredient: string }[] {
+  if (issue === "spots") return [{ activeIngredient: "mancozeb" }, { activeIngredient: "copper oxychloride" }];
+  if (issue === "curl" || issue === "deformity" || issue === "insects") {
+    return [{ activeIngredient: "abamectin" }, { activeIngredient: "lambda-cyhalothrin" }];
+  }
+  return [];
+}
+
 export type IssueStory = {
   observations: [string, string];
   hypotheses: [string, string];

@@ -1,26 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { chemicalOffers } from "@/lib/agrovet";
+import { adviseChemicals } from "@/lib/agrovet";
 import { copy } from "@/lib/copy";
 import { emptyFarmerContext } from "@/lib/context";
 import { emptyConceptCounts } from "@/lib/concepts";
-import { inferIssue } from "@/lib/issues";
+import { inferIssue, issueActives, type IssueId } from "@/lib/issues";
 import { buildMockResult } from "@/lib/server/mock";
 import { containsDosage, finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult } from "@/lib/types";
 
-function visibleText(result: Pick<AnalyzeResult, "observations" | "hypotheses" | "actions" | "chemicals">): string {
+function visibleText(result: Pick<AnalyzeResult, "observations" | "actions" | "chemicals">): string {
+  const chemicals = result.chemicals;
   return [
     ...result.observations,
-    ...result.hypotheses,
     ...result.actions,
-    ...result.chemicals.map((offer) => `${offer.name} ${offer.why} ${offer.shops}`),
+    chemicals?.suspect ?? "",
+    ...(chemicals?.products ?? []).flatMap((product) => [
+      product.activeIngredient,
+      product.useNote,
+      ...product.offers.map((offer) => `${offer.shopName} ${offer.place} KES ${offer.priceMinKes}`),
+    ]),
   ].join(" ");
+}
+
+function productNames(issue: IssueId): string[] {
+  const advice = adviseChemicals({
+    locale: "en",
+    diseaseIndicated: true,
+    suspect: "symptom",
+    chemicals: issueActives(issue),
+  });
+  return advice?.products.map((product) => product.activeIngredient) ?? [];
 }
 
 const emptyCounts = emptyConceptCounts();
 
 describe("sparse marks and a reported issue", () => {
-  it("drops other-crop failure notes and still returns causes, checks, and shops", () => {
+  it("drops other-crop failure notes and still returns causes and checks", () => {
     const context = { ...emptyFarmerContext(), notes: "What could be the cause of the curling?" };
     const result = finalizeTriage({
       locale: "en",
@@ -33,8 +48,6 @@ describe("sparse marks and a reported issue", () => {
         "The fruit in the hand is twisted along the stem.",
       ],
       actions: copy.en.fallbackActions,
-      hypotheses: [],
-      chemicalsHelp: true,
       counts: emptyCounts,
       confidence: "low",
       confidenceScore: 0.3,
@@ -43,22 +56,32 @@ describe("sparse marks and a reported issue", () => {
     const visible = result.observations.join("\n");
     expect(visible).not.toMatch(/beetroot|onion|chili|pilipili|segmentation did not return|notes you added|no plants were marked/i);
     expect(visible.toLowerCase()).toContain("twisted");
-    expect(result.hypotheses.length).toBeGreaterThan(0);
-    expect(result.hypotheses.join(" ").toLowerCase()).toContain("tomato");
+    expect(visible.toLowerCase()).toContain("tomato");
     expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
-    expect(result.chemicals.length).toBeGreaterThan(0);
-    expect(result.chemicals.every((offer) => /KES \d+–\d+/.test(offer.kesBand))).toBe(true);
-    expect(result.chemicals.some((offer) => /kenya/i.test(offer.shops))).toBe(true);
     expect(JSON.stringify(result)).not.toMatch(/\b\d+\s*ml\b/i);
   });
 
   it("uses the symptom, not the plant, to choose shop products", () => {
-    const curl = chemicalOffers("en", "curl").map((offer) => offer.name);
-    const spots = chemicalOffers("en", "spots").map((offer) => offer.name);
+    const curl = productNames("curl");
+    const spots = productNames("spots");
+    expect(curl.length).toBeGreaterThan(0);
+    expect(spots.length).toBeGreaterThan(0);
     expect(curl).not.toEqual(spots);
-    expect(chemicalOffers("en", "yellowing")).toEqual([]);
-    expect(chemicalOffers("en", "wilt")).toEqual([]);
-    expect(chemicalOffers("sw", "spots")[0]?.shops).not.toBe(chemicalOffers("en", "spots")[0]?.shops);
+    expect(issueActives("yellowing")).toEqual([]);
+    expect(issueActives("wilt")).toEqual([]);
+    const sw = adviseChemicals({
+      locale: "sw",
+      diseaseIndicated: true,
+      suspect: "madoa",
+      chemicals: issueActives("spots"),
+    });
+    const en = adviseChemicals({
+      locale: "en",
+      diseaseIndicated: true,
+      suspect: "spots",
+      chemicals: issueActives("spots"),
+    });
+    expect(sw?.products[0]?.offers[0]?.shopKind).not.toBe(en?.products[0]?.offers[0]?.shopKind);
     expect(inferIssue("dark spots on the lower leaves")).toBe("spots");
     expect(inferIssue("the leaves are wilting")).toBe("wilt");
     expect(inferIssue("leaves look tired")).toBeNull();
@@ -78,9 +101,12 @@ describe("sparse marks and a reported issue", () => {
     });
     expect(curl.detectedPlant).toBe("Chili");
     expect(curl.masks).toEqual([]);
-    expect(curl.hypotheses.length).toBeGreaterThan(0);
-    expect(curl.chemicals.length).toBeGreaterThan(0);
+    expect(curl.counts.beetroot).toBe(0);
+    expect(curl.observations.join(" ").toLowerCase()).toContain("chili");
+    expect(curl.chemicals?.products.length).toBeGreaterThan(0);
+    expect(curl.chemicals?.lookup).toBe("catalog");
     expect(visibleText(curl).toLowerCase()).not.toContain("beetroot");
+    expect(visibleText(curl)).toMatch(/Kenya|KES/i);
     expect(curl.actions).not.toEqual([...copy.en.fallbackActions]);
 
     const spots = buildMockResult({
@@ -96,10 +122,10 @@ describe("sparse marks and a reported issue", () => {
     });
     expect(spots.detectedPlant).toBe("Nyanya");
     expect(spots.masks).toEqual([]);
-    expect(spots.hypotheses.join(" ")).toContain("Nyanya");
-    expect(spots.chemicals.length).toBeGreaterThan(0);
+    expect(spots.observations.join(" ")).toContain("Nyanya");
+    expect(spots.chemicals?.products.some((product) => product.activeIngredient === "Mancozeb")).toBe(true);
     expect(visibleText(spots)).not.toMatch(/beetroot|pilipili|kitunguu|chili/i);
-    expect(spots.chemicals.some((offer) => /KES/.test(offer.kesBand))).toBe(true);
+    expect(spots.chemicals?.priceNote).toContain("KES");
 
     const wilt = buildMockResult({
       scenario: 0,
@@ -113,20 +139,27 @@ describe("sparse marks and a reported issue", () => {
       context: { ...emptyFarmerContext(), issues: "the plants are wilting" },
     });
     expect(wilt.detectedPlant).toBe("Kale");
-    expect(wilt.hypotheses.length).toBeGreaterThan(0);
-    expect(wilt.chemicals).toEqual([]);
+    expect(wilt.observations.length).toBeGreaterThan(0);
+    expect(wilt.chemicals).toBeNull();
     expect(visibleText(wilt)).not.toMatch(/chili|beetroot|onion/i);
   });
 
-  it("keeps catalog copy free of spray rates", () => {
+  it("keeps catalog advice free of spray rates", () => {
     for (const locale of ["en", "sw"] as const) {
       for (const issue of ["curl", "deformity", "spots", "insects"] as const) {
-        for (const offer of chemicalOffers(locale, issue)) {
-          expect(containsDosage(`${offer.name} ${offer.why} ${offer.shops} ${offer.kesBand}`)).toBe(false);
+        const advice = adviseChemicals({
+          locale,
+          diseaseIndicated: true,
+          suspect: "symptom",
+          chemicals: issueActives(issue),
+        });
+        expect(advice?.products.length).toBeGreaterThan(0);
+        for (const product of advice?.products ?? []) {
+          expect(containsDosage(`${product.activeIngredient} ${product.productClass} ${product.useNote}`)).toBe(false);
         }
       }
-      expect(containsDosage(copy[locale].chemicalsHint)).toBe(false);
-      expect(containsDosage(copy[locale].hypothesesHint)).toBe(false);
+      expect(containsDosage(copy[locale].verifyNote)).toBe(false);
+      expect(containsDosage(copy[locale].priceNote)).toBe(false);
     }
   });
 });

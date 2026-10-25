@@ -11,15 +11,34 @@ export type ConceptKind = "crop" | "symptom" | "other";
 
 export type ConfidenceLevel = "low" | "medium" | "high";
 
-export const CHEMICAL_QUALITIES = ["economy", "standard", "premium"] as const;
-export type ChemicalQuality = (typeof CHEMICAL_QUALITIES)[number];
+export const QUALITY_BANDS = ["economy", "mid", "premium"] as const;
+export type QualityBand = (typeof QUALITY_BANDS)[number];
 
-export type ChemicalOffer = {
-  name: string;
-  quality: ChemicalQuality;
-  kesBand: string;
-  shops: string;
-  why: string;
+export type ShopOffer = {
+  quality: QualityBand;
+  brand: string;
+  pack: string;
+  shopName: string;
+  shopKind: string;
+  place: string;
+  priceMinKes: number;
+  priceMaxKes: number;
+};
+
+export type ChemicalProduct = {
+  activeIngredient: string;
+  productClass: string;
+  useNote: string;
+  offers: ShopOffer[];
+};
+
+/** Present when a disease or pest is suspected. Shop rows come from the Kenya catalog. */
+export type ChemicalAdvice = {
+  suspect: string;
+  products: ChemicalProduct[];
+  verifyNote: string;
+  priceNote: string;
+  lookup: "catalog" | "live";
 };
 
 /** One of the familiar crops, an unusual multi-crop frame (`mixed`), or none of those marks (`unknown`). Other plants are still named from the photo. */
@@ -75,14 +94,15 @@ export type AnalyzeResult = {
   cropFocus: CropFocus;
   primaryCrop: CropId | null;
   detectedPlant: string;
+  /** Free-text name the farmer typed before the check. */
+  farmerPlant: string;
   contextAsk: string | null;
   contextUsed: boolean;
+  chemicals: ChemicalAdvice | null;
   counts: ConceptCounts;
   masks: MaskMark[];
   observations: string[];
-  hypotheses: string[];
   actions: [string, string, string];
-  chemicals: ChemicalOffer[];
   confidence: ConfidenceLevel;
   confidenceScore: number;
   disclaimer: string;
@@ -98,7 +118,7 @@ export type HistoryEntry = {
 };
 
 export class AnalyzeError extends Error {
-  readonly code: "bad_request" | "unsupported_image" | "image_too_large" | "missing_key" | "upstream";
+  readonly code: "bad_request" | "unsupported_image" | "image_too_large" | "missing_key" | "missing_plant" | "upstream";
 
   constructor(code: AnalyzeError["code"]) {
     super(code);

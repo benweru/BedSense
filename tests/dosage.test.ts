@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { copy } from "@/lib/copy";
-import { containsDosage, finalizeTriage } from "@/lib/triage";
+import { containsDosage, finalizeTriage, mentionsAbsentCrop } from "@/lib/triage";
 import type { ConceptCounts } from "@/lib/types";
 
 const counts: ConceptCounts = { onion: 2, beetroot: 0, chili: 0, plant: 0, "yellow-leaf": 1, weed: 0 };
@@ -20,6 +20,9 @@ describe("dosage guard", () => {
       const text = copy[locale];
       expect(containsDosage(text.disclaimer)).toBe(false);
       expect(containsDosage(text.agronomistCallout)).toBe(false);
+      expect(containsDosage(text.verifyNote)).toBe(false);
+      expect(containsDosage(text.priceNote)).toBe(false);
+      expect(containsDosage(text.chemicalUseFallback)).toBe(false);
       for (const action of text.fallbackActions) expect(containsDosage(action)).toBe(false);
     }
   });
@@ -32,6 +35,7 @@ describe("dosage guard", () => {
       confidence: "high",
       confidenceScore: 0.93,
       counts,
+      failedConcepts: [],
     });
     expect(result.actions).toHaveLength(3);
     expect(result.actions.join(" ")).not.toMatch(/\d+\s*ml/i);
@@ -39,8 +43,38 @@ describe("dosage guard", () => {
     expect(result.confidence).toBe("low");
     expect(result.confidenceScore).toBeLessThanOrEqual(0.4);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
-    expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
+    expect(result.agronomistCallout.toLowerCase()).toContain("agroveterinary");
     expect(result.observations[0]).toContain("onion 2");
-    expect(result.observations.join(" ").toLowerCase()).not.toContain("beetroot");
+    expect(result.observations[0]).toContain("yellow leaf 1");
+    expect(result.observations[0].toLowerCase()).not.toContain("beetroot");
+    expect(result.observations[0].toLowerCase()).not.toContain("chili");
+    expect(result.observations[0]).not.toContain(" 0");
+  });
+
+  it("drops stands-out notes that name a crop or bed outside the frame", () => {
+    expect(mentionsAbsentCrop("Beetroot grows on a different bed.", counts)).toBe(true);
+    expect(mentionsAbsentCrop("Chili is a secondary crop.", counts)).toBe(true);
+    expect(mentionsAbsentCrop("Outer onion leaves look tired.", counts)).toBe(false);
+    const result = finalizeTriage({
+      locale: "en",
+      observations: [
+        "Outer onion leaves look tired.",
+        "Beetroot is on a different bed and is not in this photo.",
+        "The soil at the edge looks dry.",
+      ],
+      actions: copy.en.fallbackActions,
+      confidence: "medium",
+      confidenceScore: 0.6,
+      counts,
+      failedConcepts: [],
+    });
+    const notes = result.observations.join(" ");
+    expect(notes).toContain("Outer onion leaves look tired.");
+    expect(notes).toContain("The soil at the edge looks dry.");
+    expect(notes.toLowerCase()).not.toContain("beetroot");
+    expect(notes.toLowerCase()).not.toContain("different bed");
+    expect(copy.sw.countLine(counts)).toContain("kitunguu 2");
+    expect(copy.sw.countLine(counts)).not.toContain("pilipili");
+    expect(copy.sw.countLine(counts)).not.toContain("beetroot");
   });
 });

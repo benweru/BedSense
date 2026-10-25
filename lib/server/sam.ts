@@ -14,9 +14,24 @@ export type SegmentPass = {
   sourceSize: { width: number; height: number } | null;
 };
 
-export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint: number, plantName = ""): Promise<SegmentPass> {
+/** SAM prompts for this photo: the named plant, yellow leaf, and weed. */
+export function promptsForBed(farmerPlant: string): { id: ConceptId; phrase: string; extra: boolean }[] {
+  return probesForPlant(farmerPlant).map((probe) => ({
+    id: probe.id,
+    phrase: probe.phrase,
+    extra: probe.id === "plant",
+  }));
+}
+
+export async function segmentBed(
+  imageUrl: string,
+  apiKey: string,
+  imageAreaHint: number,
+  farmerPlant: string,
+): Promise<SegmentPass> {
+  const jobs = promptsForBed(farmerPlant);
   const passes = await Promise.all(
-    probesForPlant(plantName).map(async (concept) => {
+    jobs.map(async (job) => {
       try {
         const payload = await postMeta(
           "/responses",
@@ -32,7 +47,7 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
                 type: "message",
                 role: "user",
                 content: [
-                  { type: "input_text", text: concept.phrase },
+                  { type: "input_text", text: job.phrase },
                   { type: "input_image", image_url: imageUrl },
                 ],
               },
@@ -41,11 +56,16 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
           apiKey,
         );
         const text = samOutputText(payload);
-        const parsed = await masksFromOutputText(concept.id, text, imageAreaHint);
-        return { conceptId: concept.id, ...parsed, failed: false as const };
+        const parsed = await masksFromOutputText(job.id, text, imageAreaHint);
+        return {
+          conceptId: job.id,
+          masks: parsed.masks.map((mask) => ({ ...mask, phrase: job.phrase })),
+          sourceSize: parsed.sourceSize,
+          failed: false as const,
+        };
       } catch {
         return {
-          conceptId: concept.id,
+          conceptId: job.id,
           masks: [] as MaskMark[],
           sourceSize: null,
           failed: true as const,
