@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyConceptCounts } from "@/lib/concepts";
 import { emptyFarmerContext } from "@/lib/context";
 import { copy } from "@/lib/copy";
-import { parseSse, postMeta } from "@/lib/server/meta";
-import { adviseBed, chatOutputText, readModelDraft } from "@/lib/server/muse";
+import { chatMuseModels, parseSse, postMeta } from "@/lib/server/meta";
+import { adviseBed, chatOutputText, marksSummary, readModelDraft } from "@/lib/server/muse";
 
 const triage = {
   detectedPlant: "chili",
@@ -55,6 +55,26 @@ function bedOptions() {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("Muse model choice", () => {
+  it("keeps chat models and drops SAM, image, and voice", () => {
+    expect(
+      chatMuseModels([
+        "sam-3.1",
+        "muse-image-1.0",
+        "muse-wonder-1.0",
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor",
+        "muse-voice-transcribe-1.0",
+        "muse-spark-1.2-contributor",
+      ]),
+    ).toEqual(["muse-spark-1.2-contributor", "muse-spark-1.2", "muse-wonder-1.0"]);
+    expect(marksSummary("en", emptyConceptCounts())).toBe("SAM mark count is zero. Describe the named plant in the photo.");
+    expect(marksSummary("en", emptyConceptCounts())).not.toContain("No plants were marked");
+    expect(marksSummary("sw", emptyConceptCounts())).toContain("sifuri");
+    expect(marksSummary("en", { ...emptyConceptCounts(), chili: 2 })).toContain("chili 2");
+  });
 });
 
 describe("Muse stream parsing", () => {
@@ -200,6 +220,104 @@ describe("adviseBed", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result.triageSource).toBe("local-fallback");
     expect(result.actions).toEqual([...copy.en.fallbackActions]);
+  });
+
+  it("reads another chat model when both Spark 1.3 ids are missing, including a curled chili with no SAM marks", async () => {
+    const models: string[] = [];
+    const looped = {
+      detectedPlant: "chili",
+      symptom: "",
+      observations: ["Two chili fruits in the hand are looped into tight rings."],
+      likelyCauses: [],
+      mitigations: [],
+      actions: [...copy.en.fallbackActions],
+      confidence: "low",
+      confidenceScore: 0.4,
+      contextAsk: "",
+      sprayIndicated: false,
+      diseaseIndicated: false,
+      suspect: "",
+      chemicals: [],
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (init.method === "GET" || String(url).endsWith("/models")) {
+          return jsonResponse({
+            data: [
+              { id: "sam-3.1" },
+              { id: "muse-image-1.0" },
+              { id: "muse-voice-transcribe-1.0" },
+              { id: "muse-spark-1.3-contributor" },
+              { id: "muse-spark-1.2" },
+              { id: "muse-spark-1.2-contributor" },
+              { id: "muse-wonder-1.0" },
+            ],
+          });
+        }
+        const body = JSON.parse(String(init.body)) as { model?: string; messages?: unknown };
+        models.push(body.model ?? "");
+        if (body.model === "muse-spark-1.2-contributor") {
+          const prompt = JSON.stringify(body.messages);
+          expect(prompt).not.toContain("No plants were marked");
+          expect(prompt).toContain("SAM mark count is zero");
+          expect(prompt.toLowerCase()).toContain("looped");
+          return jsonResponse({ choices: [{ message: { content: JSON.stringify(looped) } }] });
+        }
+        return jsonResponse({ error: { code: "model_not_found" } }, 404);
+      }),
+    );
+    const result = await adviseBed(bedOptions());
+    expect(models).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-spark-1.2-contributor"]);
+    expect(result.triageSource).toBe("muse");
+    expect(result.model).toBe("muse-spark-1.2-contributor");
+    expect(result.likelyCauses.length).toBeGreaterThan(1);
+    expect(result.mitigations.length).toBeGreaterThan(1);
+    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(result.actions.join(" ").toLowerCase()).toMatch(/chili|twist|pest/);
+    expect(result.chemicals).toBeNull();
+  });
+
+  it("uses the reserve list when the catalog cannot be read, and prefers a catalog wonder model over that list", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const reserveModels: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) return jsonResponse({ error: { code: "server_error" } }, 500);
+        const body = JSON.parse(String(init.body)) as { model?: string };
+        reserveModels.push(body.model ?? "");
+        if (body.model === "muse-spark-1.2-contributor") {
+          return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+        }
+        return jsonResponse({ error: { code: "model_not_found" } }, 404);
+      }),
+    );
+    const reserved = await adviseBed(bedOptions());
+    expect(reserveModels).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-spark-1.2-contributor"]);
+    expect(reserved.triageSource).toBe("muse");
+    expect(reserved.model).toBe("muse-spark-1.2-contributor");
+    expect(reserved.actions).not.toEqual([...copy.en.fallbackActions]);
+
+    const wonderModels: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) return jsonResponse({ data: [{ id: "muse-wonder-1.0" }, { id: "sam-3.1" }] });
+        const body = JSON.parse(String(init.body)) as { model?: string };
+        wonderModels.push(body.model ?? "");
+        if (body.model === "muse-wonder-1.0") {
+          return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+        }
+        return jsonResponse({ error: { code: "model_not_found" } }, 404);
+      }),
+    );
+    const wondered = await adviseBed(bedOptions());
+    expect(wonderModels).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-wonder-1.0"]);
+    expect(wondered.model).toBe("muse-wonder-1.0");
+    expect(wondered.likelyCauses.length).toBeGreaterThan(1);
+    expect(wondered.actions).not.toEqual([...copy.en.fallbackActions]);
   });
 
   it("salvages a cut-off JSON object instead of treating Muse as unanswered", async () => {

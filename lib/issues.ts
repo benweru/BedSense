@@ -8,7 +8,7 @@ const RULES: readonly { id: IssueId; pattern: RegExp }[] = [
   {
     id: "deformity",
     pattern:
-      /\b(deform\w*|misshapen|malformed|twisted|twisting|distort\w*|spiral\w*|coil\w*|pucker\w*|kipind\w*|potofu|yaliyopinda)\b/i,
+      /\b(deform\w*|misshapen|malformed|twisted|twisting|distort\w*|spiral\w*|coil\w*|pucker\w*|loops?|looped|looping|hooked|corkscrew|kipind\w*|potofu|yaliyopinda)\b/i,
   },
   {
     id: "curl",

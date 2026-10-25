@@ -83,7 +83,7 @@ export type AnalyzeResult = {
   mode: "mock" | "live";
   models: {
     sam: "sam-3.1";
-    muse: "muse-spark-1.3-contributor" | "muse-spark-1.3" | null;
+    muse: string | null;
     triageSource: "muse" | "mock" | "local-fallback";
   };
   image: {

@@ -4,9 +4,18 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
-import { MUSE_MODELS, MetaHttpError, postMeta, type MuseModel } from "@/lib/server/meta";
+import { chatMuseModels, listMetaModels, MUSE_MODELS, MUSE_RESERVE_MODELS, MetaHttpError, postMeta } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
 import type { ChemicalAdvice, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
+
+/** What Muse is told about SAM. An empty frame must not read as "no plants". */
+export function marksSummary(locale: Locale, counts: ConceptCounts): string {
+  const summary = copy[locale].countLine(counts);
+  if (Object.values(counts).some((count) => count > 0)) return summary;
+  return locale === "sw"
+    ? "Idadi ya alama za SAM ni sifuri. Eleza mmea uliotajwa kwenye picha."
+    : "SAM mark count is zero. Describe the named plant in the photo.";
+}
 
 export type ModelDraft = {
   observations: unknown;
@@ -33,7 +42,7 @@ export type TriageDraft = {
   confidenceScore: number;
   disclaimer: string;
   agronomistCallout: string;
-  model: MuseModel | null;
+  model: string | null;
   triageSource: "muse" | "local-fallback";
   detectedPlant: string;
   contextAsk: string | null;
@@ -52,13 +61,43 @@ export async function adviseBed(options: {
   deadline?: number;
 }): Promise<TriageDraft> {
   const deadline = options.deadline ?? Date.now() + 36_000;
+  let missing = 0;
+  let ran = 0;
   for (let index = 0; index < MUSE_MODELS.length; index += 1) {
     const model = MUSE_MODELS[index];
     if (!model) continue;
-    const draft = await tryModel(options, model, deadline, index === 0 ? 12_000 : 1_000);
-    if (draft) return draft;
+    ran += 1;
+    const attempt = await tryModel(options, model, deadline, index === 0 ? 12_000 : 1_000);
+    if (attempt.draft) return attempt.draft;
+    if (attempt.missing) missing += 1;
+  }
+  // Production returned 404 model_not_found for both Spark 1.3 ids. The photo never reached a model,
+  // so an empty-context backup filled the generic checks. Ask the catalog, then a short reserve list.
+  if (ran > 0 && missing === ran) {
+    for (const model of await alternateMuseModels(options.apiKey, deadline)) {
+      const attempt = await tryModel(options, model, deadline, 1_000);
+      if (attempt.draft) return attempt.draft;
+    }
   }
   return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.farmerPlant);
+}
+
+async function alternateMuseModels(apiKey: string, deadline: number): Promise<string[]> {
+  let listed: string[] = [];
+  const budget = deadline - Date.now();
+  if (budget > 9_000) {
+    try {
+      listed = await listMetaModels(apiKey, Math.min(8_000, budget - 7_000));
+    } catch (error) {
+      const reason = error instanceof MetaHttpError ? `${error.status} ${error.reason}` : "error";
+      console.error(`muse catalog ${reason}`);
+      listed = [];
+    }
+  }
+  const skipped = new Set<string>(MUSE_MODELS);
+  const fromCatalog = chatMuseModels(listed).filter((id) => !skipped.has(id));
+  const fromReserve = MUSE_RESERVE_MODELS.filter((id) => !skipped.has(id) && !fromCatalog.includes(id));
+  return [...fromCatalog, ...fromReserve].slice(0, 4);
 }
 
 async function tryModel(
@@ -71,16 +110,16 @@ async function tryModel(
     primaryCrop: CropId | null;
     farmerPlant: string;
   },
-  model: MuseModel,
+  model: string,
   deadline: number,
   keepMs: number,
-): Promise<TriageDraft | null> {
+): Promise<{ draft: TriageDraft | null; missing: boolean }> {
   for (let tryIndex = 0; tryIndex < 2; tryIndex += 1) {
     const timeoutMs = attemptTimeout(deadline, keepMs);
-    if (timeoutMs === null) return null;
+    if (timeoutMs === null) return { draft: null, missing: false };
     const started = Date.now();
     try {
-      return await completeModel(options, model, timeoutMs);
+      return { draft: await completeModel(options, model, timeoutMs), missing: false };
     } catch (error) {
       const elapsed = Date.now() - started;
       const retryable = tryIndex === 0 && isFastRetry(error) && elapsed < 3_000 && attemptTimeout(deadline, keepMs) !== null;
@@ -90,10 +129,11 @@ async function tryModel(
       }
       const reason = error instanceof MetaHttpError ? `${error.status} ${error.reason}` : error instanceof Error ? error.message : "error";
       console.error(`muse ${model} ${reason}`);
-      return null;
+      const missing = error instanceof MetaHttpError && (error.status === 404 || error.reason === "model_not_found");
+      return { draft: null, missing };
     }
   }
-  return null;
+  return { draft: null, missing: false };
 }
 
 function attemptTimeout(deadline: number, keepMs: number): number | null {
@@ -121,10 +161,10 @@ async function completeModel(
     primaryCrop: CropId | null;
     farmerPlant: string;
   },
-  model: MuseModel,
+  model: string,
   timeoutMs: number,
 ): Promise<TriageDraft> {
-  const summary = copy[options.locale].countLine(options.counts);
+  const summary = marksSummary(options.locale, options.counts);
   const payload = await postMeta(
     "/chat/completions",
     {
@@ -285,6 +325,7 @@ export function developerPrompt(locale: Locale): string {
     "If SAM returned no marks, still triage from the photo, the plant name, and the farmer's notes. Empty marks are not a reason to skip observations, the three checks, or chemicals when a problem is visible or described.",
     "Do not say that segmentation failed, that marks may be missing, or that no plants were marked.",
     "When the photo or the notes show a concrete symptom (curl, deformity, spots, insects, wilt, or yellowing), fill likelyCauses with 2 short hypotheses and mitigations with 2 or 3 practical steps.",
+    "Looped, hooked, or corkscrew fruit or leaves are a deformity even when SAM returned nothing.",
     "Mitigations are cultural practice, monitoring, sanitation, or irrigation. They are not spray rates, and they are not the same sentences as actions.",
     "Return exactly three next checks in actions. Each check must be about the symptom you saw on the named plant.",
     "Do not use a generic trio (feel the soil, lift the worst leaves, photograph again in two days) when a concrete symptom is visible. Those three are only for a bed with no symptom.",
@@ -318,7 +359,7 @@ export function userPrompt(locale: Locale, summary: string, context: FarmerConte
     contextPromptBlock(context),
     "Use the photo, the plant name, those marks, and any context.",
     "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
-    "If a symptom is visible, likelyCauses and mitigations are required even when SAM returned nothing.",
+    "If a symptom is visible, likelyCauses and mitigations are required even when SAM returned nothing. Looped, hooked, or corkscrew growth is a symptom.",
     "Make the three actions specific to that symptom. Do not answer with a generic soil, leaf-removal, and re-photo list.",
     "Set sprayIndicated and name chemicals by active ingredient only when a spray is the usual next step. Do not give a numeric spray rate.",
     `Write the JSON in ${language}.`,
