@@ -45,22 +45,48 @@ describe("public project boundaries", () => {
     expect(example).toContain("MOCK_META=1");
     expect(readFileSync(".gitignore", "utf8")).toMatch(/\.env\*/);
     expect(readFileSync("LICENSE", "utf8")).toContain("MIT License");
+
     const readme = readFileSync("README.md", "utf8");
     for (const phrase of [
       "BedSense",
       "Meta Global AI Developer Hackathon",
       "Indie",
       "Build for Your World",
-      "MOCK_META",
-      "MODEL_API_KEY",
-      "sam-3.1",
-      "muse-spark-1.3-contributor",
-      "muse-spark-1.3",
+      "Kiswahili",
       "MIT",
-      "/api/analyze",
       "agronomist",
+      "docs/development.md",
     ]) {
       expect(readme).toContain(phrase);
+    }
+    for (const phrase of [
+      "MOCK_META",
+      "MODEL_API_KEY",
+      ".env.example",
+      "muse-spark-1.3",
+      "sam-3.1",
+      "mask_encoding",
+      "localStorage",
+      "npm run",
+      "/api/analyze",
+    ]) {
+      expect(readme, phrase).not.toContain(phrase);
+    }
+
+    const dev = readFileSync("docs/development.md", "utf8");
+    for (const phrase of [
+      "MOCK_META",
+      "MODEL_API_KEY",
+      ".env.example",
+      "sam-3.1",
+      "muse-spark-1.3-contributor",
+      "`muse-spark-1.3`",
+      "/api/analyze",
+      "localStorage",
+      "mask_encoding",
+      "npm test",
+    ]) {
+      expect(dev, phrase).toContain(phrase);
     }
   });
 
