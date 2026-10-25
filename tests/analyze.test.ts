@@ -110,6 +110,26 @@ describe("analyze pipeline", () => {
     expect(focuses[0]?.chemicals?.suspect.toLowerCase()).toContain("purple blotch");
     expect(focuses[0]?.chemicals?.products.some((product) => product.activeIngredient === "Mancozeb")).toBe(true);
     expect(focuses[2]?.chemicals?.products.some((product) => product.activeIngredient === "Lambda-cyhalothrin")).toBe(true);
+    expect(focuses[0]?.observations.join(" ").toLowerCase()).not.toMatch(/beetroot|\bbeets?\b|chili|pilipili/);
+    expect(focuses[1]?.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|chili|pilipili/);
+    expect(focuses[2]?.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|beetroot|\bbeets?\b/);
+    expect(focuses[0]?.observations[0]).toMatch(/onion \d+/);
+    expect(focuses[0]?.observations[0]).not.toMatch(/beetroot 0|chili 0/);
+
+    const swahili = [0, 1, 2].map((scenario) =>
+      buildMockResult({
+        scenario: scenario as 0 | 1 | 2,
+        locale: "sw",
+        width: 900,
+        height: 1200,
+        mime: "image/jpeg",
+        id: `sw-${scenario}`,
+        createdAt: "2026-10-25T12:00:00.000Z",
+      }).observations.join(" "),
+    );
+    expect(swahili[0]?.toLowerCase()).not.toMatch(/beetroot|\bbeets?\b|pilipili|chili/);
+    expect(swahili[1]?.toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|pilipili|chili/);
+    expect(swahili[2]?.toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|beetroot|\bbeets?\b/);
   });
 
   it("accepts optional context in demo mode and stops asking once it is present", async () => {

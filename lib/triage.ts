@@ -26,6 +26,21 @@ export function scoreFromLevel(level: ConfidenceLevel): number {
   return 0.84;
 }
 
+const ABSENT_CROP: [ConceptId, RegExp][] = [
+  ["onion", /\b(onions?|kitunguu)\b/i],
+  ["beetroot", /\b(beetroots?|beets?)\b/i],
+  ["chili", /\b(chilli(?:es)?|chilies|chili|pilipili)\b/i],
+];
+
+const ABSENT_TALK =
+  /\b(another crop|other crops|secondary crops?|different beds?|on its own bed|not in (?:this |the )?(?:photo|frame|picture)|missing from the (?:photo|frame))\b|\b(zao lingine|vitanda tofauti|kitanda kingine)\b/i;
+
+/** Drop a note that names a crop SAM did not mark, or that talks about a crop outside the frame. */
+export function mentionsAbsentCrop(sentence: string, counts: ConceptCounts): boolean {
+  if (ABSENT_TALK.test(sentence)) return true;
+  return ABSENT_CROP.some(([id, pattern]) => counts[id] === 0 && pattern.test(sentence));
+}
+
 function asLevel(value: unknown): ConfidenceLevel | null {
   return value === "low" || value === "medium" || value === "high" ? value : null;
 }
@@ -67,7 +82,8 @@ export function finalizeTriage(options: {
   }
   for (const item of rawObservations) {
     const sentence = cleanSentence(item, 280);
-    if (sentence) observations.push(sentence);
+    if (!sentence || mentionsAbsentCrop(sentence, options.counts)) continue;
+    observations.push(sentence);
     if (observations.length >= 4) break;
   }
 

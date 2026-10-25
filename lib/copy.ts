@@ -1,4 +1,4 @@
-import type { ConceptCounts, ConceptId, ConfidenceLevel, CropFocus, CropId, Locale, QualityBand } from "@/lib/types";
+import { CONCEPT_IDS, type ConceptCounts, type ConceptId, type ConfidenceLevel, type CropFocus, type CropId, type Locale, type QualityBand } from "@/lib/types";
 
 export type PlantLineInput = {
   detectedPlant?: string | null;
@@ -164,7 +164,19 @@ const en: Copy = {
   agronomistCallout:
     "Ask a local agroveterinary officer. Show them this photo, the plant name, and these three next checks before you buy or mix any spray.",
   countLine: (counts) =>
-    `Marks — onion ${counts.onion}, beetroot ${counts.beetroot}, chili ${counts.chili}, other plant ${counts.plant}, yellow leaf ${counts["yellow-leaf"]}, weed ${counts.weed}.`,
+    frameCount(
+      {
+        onion: "onion",
+        beetroot: "beetroot",
+        chili: "chili",
+        plant: "other plant",
+        "yellow-leaf": "yellow leaf",
+        weed: "weed",
+      },
+      counts,
+      "No plants were marked in this frame.",
+      "In this frame —",
+    ),
   plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
     const named = detectedPlant?.trim() || (primaryCrop === "onion" ? "Onion" : primaryCrop === "beetroot" ? "Beetroot" : primaryCrop === "chili" ? "Chili" : "");
     if (cropFocus === "mixed") {
@@ -262,7 +274,19 @@ const sw: Copy = {
   agronomistCallout:
     "Muulize afisa wa agroveterinary wa eneo lako. Mwonyeshe picha hii, jina la mmea, na ukaguzi tatu kabla ya kununua au kuchanganya dawa yoyote.",
   countLine: (counts) =>
-    `Alama — kitunguu ${counts.onion}, beetroot ${counts.beetroot}, pilipili ${counts.chili}, mmea mwingine ${counts.plant}, jani njano ${counts["yellow-leaf"]}, magugu ${counts.weed}.`,
+    frameCount(
+      {
+        onion: "kitunguu",
+        beetroot: "beetroot",
+        chili: "pilipili",
+        plant: "mmea mwingine",
+        "yellow-leaf": "jani njano",
+        weed: "magugu",
+      },
+      counts,
+      "Hakuna mimea iliyowekwa alama kwenye fremu hii.",
+      "Katika fremu hii —",
+    ),
   plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
     const named =
       detectedPlant?.trim() ||
@@ -277,6 +301,12 @@ const sw: Copy = {
   segmentFailed: (name) => `Alama za ${name} hazijarudi, kwa hiyo zinaweza kukosekana.`,
   levelLabel: (level) => (level === "low" ? "Chini" : level === "medium" ? "Wastani" : "Juu"),
 };
+
+function frameCount(labels: Record<ConceptId, string>, counts: ConceptCounts, empty: string, prefix: string): string {
+  const parts = CONCEPT_IDS.filter((id) => counts[id] > 0).map((id) => `${labels[id]} ${counts[id]}`);
+  if (parts.length === 0) return empty;
+  return `${prefix} ${parts.join(", ")}.`;
+}
 
 export const copy: Record<Locale, Copy> = { en, sw };
 

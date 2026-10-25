@@ -30,10 +30,15 @@ describe("farmer context", () => {
     expect(prompt).toContain("three weeks");
     expect(prompt).toContain("dry for three days");
     expect(prompt).toContain("tomato");
+    expect(prompt).toContain("In frame: Marks — onion 0");
+    expect(prompt.toLowerCase()).toContain("do not name a crop that is not in the photo");
+    expect(prompt).not.toContain("grown on different beds");
     expect(prompt.toLowerCase()).toContain("active ingredient");
     expect(developerPrompt("sw")).toContain("contextAsk");
     expect(developerPrompt("en").toLowerCase()).toContain("any farm plant");
     expect(developerPrompt("en")).toContain("never on the same bed");
+    expect(developerPrompt("en")).toContain("Do not mention a crop that is not in the photo");
+    expect(developerPrompt("en")).toContain("plants actually in the photo");
     expect(developerPrompt("en").toLowerCase()).toContain("agroveterinary");
     expect(developerPrompt("en")).toContain("diseaseIndicated");
     expect(contextPromptBlock(emptyFarmerContext())).toContain("none");

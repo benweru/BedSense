@@ -125,6 +125,8 @@ export function developerPrompt(locale: Locale): string {
     "Onion and beetroot are never on the same bed. Chili is a separate secondary crop on its own bed.",
     "If more than one of onion, beetroot, and chili is in the frame, that is unusual: multi-crop on one photo, not the planting pattern.",
     "Do not invent where the beds are.",
+    "observations describe only what stands out for the plants actually in the photo: symptoms, vigor, spacing, damage, soil, or how many of those plants are in the frame.",
+    "Do not mention a crop that is not in the photo. Do not say another crop is missing, secondary, or grown on a different bed.",
     "Return exactly three next checks in actions, even when you are unsure. Each check is a practical thing to look at or do next on the bed: look, feel soil moisture, remove the worst leaves from the bed, improve airflow, photograph again, visit an extension officer.",
     "Do not put a spray rate or a product dose in actions.",
     "If you find or strongly suspect a disease or pest, set diseaseIndicated to true, name it briefly in suspect, and recommend one or two chemicals that would help.",
@@ -147,11 +149,11 @@ export function userPrompt(locale: Locale, summary: string, context: FarmerConte
   return [
     "This is a phone photo of one farm bed.",
     `The farmer names the plant: ${farmerPlant}. Use that name.`,
-    "Onion, beetroot, and chili are grown on different beds. More than one of them in this frame is unusual, not the planting pattern.",
-    "SAM marks are hints. The farmer named the plant in free text, not from a crop list.",
-    `Segmentation counts: ${summary}`,
+    "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",
+    `In frame: ${summary}`,
     contextPromptBlock(context),
     "Use the photo, the plant name, those marks, and any context.",
+    "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
     "If a disease or pest looks likely, name chemicals by active ingredient. Do not give a numeric spray rate.",
     `Write the JSON in ${language}.`,
   ].join("\n");

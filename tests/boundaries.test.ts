@@ -142,6 +142,8 @@ describe("public project boundaries", () => {
     expect(muse).toContain("never on the same bed");
     expect(muse).toContain("its own bed");
     expect(muse).toContain("do not invent where the beds are");
+    expect(muse).toContain("do not mention a crop that is not in the photo");
+    expect(muse).toContain("plants actually in the photo");
     expect(muse).toContain("any farm plant");
     expect(muse).toContain("contextask");
     expect(muse).toContain("activeingredient");

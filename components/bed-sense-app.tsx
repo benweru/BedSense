@@ -413,7 +413,7 @@ function ResultCard({
       </div>
 
       <ul className="flex flex-wrap gap-2">
-        {CONCEPTS.map((concept) => (
+        {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
           <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs">
             <span className="h-2 w-2 rounded-full" style={{ background: concept.swatch }} />
             {text.concepts[concept.id]} {result.counts[concept.id]}
@@ -423,25 +423,27 @@ function ResultCard({
 
       {result.masks.length === 0 ? <p className="text-sm text-ink/75">{text.noMasks}</p> : null}
 
-      <div>
+      <div id="result-stands-out">
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.observations}</h3>
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-3 space-y-2">
           {result.observations.map((item) => (
-            <li key={item} className="rounded-2xl bg-white/80 px-3 py-3 text-sm leading-5">
+            <li key={item} className="rounded-2xl bg-white px-3 py-3 text-sm leading-6 shadow-sm">
               {item}
             </li>
           ))}
         </ul>
       </div>
 
-      <div>
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.actions}</h3>
-        <p className="mt-1 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
-        <ol className="mt-2 space-y-2">
+      <div id="result-checks" className="rounded-[1.4rem] bg-white/80 p-3 shadow-sm">
+        <h3 className="font-serif text-2xl leading-none text-soil">{text.actions}</h3>
+        <p className="mt-2 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
+        <ol className="mt-4 space-y-3">
           {result.actions.map((action, index) => (
-            <li key={action} className="flex gap-3 rounded-2xl bg-soil px-3 py-3 text-sm leading-5 text-paper">
-              <span className="font-serif text-2xl leading-none text-onion">{index + 1}</span>
-              <span>{action}</span>
+            <li key={action} className="flex items-start gap-3 rounded-2xl bg-paper px-3 py-3 ring-1 ring-ink/10">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-soil font-serif text-xl text-onion">
+                {index + 1}
+              </span>
+              <span className="pt-2 text-[0.95rem] leading-6">{action}</span>
             </li>
           ))}
         </ol>

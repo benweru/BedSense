@@ -250,8 +250,8 @@ function stories(locale: Locale): Record<
       },
       1: {
         observations: [
-          "Fremu hii ni kitanda cha beetroot. Kitunguu hukuzwa kwenye kitanda kingine, kwa hiyo hakipo kwenye picha hii.",
-          "Madoa kwenye jani yanafanana na Cercospora. Yatazame kabla ya kununua dawa ya ukungu.",
+          "Majani kadhaa ya beetroot yana madoa duara yenye katikati iliyopauka, kama Cercospora.",
+          "Mimea bado imesimama, lakini majani yenye madoa yanaonekana dhaifu kuliko majani mapya.",
         ],
         actions: [
           "Linganisha jani lenye madoa na jani jipya kwenye mmea huohuo.",
@@ -292,8 +292,8 @@ function stories(locale: Locale): Record<
     },
     1: {
       observations: [
-        "This frame is a beetroot bed. Onion is grown on a different bed, so it is not in this photo.",
-        "Leaf spots look like Cercospora. Check them before you buy a fungicide.",
+        "Several beetroot leaves show round spots with pale centres, like Cercospora.",
+        "The plants are still standing, but the spotted leaves look weaker than the newer ones.",
       ],
       actions: [
         "Compare a spotted leaf with a newer leaf on the same plant.",
