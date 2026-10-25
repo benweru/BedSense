@@ -218,6 +218,12 @@ describe("analyze pipeline", () => {
     vi.stubEnv("MODEL_API_KEY", liveKey);
     clearModelKeyChunks();
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
+      if (String(url).endsWith("/models")) {
+        return new Response(
+          JSON.stringify({ data: [{ id: "muse-spark-1.3-contributor" }, { id: "muse-spark-1.3" }] }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
       const headers = new Headers(init.headers);
       expect(headers.get("authorization")).toBe(`Bearer ${liveKey}`);
       const body = JSON.parse(String(init.body)) as {
@@ -325,7 +331,8 @@ describe("analyze pipeline", () => {
     expect(result.chemicals?.products[0]?.offers).toHaveLength(3);
     expect(result.chemicals?.verifyNote.toLowerCase()).toContain("agroveterinary");
     const phrases = fetchMock.mock.calls.flatMap((call) => {
-      const payload = JSON.parse(String(call[1]?.body)) as {
+      if (!call[1]?.body) return [];
+      const payload = JSON.parse(String(call[1].body)) as {
         input?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
       };
       return (payload.input ?? []).flatMap((item) => item.content ?? []).flatMap((part) => (part.text ? [part.text] : []));
@@ -335,9 +342,11 @@ describe("analyze pipeline", () => {
     expect(phrases).not.toContain("onion plant");
     expect(phrases).not.toContain("beetroot plant");
     expect(phrases).not.toContain("chili pepper plant");
-    const models = fetchMock.mock.calls
-      .map((call) => JSON.parse(String(call[1]?.body)) as { model?: string })
-      .map((body) => body.model);
+    const models = fetchMock.mock.calls.flatMap((call) => {
+      if (!call[1]?.body) return [];
+      const body = JSON.parse(String(call[1].body)) as { model?: string };
+      return body.model ? [body.model] : [];
+    });
     expect(models).toContain("sam-3.1");
     expect(models).toContain("muse-spark-1.3-contributor");
     expect(models).toContain("muse-spark-1.3");
@@ -418,6 +427,12 @@ describe("analyze pipeline", () => {
     vi.stubEnv("MODEL_API_KEY", liveKey);
     clearModelKeyChunks();
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/models")) {
+        return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3-contributor" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
       if (String(url).endsWith("/responses")) {
         return new Response('data: {"type":"response.completed"}\n\n', {
           status: 200,
@@ -438,6 +453,40 @@ describe("analyze pipeline", () => {
     expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
     expect(result.chemicals).toBeNull();
   });
+
+  it("returns muse_unavailable instead of the generic checks when the catalog has no chat model", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    clearModelKeyChunks();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/responses")) {
+          return new Response('data: {"type":"response.completed"}\n\n', {
+            status: 200,
+            headers: { "content-type": "text/event-stream" },
+          });
+        }
+        return new Response(JSON.stringify({ data: [{ id: "sam-3.1" }, { id: "muse-image-1.0" }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    const response = await POST(
+      new Request("http://localhost/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ image: pngDataUrl(), locale: "en", plantName: "chili" }),
+      }),
+    );
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toBe("muse_unavailable");
+    expect(body.message).toContain("Meta Model API");
+    expect(JSON.stringify(body)).not.toContain(copy.en.fallbackActions[0]);
+  });
 });
 
 async function liveReading(options: {
@@ -451,6 +500,12 @@ async function liveReading(options: {
   clearModelKeyChunks();
   const content = options.museText ?? JSON.stringify(options.muse);
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (String(url).endsWith("/models")) {
+      return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3-contributor" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
     if (String(url).endsWith("/responses")) {
       const sse = ["data: {\"type\":\"response.completed\"}", "", ""].join("\n");
       return new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });

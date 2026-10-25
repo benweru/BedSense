@@ -122,7 +122,7 @@ export type HistoryEntry = {
 };
 
 export class AnalyzeError extends Error {
-  readonly code: "bad_request" | "unsupported_image" | "image_too_large" | "missing_key" | "missing_plant" | "upstream";
+  readonly code: "bad_request" | "unsupported_image" | "image_too_large" | "missing_key" | "missing_plant" | "muse_unavailable" | "upstream";
 
   constructor(code: AnalyzeError["code"]) {
     super(code);

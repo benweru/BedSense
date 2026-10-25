@@ -1,11 +1,9 @@
 export const META_BASE = "https://api.meta.ai/v1";
 export const SAM_MODEL = "sam-3.1" as const;
 export const MUSE_MODELS = ["muse-spark-1.3-contributor", "muse-spark-1.3"] as const;
-/** Used only after the preferred ids return model_not_found and the catalog does not name a chat model. */
-export const MUSE_RESERVE_MODELS = ["muse-spark-1.2-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-wonder-1.0"] as const;
 export type MuseModel = (typeof MUSE_MODELS)[number];
 
-const CHAT_MUSE = /^muse-(?:spark|wonder)-\d/;
+const CHAT_MUSE = /^muse-(?:spark|wonder)(?:-|$)/i;
 
 /** Chat models only. SAM, image, and voice ids stay off the triage call. */
 export function chatMuseModels(ids: readonly string[]): string[] {
@@ -15,6 +13,20 @@ export function chatMuseModels(ids: readonly string[]): string[] {
     if (!unique.includes(id)) unique.push(id);
   }
   return unique;
+}
+
+/** Up to three Spark ids and one Wonder id from the live catalog. Missing ids are not invented. */
+export function triageModelIds(ids: readonly string[]): string[] {
+  const ranked = chatMuseModels(ids);
+  const chosen = [
+    ...ranked.filter((id) => id.includes("spark")).slice(0, 3),
+    ...ranked.filter((id) => id.includes("wonder")).slice(0, 1),
+  ];
+  for (const id of ranked) {
+    if (chosen.length >= 4) break;
+    if (!chosen.includes(id)) chosen.push(id);
+  }
+  return chosen;
 }
 
 function museRank(id: string): number {

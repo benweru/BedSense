@@ -132,7 +132,13 @@ export function BedSenseApp() {
           return;
         }
         setPhase("error");
-        setError(body.error === "unsupported_image" || body.error === "image_too_large" ? text.errorFormat : text.errorGeneric);
+        setError(
+          body.error === "unsupported_image" || body.error === "image_too_large"
+            ? text.errorFormat
+            : body.error === "muse_unavailable"
+              ? text.museUnavailable
+              : text.errorGeneric,
+        );
         return;
       }
       setResult(body);
