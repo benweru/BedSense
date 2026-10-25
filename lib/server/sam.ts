@@ -28,6 +28,7 @@ export async function segmentBed(
   apiKey: string,
   imageAreaHint: number,
   farmerPlant: string,
+  timeoutMs = 20_000,
 ): Promise<SegmentPass> {
   const jobs = promptsForBed(farmerPlant);
   const passes = await Promise.all(
@@ -54,6 +55,7 @@ export async function segmentBed(
             ],
           },
           apiKey,
+          timeoutMs,
         );
         const text = samOutputText(payload);
         const parsed = await masksFromOutputText(job.id, text, imageAreaHint);

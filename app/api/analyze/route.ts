@@ -3,6 +3,7 @@ import { AnalyzeError } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Hobby stops the function at 60s. SAM is capped and Muse keeps a deadline inside that clock.
 export const maxDuration = 60;
 
 const MESSAGES = {
