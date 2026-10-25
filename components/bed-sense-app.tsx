@@ -193,7 +193,7 @@ export function BedSenseApp() {
       <h1 className="mt-4 font-serif text-5xl leading-none tracking-tight">{text.title}</h1>
       <p className="mt-3 text-[1.02rem] leading-6 text-ink/80">{text.lede}</p>
 
-      <div className="mt-5">
+      <div id="home-plant-name" className="mt-5">
         <label htmlFor="plant-name" className="block text-sm font-semibold">
           {text.plantNameLabel}
         </label>
@@ -389,6 +389,7 @@ function ResultCard({
   const score = Math.round(result.confidenceScore * 100);
   return (
     <section className="mt-6 space-y-4" aria-live="polite">
+      <div id="result-reading" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-leaf">
@@ -445,6 +446,7 @@ function ResultCard({
           ))}
         </ol>
       </div>
+      </div>
 
       {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
 
@@ -467,37 +469,49 @@ function ResultCard({
 
 function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) {
   return (
-    <div className="rounded-[1.4rem] border border-leaf/25 bg-white/80 px-3 py-4">
-      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
-      <p className="mt-2 text-sm leading-5">
-        <span className="font-semibold">{text.chemicalsSuspect}. </span>
-        {advice.suspect}
-      </p>
-      <p className="mt-2 text-sm leading-5 text-ink/80">{advice.verifyNote}</p>
-      <ul className="mt-3 space-y-3">
-        {advice.products.map((product) => (
-          <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-3 py-3">
-            <p className="font-semibold">{product.activeIngredient}</p>
-            <p className="text-sm text-ink/70">{product.productClass}</p>
-            <p className="mt-1 text-sm leading-5">{product.useNote}</p>
-            <h4 className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsWhere}</h4>
-            {product.offers.length === 0 ? <p className="mt-1 text-sm leading-5">{text.chemicalsNoShop}</p> : null}
-            <ul className="mt-2 space-y-2">
-              {orderedOffers(product.offers).map((offer) => (
-                <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl bg-white px-3 py-2 text-sm leading-5">
-                  <span className="font-semibold">{text.quality[offer.quality]}</span>
-                  <span className="text-ink/70"> · {offer.brand} · {offer.pack}</span>
-                  <span className="mt-0.5 block">
-                    {offer.shopName} · {offer.shopKind} · {offer.place}
-                  </span>
-                  <span className="mt-0.5 block font-semibold">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-sm leading-5 text-ink/70">{advice.priceNote}</p>
+    <div className="space-y-4">
+      <div id="result-chemicals" className="rounded-[1.4rem] border border-leaf/25 bg-white/80 px-3 py-4">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
+        <p className="mt-2 text-sm leading-5">
+          <span className="font-semibold">{text.chemicalsSuspect}. </span>
+          {advice.suspect}
+        </p>
+        <p className="mt-2 text-sm leading-5 text-ink/80">{advice.verifyNote}</p>
+        <ul className="mt-3 space-y-3">
+          {advice.products.map((product) => (
+            <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-3 py-3">
+              <p className="font-semibold">{product.activeIngredient}</p>
+              <p className="text-sm text-ink/70">{product.productClass}</p>
+              <p className="mt-1 text-sm leading-5">{product.useNote}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div id="result-shops" className="rounded-[1.4rem] border border-leaf/25 bg-white/80 px-3 py-4">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsWhere}</h3>
+        <ul className="mt-3 space-y-3">
+          {advice.products.map((product) => (
+            <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-3 py-3">
+              <p className="font-semibold">{product.activeIngredient}</p>
+              {product.offers.length === 0 ? <p className="mt-1 text-sm leading-5">{text.chemicalsNoShop}</p> : null}
+              <ul className="mt-2 space-y-2">
+                {orderedOffers(product.offers).map((offer) => (
+                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl bg-white px-3 py-2 text-sm leading-5">
+                    <span className="font-semibold">{text.quality[offer.quality]}</span>
+                    <span className="text-ink/70"> · {offer.brand} · {offer.pack}</span>
+                    <span className="mt-0.5 block">
+                      {offer.shopName} · {offer.shopKind} · {offer.place}
+                    </span>
+                    <span className="mt-0.5 block font-semibold">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm leading-5 text-ink/70">{advice.priceNote}</p>
+      </div>
     </div>
   );
 }

@@ -107,6 +107,10 @@ describe("public project boundaries", () => {
     expect(copy.en.actionsHint.toLowerCase()).toContain("not a diagnosis");
     expect(copy.en.plantNameLabel.toLowerCase()).toContain("what plant");
     expect(copy.sw.plantNameLabel).toContain("Mmea gani");
+    expect(copy.en.plantNamePlaceholder).toBe("e.g. Onion");
+    expect(copy.sw.plantNamePlaceholder).toBe("mf. Kitunguu");
+    expect(copy.en.plantNamePlaceholder).not.toMatch(/for example/i);
+    expect(copy.sw.plantNamePlaceholder).not.toContain("Kwa mfano");
     expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "onion", detectedPlant: "Onion" }).toLowerCase()).toContain("unusual");
     expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "beetroot", detectedPlant: "Beetroot" }).toLowerCase()).not.toContain("mixed bed");
     expect(copy.sw.actions).toContain("Ukaguzi tatu");
