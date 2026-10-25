@@ -3,7 +3,8 @@ import { contextIsEmpty, noteContextUse, parseFarmerContext } from "@/lib/contex
 import { normalizeLocale } from "@/lib/copy";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
-import { buildMockResult, demoScenario } from "@/lib/server/mock";
+import { parseFarmerPlant } from "@/lib/plant-name";
+import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
 import { segmentBed } from "@/lib/server/sam";
@@ -15,6 +16,7 @@ export type AnalyzeInput = {
   width?: unknown;
   height?: unknown;
   context?: unknown;
+  plantName?: unknown;
 };
 
 export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResult> {
@@ -33,13 +35,15 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
 
   const locale = normalizeLocale(input.locale);
   const context = parseFarmerContext(input.context);
+  const farmerPlant = parseFarmerPlant(input.plantName);
+  if (!farmerPlant) throw new AnalyzeError("missing_plant");
   const size = resolveSize(decoded.size, clampDeclaredSize(input.width, input.height));
   const createdAt = new Date().toISOString();
   const id = crypto.randomUUID();
 
   if (isMockMode()) {
     return buildMockResult({
-      scenario: demoScenario(decoded.bytes),
+      scenario: scenarioForPlant(farmerPlant, decoded.bytes),
       locale,
       width: size.width,
       height: size.height,
@@ -47,13 +51,14 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       id,
       createdAt,
       context,
+      farmerPlant,
     });
   }
 
   const apiKey = readApiKey();
   if (!apiKey) throw new AnalyzeError("missing_key");
 
-  const segmented = await segmentBed(input.image, apiKey, size.width * size.height);
+  const segmented = await segmentBed(input.image, apiKey, size.width * size.height, farmerPlant);
   const image = segmented.sourceSize ?? size;
   const counts = countMasks(segmented.masks);
   const focus = chooseCropFocus(areaByCrop(segmented.masks));
@@ -65,6 +70,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     failedConcepts: segmented.failed,
     context,
     primaryCrop: focus.primaryCrop,
+    farmerPlant,
   });
 
   return {
@@ -81,8 +87,10 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
     detectedPlant: advice.detectedPlant,
+    farmerPlant,
     contextAsk: advice.contextAsk,
     contextUsed: !contextIsEmpty(context),
+    chemicals: advice.chemicals,
     counts,
     masks: segmented.masks,
     observations: noteContextUse(locale, advice.observations, context),

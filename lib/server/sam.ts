@@ -13,9 +13,39 @@ export type SegmentPass = {
   sourceSize: { width: number; height: number } | null;
 };
 
-export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint: number): Promise<SegmentPass> {
+export function promptsForBed(farmerPlant: string): { id: ConceptId; phrase: string; extra: boolean }[] {
+  const base = CONCEPTS.map((concept) => ({ id: concept.id, phrase: concept.phrase, extra: false }));
+  const extra = namedPlantPhrase(farmerPlant);
+  if (!extra) return base;
+  const covered = base.some((item) => coversName(farmerPlant, item.phrase) || item.phrase.toLowerCase() === extra.toLowerCase());
+  if (covered) return base;
+  return [...base, { id: "plant", phrase: extra, extra: true }];
+}
+
+function namedPlantPhrase(farmerPlant: string): string | null {
+  const name = farmerPlant.replace(/\s+/g, " ").trim();
+  if (name.length < 2) return null;
+  const lower = name.toLowerCase();
+  if (lower === "plant" || lower === "vegetable" || lower === "crop") return null;
+  if (lower.endsWith(" plant")) return name;
+  return `${name} plant`;
+}
+
+function coversName(farmerPlant: string, phrase: string): boolean {
+  const name = farmerPlant.replace(/\s+/g, " ").trim().toLowerCase();
+  const text = phrase.toLowerCase();
+  return text === name || text === `${name} plant` || text.startsWith(`${name} `);
+}
+
+export async function segmentBed(
+  imageUrl: string,
+  apiKey: string,
+  imageAreaHint: number,
+  farmerPlant: string,
+): Promise<SegmentPass> {
+  const jobs = promptsForBed(farmerPlant);
   const passes = await Promise.all(
-    CONCEPTS.map(async (concept) => {
+    jobs.map(async (job) => {
       try {
         const payload = await postMeta(
           "/responses",
@@ -31,7 +61,7 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
                 type: "message",
                 role: "user",
                 content: [
-                  { type: "input_text", text: concept.phrase },
+                  { type: "input_text", text: job.phrase },
                   { type: "input_image", image_url: imageUrl },
                 ],
               },
@@ -40,11 +70,18 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
           apiKey,
         );
         const text = samOutputText(payload);
-        const parsed = await masksFromOutputText(concept.id, text, imageAreaHint);
-        return { conceptId: concept.id, ...parsed, failed: false as const };
+        const parsed = await masksFromOutputText(job.id, text, imageAreaHint);
+        return {
+          conceptId: job.id,
+          extra: job.extra,
+          masks: parsed.masks.map((mask) => ({ ...mask, phrase: job.phrase })),
+          sourceSize: parsed.sourceSize,
+          failed: false as const,
+        };
       } catch {
         return {
-          conceptId: concept.id,
+          conceptId: job.id,
+          extra: job.extra,
           masks: [] as MaskMark[],
           sourceSize: null,
           failed: true as const,
@@ -57,9 +94,15 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
     throw new AnalyzeError("upstream");
   }
 
+  const namedPlantReturned = passes.some((pass) => pass.extra && pass.conceptId === "plant" && !pass.failed);
+  const failed = passes
+    .filter((pass) => pass.failed && !pass.extra)
+    .map((pass) => pass.conceptId)
+    .filter((conceptId) => !(conceptId === "plant" && namedPlantReturned));
+
   return {
     masks: preferSpecificCrops(passes.flatMap((pass) => pass.masks)),
-    failed: passes.filter((pass) => pass.failed).map((pass) => pass.conceptId),
+    failed,
     sourceSize: passes.find((pass) => pass.sourceSize)?.sourceSize ?? null,
   };
 }

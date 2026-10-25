@@ -1,3 +1,4 @@
+import { adviseChemicals } from "@/lib/agrovet";
 import { copy } from "@/lib/copy";
 import { CONCEPTS, emptyConceptCounts } from "@/lib/concepts";
 import { contextIsEmpty, emptyFarmerContext, noteContextUse } from "@/lib/context";
@@ -26,6 +27,19 @@ export function demoScenario(bytes: Uint8Array): DemoScenario {
   return ((hash >>> 0) % 3) as DemoScenario;
 }
 
+/** Prefer the plant the farmer named so the demo story matches that bed. */
+export function scenarioForPlant(farmerPlant: string, bytes: Uint8Array): DemoScenario {
+  const name = farmerPlant.toLowerCase();
+  if (hasWord(name, "onion") || hasWord(name, "kitunguu")) return 0;
+  if (hasWord(name, "beetroot") || hasWord(name, "beet")) return 1;
+  if (hasWord(name, "chili") || hasWord(name, "chilli") || hasWord(name, "pilipili")) return 2;
+  return demoScenario(bytes);
+}
+
+function hasWord(haystack: string, word: string): boolean {
+  return new RegExp(`(^|[^a-z])${word}([^a-z]|$)`).test(haystack);
+}
+
 export function buildMockResult(options: {
   scenario: DemoScenario;
   locale: Locale;
@@ -35,6 +49,7 @@ export function buildMockResult(options: {
   id: string;
   createdAt: string;
   context?: FarmerContext;
+  farmerPlant?: string;
 }): AnalyzeResult {
   const width = Math.max(1, options.width);
   const height = Math.max(1, options.height);
@@ -49,6 +64,7 @@ export function buildMockResult(options: {
   const focus = chooseCropFocus(areaByCrop);
   const text = copy[options.locale];
   const story = stories(options.locale)[options.scenario];
+  const problem = problems(options.locale)[options.scenario];
   const triage = finalizeTriage({
     locale: options.locale,
     observations: story.observations,
@@ -57,6 +73,12 @@ export function buildMockResult(options: {
     confidenceScore: story.confidenceScore,
     counts,
     failedConcepts: [],
+  });
+  const chemicals = adviseChemicals({
+    locale: options.locale,
+    diseaseIndicated: true,
+    suspect: problem.suspect,
+    chemicals: problem.chemicals,
   });
 
   return {
@@ -68,9 +90,11 @@ export function buildMockResult(options: {
     image: { width, height, mime: options.mime },
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
-    detectedPlant: focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant,
+    detectedPlant: options.farmerPlant?.trim() || (focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant),
+    farmerPlant: options.farmerPlant ?? "",
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
     contextUsed: !contextIsEmpty(context),
+    chemicals,
     counts,
     masks,
     observations: noteContextUse(options.locale, triage.observations, context),
@@ -213,7 +237,7 @@ function stories(locale: Locale): Record<
     return {
       0: {
         observations: [
-          "Majani ya nje ya kitunguu yanaonekana manjano kuliko katikati ya mstari.",
+          "Majani ya nje ya kitunguu yanaonekana manjano, na madoa yanayofanana na purple blotch.",
           "Udongo ukingoni unaonekana mkavu zaidi kuliko katikati ya kitanda.",
         ],
         actions: [
@@ -226,8 +250,8 @@ function stories(locale: Locale): Record<
       },
       1: {
         observations: [
-          "Fremu hii ni kitanda cha beetroot. Kitunguu hukuzwa kwenye kitanda kingine, kwa hiyo hakipo kwenye picha hii.",
-          "Madoa kwenye jani yanastahili kutazamwa, si kutibiwa kwa dawa leo.",
+          "Majani kadhaa ya beetroot yana madoa duara yenye katikati iliyopauka, kama Cercospora.",
+          "Mimea bado imesimama, lakini majani yenye madoa yanaonekana dhaifu kuliko majani mapya.",
         ],
         actions: [
           "Linganisha jani lenye madoa na jani jipya kwenye mmea huohuo.",
@@ -240,7 +264,7 @@ function stories(locale: Locale): Record<
       2: {
         observations: [
           "Fremu hii ni kitanda cha pilipili, na magugu yanagusia mstari.",
-          "Angalia kama pilipili inanyauka kwa ukosefu wa maji au kwa msongamano.",
+          "Majani mengine yanaonekana yenye madoa madogo, jambo linaloweza kuwa thrips.",
         ],
         actions: [
           "Ng'oa magugu yanayogusana na pilipili na uyatoe nje ya kitanda.",
@@ -255,7 +279,7 @@ function stories(locale: Locale): Record<
   return {
     0: {
       observations: [
-        "Outer onion leaves look more yellow than the centres of the row.",
+        "Outer onion leaves look more yellow than the centres of the row, with spots that can be purple blotch.",
         "The soil at the edge of the bed looks drier than the middle.",
       ],
       actions: [
@@ -268,8 +292,8 @@ function stories(locale: Locale): Record<
     },
     1: {
       observations: [
-        "This frame is a beetroot bed. Onion is grown on a different bed, so it is not in this photo.",
-        "Leaf spots are worth a closer look, not a spray today.",
+        "Several beetroot leaves show round spots with pale centres, like Cercospora.",
+        "The plants are still standing, but the spotted leaves look weaker than the newer ones.",
       ],
       actions: [
         "Compare a spotted leaf with a newer leaf on the same plant.",
@@ -282,7 +306,7 @@ function stories(locale: Locale): Record<
     2: {
       observations: [
         "This frame is a chili bed, and weeds are touching the row.",
-        "Check whether the chili looks crowded or simply thirsty.",
+        "Some leaves look stippled, which can be thrips rather than thirst alone.",
       ],
       actions: [
         "Pull weeds that touch the chili and take them off the bed.",
@@ -291,6 +315,39 @@ function stories(locale: Locale): Record<
       ],
       confidence: "medium",
       confidenceScore: 0.57,
+    },
+  };
+}
+
+function problems(locale: Locale): Record<DemoScenario, { suspect: string; chemicals: { activeIngredient: string }[] }> {
+  if (locale === "sw") {
+    return {
+      0: {
+        suspect: "Purple blotch kwenye kitunguu",
+        chemicals: [{ activeIngredient: "mancozeb" }, { activeIngredient: "metalaxyl-M + mancozeb" }],
+      },
+      1: {
+        suspect: "Madoa ya Cercospora kwenye beetroot",
+        chemicals: [{ activeIngredient: "copper oxychloride" }, { activeIngredient: "mancozeb" }],
+      },
+      2: {
+        suspect: "Thrips kwenye pilipili",
+        chemicals: [{ activeIngredient: "lambda-cyhalothrin" }, { activeIngredient: "abamectin" }],
+      },
+    };
+  }
+  return {
+    0: {
+      suspect: "Purple blotch on onion",
+      chemicals: [{ activeIngredient: "mancozeb" }, { activeIngredient: "metalaxyl-M + mancozeb" }],
+    },
+    1: {
+      suspect: "Cercospora leaf spot on beetroot",
+      chemicals: [{ activeIngredient: "copper oxychloride" }, { activeIngredient: "mancozeb" }],
+    },
+    2: {
+      suspect: "Thrips on chili",
+      chemicals: [{ activeIngredient: "lambda-cyhalothrin" }, { activeIngredient: "abamectin" }],
     },
   };
 }

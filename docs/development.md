@@ -35,27 +35,31 @@ MOCK_META=0
 
 A full `MODEL_API_KEY` is the local default. If Vercel truncates that one variable, store the same key as `MODEL_API_KEY_0` through `MODEL_API_KEY_5`. BedSense joins those parts only when the single variable is missing or shorter than 40 characters.
 
-Muse Spark is called as `muse-spark-1.3-contributor` first (contributor mode, lower price; prompts may be used to train future Meta models). If that call fails, BedSense retries `muse-spark-1.3` (standard mode). If both fail, the masks still return with a local backup of three non-chemical next checks, and the screen says so. Those checks are practical things to look at or do on the bed, not a diagnosis and not a treatment rate.
+Muse Spark is called as `muse-spark-1.3-contributor` first (contributor mode, lower price; prompts may be used to train future Meta models). If that call fails, BedSense retries `muse-spark-1.3` (standard mode). If both fail, the masks still return with a local backup of three next checks, and the screen says so. Those checks are practical things to look at or do on the bed. The backup does not invent a disease or a chemical. A numeric spray rate is still dropped.
 
 ## Pipeline
 
 ```mermaid
 flowchart LR
-  phone[Phone photo or camera] --> resize[Resize on device]
+  phone[Phone photo or camera] --> name[Farmer names the plant]
+  name --> resize[Resize on device]
   resize --> context[Optional context]
   context --> api["POST /api/analyze"]
-  api --> sam["SAM 3.1 · POST /v1/responses"]
+  api --> sam["SAM 3.1 · named plant plus concept prompts"]
   sam --> marks[Masks, boxes, counts]
-  marks --> muse["Muse Spark · POST /v1/chat/completions"]
-  muse --> guard[Dosage guard and fixed disclaimer]
-  guard --> ui[Plant name, marks, 3 next checks, context ask]
+  marks --> muse["Muse Spark · plant name, photo, counts"]
+  muse --> guard[Dosage guard and chemical match]
+  guard --> catalog[Kenya agrovet catalog]
+  catalog --> ui[3 checks, chemicals, shops, KES bands]
 ```
 
 1. The browser keeps the last five checks in `localStorage` and can switch the chrome between English and Kiswahili. Model text follows the language selected when you take the photo.
-2. `/api/analyze` accepts a JPEG, PNG, or WebP data URL. The key never goes to the client.
-3. The segmentation model id is `sam-3.1`. It runs six concept prompts, one noun phrase each: `onion plant`, `beetroot plant`, `chili pepper plant`, `vegetable plant`, `yellow leaf`, `weed`. Requests use `metadata.mask_encoding=one_bit` and `metadata.include_confidence=true`. Masks are decoded with `@meta-sam/parser` and sent to the phone as a small grid drawn over the photo. A generic plant mask that sits on onion, beetroot, or chili is dropped so those crops keep their own outline.
-4. The farmer does not pick a crop. A photo is one bed, and it can be any farm plant. Onion, beetroot, and chili are familiar crops: BedSense works well with onion and is often used for beetroot and chili. Each grows on its own bed. Onion and beetroot are never on the same bed, and chili is a separate bed as well. The code does not describe where those beds are. If more than one of those three is marked in a frame, crop focus is `mixed`: an unusual multi-crop frame, not the planting pattern. Onion area is weighted slightly higher, so when the scores are close the familiar primary mark stays onion. Muse names the plant from the photo, including plants other than those three.
-5. Muse Spark sees the photo, the counts, and any optional context, and must return JSON: `detectedPlant`, observations, exactly three `actions`, a confidence score, and `contextAsk`. Optional context fields are plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, and a free-text note. They are not required. `contextAsk` is one short question when a missing fact would improve the check, or empty. Each action is one next check shown in the app: a practical, non-chemical thing to look at or do on the bed. The three checks are triage steps for any vegetable farm bed. They are not a diagnosis and not a treatment rate. A server-side guard drops any spray rate (millilitres, grams, litres per tank or hectare, including common Swahili units) and replaces it with a safe check. The disclaimer and the ask-an-agronomist callout are fixed copy, not model prose.
+2. The farmer types the plant name before the check runs. It is required free text, not a crop list. `/api/analyze` rejects a photo that arrives without `plantName`.
+3. `/api/analyze` accepts a JPEG, PNG, or WebP data URL. The key never goes to the client.
+4. The segmentation model id is `sam-3.1`. It runs six concept prompts, one noun phrase each: `onion plant`, `beetroot plant`, `chili pepper plant`, `vegetable plant`, `yellow leaf`, `weed`. If the named plant is not already one of those phrases, BedSense adds one more prompt, such as `tomato plant`, on the generic plant concept. Requests use `metadata.mask_encoding=one_bit` and `metadata.include_confidence=true`. Masks are decoded with `@meta-sam/parser` and sent to the phone as a small grid drawn over the photo. A generic plant mask that sits on onion, beetroot, or chili is dropped so those crops keep their own outline.
+5. A photo is one bed, and it can be any farm plant. Onion, beetroot, and chili each grow on their own bed. Onion and beetroot are never on the same bed, and chili is a separate bed as well. The code does not describe where those beds are. If more than one of those three is marked in a frame, crop focus is `mixed`: an unusual multi-crop frame, not the planting pattern. Onion area is weighted slightly higher, so when the scores are close the familiar primary mark stays onion. Muse prefers the name the farmer typed, and can still name a different plant when the photo clearly shows one.
+6. Muse Spark sees the photo, the plant name, the counts, and any optional context. Observations describe only what stands out for plants actually in the photo: symptoms, vigor, spacing, damage, soil, or how many of those plants are in the frame. They do not name a crop that was not marked, and they do not say another crop is missing or secondary. Muse must return JSON: `detectedPlant`, observations, exactly three `actions`, a confidence score, `contextAsk`, `diseaseIndicated`, `suspect`, and `chemicals`. Optional context fields are plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, and a free-text note. They are not required. `contextAsk` is one short question when a missing fact would improve the check, or empty. Each action is one next check: a practical thing to look at or do on the bed. The three checks stay free of spray rates. When a disease or pest looks likely, `chemicals` lists one or two actives with a product class and a typical-use note. The note must not invent millilitres, grams, or litres per tank. A server-side guard drops any spray rate (including common Swahili units) from observations, actions, and chemical notes. The disclaimer, the agroveterinary-officer line, and the “rate must follow the product label” line are fixed copy, not model prose.
+7. Recommended actives are matched to `lib/agrovet-catalog.ts`, a curated list of fungicides and insecticides sold through Kenyan agrovets. Each match adds example shops (name, kind, city or chain) and KES price bands for economy, mid, and premium packs. Those bands are demo ranges, not a live quote. `liveKenyaShopOffers` in `lib/agrovet.ts` is the live-search stub: it returns `null`, and the catalog is used. No paid agrovet API is called, which keeps the lookup on Vercel Hobby. `MOCK_META=1` runs the same matcher, so the demo shows chemicals, shops, and KES bands without calling Meta.
 
 ## Scripts
 
