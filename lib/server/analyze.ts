@@ -93,6 +93,8 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     counts,
     masks: segmented.masks,
     observations: advice.observations,
+    likelyCauses: advice.likelyCauses,
+    mitigations: advice.mitigations,
     actions: advice.actions,
     confidence: advice.confidence,
     confidenceScore: advice.confidenceScore,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/analyze/route";
+import { copy } from "@/lib/copy";
 import { analyzeBedPhoto } from "@/lib/server/analyze";
 import { buildMockResult } from "@/lib/server/mock";
 import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
@@ -341,4 +342,123 @@ describe("analyze pipeline", () => {
     expect(models).toContain("muse-spark-1.3-contributor");
     expect(models).toContain("muse-spark-1.3");
   });
+
+  it("keeps curled-fruit causes when Muse omits chemicals and echoes the generic checks", async () => {
+    const result = await liveReading({
+      plantName: "chilly",
+      muse: {
+        detectedPlant: "chilly",
+        observations: [
+          "Two green chilly fruits held in hand, glossy green with no visible spots or rot",
+          "Both fruits severely curled and coiled into twisted loops, showing malformed growth",
+        ],
+        actions: [...copy.en.fallbackActions],
+        diseaseIndicated: false,
+        suspect: "",
+        chemicals: [],
+      },
+    });
+    expect(result.models.triageSource).toBe("muse");
+    expect(result.masks).toEqual([]);
+    expect(result.detectedPlant).toBe("Chili");
+    expect(result.observations.join(" ")).toContain("Chili");
+    expect(result.observations.join(" ")).not.toMatch(/\bchilly\b/i);
+    expect(result.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|beetroot/);
+    expect(result.likelyCauses.length).toBeGreaterThan(1);
+    expect(result.mitigations.length).toBeGreaterThan(1);
+    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(result.actions.join(" ").toLowerCase()).toMatch(/chili|mite|thrip/);
+    expect(result.chemicals).toBeNull();
+  });
+
+  it("fills tomato spot causes and catalog shops when Muse forgets chemicals", async () => {
+    const result = await liveReading({
+      plantName: "tomato",
+      muse: {
+        detectedPlant: "tomato",
+        observations: ["Dark spots on the lower leaves, and the newer leaves are still clean."],
+        actions: ["Look at the spots again tomorrow."],
+        diseaseIndicated: false,
+        chemicals: [],
+      },
+    });
+    expect(result.detectedPlant).toBe("Tomato");
+    expect(result.likelyCauses.join(" ").toLowerCase()).toContain("tomato");
+    expect(result.mitigations.length).toBeGreaterThan(1);
+    expect(result.actions).toHaveLength(3);
+    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(result.chemicals?.products.some((product) => product.activeIngredient === "Mancozeb")).toBe(true);
+    expect(result.chemicals?.products[0]?.offers.length).toBeGreaterThan(0);
+    expect(result.chemicals?.priceNote).toContain("KES");
+    const visible = JSON.stringify({
+      observations: result.observations,
+      causes: result.likelyCauses,
+      mitigations: result.mitigations,
+      actions: result.actions,
+    }).toLowerCase();
+    expect(visible).not.toMatch(/onion|beetroot|chili|pilipili/);
+  });
+
+  it("salvages a prose reply that describes the symptom instead of falling back to generic checks", async () => {
+    const result = await liveReading({
+      plantName: "chili",
+      museText: "Both fruits are severely curled and twisted along the stem. The skin is still glossy.",
+    });
+    expect(result.models.triageSource).toBe("muse");
+    expect(result.note).toBeNull();
+    expect(result.likelyCauses.length).toBeGreaterThan(0);
+    expect(result.mitigations.length).toBeGreaterThan(0);
+    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(result.detectedPlant).toBe("Chili");
+  });
+
+  it("uses symptom notes when both Muse models fail, and does not invent a spray for curl alone", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    const liveKey = "k".repeat(40);
+    vi.stubEnv("MODEL_API_KEY", liveKey);
+    clearModelKeyChunks();
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/responses")) {
+        return new Response('data: {"type":"response.completed"}\n\n', {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
+      return new Response(JSON.stringify({ error: { message: "down" } }), { status: 503 });
+    }));
+    const result = await analyzeBedPhoto({
+      image: pngDataUrl(),
+      locale: "en",
+      plantName: "tomato",
+      context: { notes: "the leaves are curling" },
+    });
+    expect(result.models.triageSource).toBe("local-fallback");
+    expect(result.likelyCauses.join(" ").toLowerCase()).toContain("tomato");
+    expect(result.mitigations.length).toBeGreaterThan(1);
+    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(result.chemicals).toBeNull();
+  });
 });
+
+async function liveReading(options: {
+  plantName: string;
+  muse?: Record<string, unknown>;
+  museText?: string;
+}) {
+  vi.stubEnv("MOCK_META", "0");
+  const liveKey = "k".repeat(40);
+  vi.stubEnv("MODEL_API_KEY", liveKey);
+  clearModelKeyChunks();
+  const content = options.museText ?? JSON.stringify(options.muse);
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (String(url).endsWith("/responses")) {
+      const sse = ["data: {\"type\":\"response.completed\"}", "", ""].join("\n");
+      return new Response(sse, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content } }] }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }));
+  return analyzeBedPhoto({ image: pngDataUrl(), locale: "en", plantName: options.plantName });
+}

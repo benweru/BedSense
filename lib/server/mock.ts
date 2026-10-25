@@ -2,7 +2,7 @@ import { adviseChemicals } from "@/lib/agrovet";
 import { copy } from "@/lib/copy";
 import { CONCEPTS, emptyConceptCounts } from "@/lib/concepts";
 import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
-import { contextText, inferIssue, issueActives, issueTriage, issueUsesChemicals, type IssueId } from "@/lib/issues";
+import { contextText, inferIssue, issueActives, issueTriage, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
 import { displayPlantName, matchPlant, type KnownPlant } from "@/lib/plants";
@@ -120,6 +120,8 @@ export function buildMockResult(options: {
     counts,
     masks,
     observations: triage.observations,
+    likelyCauses: triage.likelyCauses,
+    mitigations: triage.mitigations,
     actions: triage.actions,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,
@@ -146,8 +148,10 @@ function issueResult(options: {
   const story = issueTriage(options.locale, plantLabel, options.issue);
   const triage = finalizeTriage({
     locale: options.locale,
-    observations: [...story.observations, ...story.hypotheses],
+    observations: story.observations,
     actions: story.actions,
+    likelyCauses: story.hypotheses,
+    mitigations: story.mitigations,
     confidence: "medium",
     confidenceScore: 0.56,
     counts,
@@ -155,7 +159,7 @@ function issueResult(options: {
     context: options.context,
     issue: options.issue,
   });
-  const chemicals = issueUsesChemicals(options.issue)
+  const chemicals = sprayIsUsual(options.issue, contextText(options.context), null)
     ? adviseChemicals({
         locale: options.locale,
         diseaseIndicated: true,
@@ -181,6 +185,8 @@ function issueResult(options: {
     counts,
     masks: [],
     observations: triage.observations,
+    likelyCauses: triage.likelyCauses,
+    mitigations: triage.mitigations,
     actions: triage.actions,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,

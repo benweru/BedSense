@@ -1,7 +1,7 @@
 import { copy } from "@/lib/copy";
 import { emptyFarmerContext } from "@/lib/context";
-import { contextText, inferIssue, issueTriage, parseIssue } from "@/lib/issues";
-import { displayPlantName, matchPlant } from "@/lib/plants";
+import { contextText, inferIssue, issueTriage, parseIssue, type IssueId } from "@/lib/issues";
+import { displayPlantName, foldPlantSpelling, matchPlant } from "@/lib/plants";
 import type { ConceptCounts, ConceptId, ConfidenceLevel, CropId, FarmerContext, Locale } from "@/lib/types";
 import { CROPS } from "@/lib/types";
 
@@ -84,14 +84,44 @@ function mentionsDisallowedCrop(sentence: string, allowed: ReadonlySet<CropId>):
   return false;
 }
 
-function cleanLines(values: readonly unknown[], max: number, allowed: ReadonlySet<CropId>, counts: ConceptCounts, plantName: string): string[] {
+function cleanLines(
+  values: readonly unknown[],
+  max: number,
+  allowed: ReadonlySet<CropId>,
+  counts: ConceptCounts,
+  plantName: string,
+  locale: Locale,
+): string[] {
   const lines: string[] = [];
   for (const value of values) {
     const sentence = cleanSentence(value, max);
     if (!sentence || mentionsAbsentCrop(sentence, counts, plantName) || mentionsDisallowedCrop(sentence, allowed)) continue;
-    if (!lines.includes(sentence)) lines.push(sentence);
+    const folded = foldPlantSpelling(locale, sentence, plantName);
+    if (!lines.includes(folded)) lines.push(folded);
   }
   return lines;
+}
+
+const GENERIC_CHECK =
+  /(?:press|push) a finger|finger .{0,48}soil|into the soil|feel the soil|soil moisture|water only if|worst leaves|lift the .{0,32}leaves|photograph the same plants again|photograph again in two days|bonyeza kidole|gusa udongo|mwagilia tu ikiwa|majani yaliyoathirika|piga picha tena baada ya siku mbili|siku mbili/i;
+
+/** A check that does not name the symptom and only repeats the healthy-bed backup. */
+export function isGenericCheck(action: string): boolean {
+  if (inferIssue(action)) return false;
+  return GENERIC_CHECK.test(action);
+}
+
+function textList(values: readonly unknown[]): string {
+  return values.filter((value): value is string => typeof value === "string").join("\n");
+}
+
+function topUp(lines: string[], extras: readonly string[], cap: number): string[] {
+  const next = [...lines];
+  for (const extra of extras) {
+    if (next.length >= cap) break;
+    if (!next.includes(extra)) next.push(extra);
+  }
+  return next;
 }
 
 export function finalizeTriage(options: {
@@ -105,10 +135,20 @@ export function finalizeTriage(options: {
   failedConcepts?: readonly ConceptId[];
   plantName?: string;
   context?: FarmerContext;
+  /** Pass `"none"` to keep a healthy-bed story from being rewritten. */
   issue?: unknown;
+  symptom?: unknown;
+  suspect?: unknown;
+  likelyCauses?: unknown;
+  mitigations?: unknown;
 }): {
   observations: string[];
   actions: [string, string, string];
+  likelyCauses: string[];
+  mitigations: string[];
+  issue: IssueId | null;
+  /** Findings only. Checks that say "look for thrips" are not treated as a spray. */
+  sprayEvidence: string;
   confidence: ConfidenceLevel;
   confidenceScore: number;
   disclaimer: string;
@@ -123,33 +163,38 @@ export function finalizeTriage(options: {
   const rawActions = Array.isArray(options.actions) ? options.actions : [];
   const strippedDosage = [...rawObservations, ...rawActions].some((item) => typeof item === "string" && containsDosage(item));
 
-  const explicitNone = options.issue === "none";
-  const issue = parseIssue(options.issue) ?? (explicitNone ? null : inferIssue(contextText(context)));
+  const findingText = [contextText(context), textList(rawObservations), textList([options.suspect, options.symptom])].join("\n");
+  const blocked = options.issue === "none";
+  const issue = blocked
+    ? null
+    : (parseIssue(options.issue) ?? parseIssue(options.symptom) ?? inferIssue(findingText) ?? inferIssue(textList(rawActions)));
   const plantLabel = displayPlantName(options.locale, plantName) || text.unknownPlant;
   const story = issue ? issueTriage(options.locale, plantLabel, issue) : null;
+  const line = (values: readonly unknown[], max: number) => cleanLines(values, max, allowed, options.counts, plantName, options.locale);
 
-  let notes = cleanLines(rawObservations, 280, allowed, options.counts, plantName);
-  if (story) {
-    const causes = cleanLines(story.hypotheses, 320, allowed, options.counts, plantName);
-    for (const cause of causes) {
-      if (notes.includes(cause) || notes.length >= 3) continue;
-      notes.push(cause);
-    }
-    if (notes.length === 0) notes = cleanLines(story.observations, 280, allowed, options.counts, plantName);
-  }
+  let notes = line(rawObservations, 280);
+  if (notes.length === 0 && story) notes = line(story.observations, 280);
 
   const countLine = text.countLine(options.counts);
   const observations = [...(countLine && !NOISE.test(countLine) ? [countLine] : []), ...notes].slice(0, 4);
 
-  const fallbackActions: readonly string[] = text.fallbackActions;
-  let actions = cleanLines(rawActions, 220, allowed, options.counts, plantName);
-  const allGeneric = actions.length > 0 && actions.every((action) => fallbackActions.includes(action));
-  if (story && (actions.length === 0 || allGeneric)) {
-    actions = cleanLines(story.actions, 220, allowed, options.counts, plantName);
+  let likelyCauses = line(Array.isArray(options.likelyCauses) ? options.likelyCauses : [], 320);
+  let mitigations = line(Array.isArray(options.mitigations) ? options.mitigations : [], 320);
+  if (story) {
+    likelyCauses = topUp(likelyCauses, line(story.hypotheses, 320), 3);
+    mitigations = topUp(mitigations, line(story.mitigations, 320), 3);
   }
-  for (const fallback of fallbackActions) {
-    if (actions.length === 3) break;
-    if (!actions.includes(fallback)) actions.push(fallback);
+
+  let actions = line(rawActions, 220);
+  if (story) {
+    const specific = actions.filter((action) => !isGenericCheck(action));
+    actions = specific;
+    actions = topUp(actions, line(story.actions, 220), 3);
+  } else {
+    for (const fallback of text.fallbackActions) {
+      if (actions.length === 3) break;
+      if (!actions.includes(fallback)) actions.push(fallback);
+    }
   }
 
   const parsedLevel = asLevel(options.confidence);
@@ -163,6 +208,10 @@ export function finalizeTriage(options: {
   return {
     observations,
     actions: [actions[0] ?? text.fallbackActions[0], actions[1] ?? text.fallbackActions[1], actions[2] ?? text.fallbackActions[2]],
+    likelyCauses,
+    mitigations,
+    issue,
+    sprayEvidence: findingText,
     confidence,
     confidenceScore,
     disclaimer: text.disclaimer,

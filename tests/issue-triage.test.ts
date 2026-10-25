@@ -3,15 +3,17 @@ import { adviseChemicals } from "@/lib/agrovet";
 import { copy } from "@/lib/copy";
 import { emptyFarmerContext } from "@/lib/context";
 import { emptyConceptCounts } from "@/lib/concepts";
-import { inferIssue, issueActives, type IssueId } from "@/lib/issues";
+import { inferIssue, inferIssues, issueActives, type IssueId } from "@/lib/issues";
 import { buildMockResult } from "@/lib/server/mock";
 import { containsDosage, finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult } from "@/lib/types";
 
-function visibleText(result: Pick<AnalyzeResult, "observations" | "actions" | "chemicals">): string {
+function visibleText(result: Pick<AnalyzeResult, "observations" | "actions" | "likelyCauses" | "mitigations" | "chemicals">): string {
   const chemicals = result.chemicals;
   return [
     ...result.observations,
+    ...result.likelyCauses,
+    ...result.mitigations,
     ...result.actions,
     chemicals?.suspect ?? "",
     ...(chemicals?.products ?? []).flatMap((product) => [
@@ -56,8 +58,10 @@ describe("sparse marks and a reported issue", () => {
     const visible = result.observations.join("\n");
     expect(visible).not.toMatch(/beetroot|onion|chili|pilipili|segmentation did not return|notes you added|no plants were marked/i);
     expect(visible.toLowerCase()).toContain("twisted");
-    expect(visible.toLowerCase()).toContain("tomato");
+    expect(result.likelyCauses.join(" ").toLowerCase()).toContain("tomato");
+    expect(result.mitigations.length).toBeGreaterThan(1);
     expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(result.actions.join(" ").toLowerCase()).not.toMatch(/press a finger|worst leaves|photograph the same plants/);
     expect(JSON.stringify(result)).not.toMatch(/\b\d+\s*ml\b/i);
   });
 
@@ -85,6 +89,36 @@ describe("sparse marks and a reported issue", () => {
     expect(inferIssue("dark spots on the lower leaves")).toBe("spots");
     expect(inferIssue("the leaves are wilting")).toBe("wilt");
     expect(inferIssue("leaves look tired")).toBeNull();
+    const folded = finalizeTriage({
+      locale: "en",
+      plantName: "chilly",
+      observations: ["Two green chilly fruits are coiled into twisted loops, with malformed growth."],
+      actions: [...copy.en.fallbackActions],
+      counts: emptyCounts,
+      confidence: "low",
+      confidenceScore: 0.3,
+    });
+    expect(folded.observations.join(" ")).toContain("Chili");
+    expect(folded.observations.join(" ")).not.toMatch(/\bchilly\b/i);
+    expect(folded.likelyCauses.length).toBeGreaterThan(0);
+    expect(folded.mitigations.length).toBeGreaterThan(1);
+    expect(folded.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(folded.issue).toBe("deformity");
+    const swahili = finalizeTriage({
+      locale: "sw",
+      plantName: "chilly",
+      observations: ["Matunda ya chilly yamekunjika."],
+      actions: [...copy.sw.fallbackActions],
+      counts: emptyCounts,
+      confidence: "low",
+      confidenceScore: 0.3,
+    });
+    expect(swahili.observations.join(" ")).toContain("Pilipili");
+    expect(swahili.observations.join(" ")).not.toMatch(/\bchilly\b/i);
+    expect(swahili.likelyCauses.length).toBeGreaterThan(0);
+    expect(swahili.actions).not.toEqual([...copy.sw.fallbackActions]);
+    expect(inferIssues("glossy green with no visible spots or rot, both fruits curled and twisted")).toEqual(["deformity", "curl"]);
+    expect(inferIssue("no visible spots")).toBeNull();
   });
 
   it("shows a diagnosis path in the demo when context reports an issue and marks would have been another crop", () => {
@@ -103,11 +137,32 @@ describe("sparse marks and a reported issue", () => {
     expect(curl.masks).toEqual([]);
     expect(curl.counts.beetroot).toBe(0);
     expect(curl.observations.join(" ").toLowerCase()).toContain("chili");
-    expect(curl.chemicals?.products.length).toBeGreaterThan(0);
-    expect(curl.chemicals?.lookup).toBe("catalog");
+    expect(curl.likelyCauses.length).toBeGreaterThan(0);
+    expect(curl.mitigations.length).toBeGreaterThan(1);
+    expect(curl.chemicals).toBeNull();
     expect(visibleText(curl).toLowerCase()).not.toContain("beetroot");
-    expect(visibleText(curl)).toMatch(/Kenya|KES/i);
+    expect(visibleText(curl).toLowerCase()).not.toMatch(/\bchilly\b/);
     expect(curl.actions).not.toEqual([...copy.en.fallbackActions]);
+
+    const thrips = buildMockResult({
+      scenario: 1,
+      locale: "en",
+      width: 900,
+      height: 1200,
+      mime: "image/jpeg",
+      id: "thrips",
+      createdAt: "2026-10-25T12:00:00.000Z",
+      plantName: "chilly",
+      context: { ...emptyFarmerContext(), notes: "The fruit is curling and I can see tiny thrips." },
+    });
+    expect(thrips.detectedPlant).toBe("Chili");
+    expect(thrips.chemicals?.products.length).toBeGreaterThan(0);
+    expect(thrips.chemicals?.lookup).toBe("catalog");
+    expect(thrips.likelyCauses.length).toBeGreaterThan(0);
+    expect(thrips.mitigations.length).toBeGreaterThan(1);
+    expect(visibleText(thrips)).toMatch(/Kenya|KES/i);
+    expect(visibleText(thrips).toLowerCase()).not.toContain("beetroot");
+    expect(thrips.actions).not.toEqual([...copy.en.fallbackActions]);
 
     const spots = buildMockResult({
       scenario: 2,
@@ -140,6 +195,8 @@ describe("sparse marks and a reported issue", () => {
     });
     expect(wilt.detectedPlant).toBe("Kale");
     expect(wilt.observations.length).toBeGreaterThan(0);
+    expect(wilt.likelyCauses.length).toBeGreaterThan(0);
+    expect(wilt.mitigations.length).toBeGreaterThan(1);
     expect(wilt.chemicals).toBeNull();
     expect(visibleText(wilt)).not.toMatch(/chili|beetroot|onion/i);
   });
