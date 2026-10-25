@@ -4,6 +4,17 @@ import { analyzeBedPhoto } from "@/lib/server/analyze";
 import { buildMockResult } from "@/lib/server/mock";
 import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
 
+function clearModelKeyChunks() {
+  for (let index = 0; index < 6; index += 1) {
+    vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+  }
+}
+
+function clearModelKeyEnv() {
+  vi.stubEnv("MODEL_API_KEY", "");
+  clearModelKeyChunks();
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -61,7 +72,7 @@ describe("analyze pipeline", () => {
 
   it("stays in demo mode when no key is configured", async () => {
     vi.stubEnv("MOCK_META", "");
-    vi.stubEnv("MODEL_API_KEY", "");
+    clearModelKeyEnv();
     const fetchMock = vi.fn(() => {
       throw new Error("network");
     });
@@ -74,7 +85,7 @@ describe("analyze pipeline", () => {
 
   it("asks for a key when live mode has none", async () => {
     vi.stubEnv("MOCK_META", "0");
-    vi.stubEnv("MODEL_API_KEY", "");
+    clearModelKeyEnv();
     const response = await POST(
       new Request("http://localhost/api/analyze", {
         method: "POST",
@@ -100,10 +111,12 @@ describe("analyze pipeline", () => {
 
   it("segments with SAM and falls back from contributor Muse, stripping doses", async () => {
     vi.stubEnv("MOCK_META", "0");
-    vi.stubEnv("MODEL_API_KEY", "test-key");
+    const liveKey = "k".repeat(40);
+    vi.stubEnv("MODEL_API_KEY", liveKey);
+    clearModelKeyChunks();
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       const headers = new Headers(init.headers);
-      expect(headers.get("authorization")).toBe("Bearer test-key");
+      expect(headers.get("authorization")).toBe(`Bearer ${liveKey}`);
       const body = JSON.parse(String(init.body)) as {
         model?: string;
         input?: Array<{ content: Array<{ type: string; text?: string }> }>;
@@ -161,7 +174,7 @@ describe("analyze pipeline", () => {
     expect(result.actions).toHaveLength(3);
     expect(result.confidence).toBe("low");
     expect(JSON.stringify(result)).not.toMatch(/\b20\s*ml\b/i);
-    expect(JSON.stringify(result)).not.toContain("test-key");
+    expect(JSON.stringify(result)).not.toContain(liveKey);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
     expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
     const models = fetchMock.mock.calls
