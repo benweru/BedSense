@@ -1,9 +1,11 @@
 import { adviseChemicals } from "@/lib/agrovet";
 import { copy } from "@/lib/copy";
 import { CONCEPTS, emptyConceptCounts } from "@/lib/concepts";
-import { contextIsEmpty, emptyFarmerContext, noteContextUse } from "@/lib/context";
+import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
+import { contextText, inferIssue, issueActives, issueTriage, issueUsesChemicals, type IssueId } from "@/lib/issues";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
+import { displayPlantName, matchPlant, type KnownPlant } from "@/lib/plants";
 import { finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
@@ -29,15 +31,25 @@ export function demoScenario(bytes: Uint8Array): DemoScenario {
 
 /** Prefer the plant the farmer named so the demo story matches that bed. */
 export function scenarioForPlant(farmerPlant: string, bytes: Uint8Array): DemoScenario {
-  const name = farmerPlant.toLowerCase();
-  if (hasWord(name, "onion") || hasWord(name, "kitunguu")) return 0;
-  if (hasWord(name, "beetroot") || hasWord(name, "beet")) return 1;
-  if (hasWord(name, "chili") || hasWord(name, "chilli") || hasWord(name, "pilipili")) return 2;
-  return demoScenario(bytes);
+  return cropScenario(farmerPlant) ?? demoScenario(bytes);
 }
 
-function hasWord(haystack: string, word: string): boolean {
-  return new RegExp(`(^|[^a-z])${word}([^a-z]|$)`).test(haystack);
+function cropScenario(value: string): DemoScenario | null {
+  const direct = scenarioForKnown(matchPlant(value));
+  if (direct !== null) return direct;
+  for (const token of value.toLowerCase().split(/[^a-z]+/)) {
+    if (!token) continue;
+    const found = scenarioForKnown(matchPlant(token));
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+function scenarioForKnown(plant: KnownPlant | null): DemoScenario | null {
+  if (plant?.cropId === "onion") return 0;
+  if (plant?.cropId === "beetroot") return 1;
+  if (plant?.cropId === "chili") return 2;
+  return null;
 }
 
 export function buildMockResult(options: {
@@ -50,10 +62,16 @@ export function buildMockResult(options: {
   createdAt: string;
   context?: FarmerContext;
   farmerPlant?: string;
+  plantName?: string;
 }): AnalyzeResult {
   const width = Math.max(1, options.width);
   const height = Math.max(1, options.height);
   const context = options.context ?? emptyFarmerContext();
+  const farmerPlant = (options.farmerPlant ?? options.plantName ?? "").trim();
+  const issue = inferIssue(contextText(context));
+  if (issue) {
+    return issueResult({ ...options, width, height, context, farmerPlant, issue });
+  }
   const masks = layout(options.scenario, width, height);
   const counts = emptyConceptCounts();
   const areaByCrop: Record<CropId, number> = { onion: 0, beetroot: 0, chili: 0 };
@@ -72,7 +90,9 @@ export function buildMockResult(options: {
     confidence: story.confidence,
     confidenceScore: story.confidenceScore,
     counts,
-    failedConcepts: [],
+    plantName: farmerPlant,
+    context,
+    issue: "none",
   });
   const chemicals = adviseChemicals({
     locale: options.locale,
@@ -90,14 +110,77 @@ export function buildMockResult(options: {
     image: { width, height, mime: options.mime },
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
-    detectedPlant: options.farmerPlant?.trim() || (focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant),
-    farmerPlant: options.farmerPlant ?? "",
+    detectedPlant:
+      (farmerPlant ? displayPlantName(options.locale, farmerPlant) : "") ||
+      (focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant),
+    farmerPlant,
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
     contextUsed: !contextIsEmpty(context),
     chemicals,
     counts,
     masks,
-    observations: noteContextUse(options.locale, triage.observations, context),
+    observations: triage.observations,
+    actions: triage.actions,
+    confidence: triage.confidence,
+    confidenceScore: triage.confidenceScore,
+    disclaimer: text.disclaimer,
+    agronomistCallout: text.agronomistCallout,
+    note: null,
+  };
+}
+
+function issueResult(options: {
+  locale: Locale;
+  width: number;
+  height: number;
+  mime: string;
+  id: string;
+  createdAt: string;
+  context: FarmerContext;
+  farmerPlant: string;
+  issue: IssueId;
+}): AnalyzeResult {
+  const text = copy[options.locale];
+  const counts = emptyConceptCounts();
+  const plantLabel = displayPlantName(options.locale, options.farmerPlant) || text.unknownPlant;
+  const story = issueTriage(options.locale, plantLabel, options.issue);
+  const triage = finalizeTriage({
+    locale: options.locale,
+    observations: [...story.observations, ...story.hypotheses],
+    actions: story.actions,
+    confidence: "medium",
+    confidenceScore: 0.56,
+    counts,
+    plantName: options.farmerPlant,
+    context: options.context,
+    issue: options.issue,
+  });
+  const chemicals = issueUsesChemicals(options.issue)
+    ? adviseChemicals({
+        locale: options.locale,
+        diseaseIndicated: true,
+        suspect: story.hypotheses[0],
+        chemicals: issueActives(options.issue),
+      })
+    : null;
+
+  return {
+    id: options.id,
+    createdAt: options.createdAt,
+    locale: options.locale,
+    mode: "mock",
+    models: { sam: "sam-3.1", muse: "muse-spark-1.3-contributor", triageSource: "mock" },
+    image: { width: options.width, height: options.height, mime: options.mime },
+    cropFocus: "unknown",
+    primaryCrop: null,
+    detectedPlant: plantLabel,
+    farmerPlant: options.farmerPlant,
+    contextAsk: contextIsEmpty(options.context) ? text.contextAskDefault : null,
+    contextUsed: !contextIsEmpty(options.context),
+    chemicals,
+    counts,
+    masks: [],
+    observations: triage.observations,
     actions: triage.actions,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,

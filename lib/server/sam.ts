@@ -1,9 +1,10 @@
 import { decodeMaskToRaster, parseImageStream, recordsOfKind, type ResponsesEvent } from "@meta-sam/parser";
-import { CONCEPTS, conceptById } from "@/lib/concepts";
+import { conceptById } from "@/lib/concepts";
 import { areaFractionFromRaster, downsampleRaster } from "@/lib/grid";
 import { preferSpecificCrops } from "@/lib/plant-marks";
+import { probesForPlant } from "@/lib/plants";
 import { postMeta, SAM_MODEL, textFromPayload, type MetaPayload } from "@/lib/server/meta";
-import { AnalyzeError, type ConceptId, type MaskMark } from "@/lib/types";
+import type { ConceptId, MaskMark } from "@/lib/types";
 
 const PER_CONCEPT_CAP = 8;
 
@@ -13,28 +14,13 @@ export type SegmentPass = {
   sourceSize: { width: number; height: number } | null;
 };
 
+/** SAM prompts for this photo: the named plant, yellow leaf, and weed. */
 export function promptsForBed(farmerPlant: string): { id: ConceptId; phrase: string; extra: boolean }[] {
-  const base = CONCEPTS.map((concept) => ({ id: concept.id, phrase: concept.phrase, extra: false }));
-  const extra = namedPlantPhrase(farmerPlant);
-  if (!extra) return base;
-  const covered = base.some((item) => coversName(farmerPlant, item.phrase) || item.phrase.toLowerCase() === extra.toLowerCase());
-  if (covered) return base;
-  return [...base, { id: "plant", phrase: extra, extra: true }];
-}
-
-function namedPlantPhrase(farmerPlant: string): string | null {
-  const name = farmerPlant.replace(/\s+/g, " ").trim();
-  if (name.length < 2) return null;
-  const lower = name.toLowerCase();
-  if (lower === "plant" || lower === "vegetable" || lower === "crop") return null;
-  if (lower.endsWith(" plant")) return name;
-  return `${name} plant`;
-}
-
-function coversName(farmerPlant: string, phrase: string): boolean {
-  const name = farmerPlant.replace(/\s+/g, " ").trim().toLowerCase();
-  const text = phrase.toLowerCase();
-  return text === name || text === `${name} plant` || text.startsWith(`${name} `);
+  return probesForPlant(farmerPlant).map((probe) => ({
+    id: probe.id,
+    phrase: probe.phrase,
+    extra: probe.id === "plant",
+  }));
 }
 
 export async function segmentBed(
@@ -73,7 +59,6 @@ export async function segmentBed(
         const parsed = await masksFromOutputText(job.id, text, imageAreaHint);
         return {
           conceptId: job.id,
-          extra: job.extra,
           masks: parsed.masks.map((mask) => ({ ...mask, phrase: job.phrase })),
           sourceSize: parsed.sourceSize,
           failed: false as const,
@@ -81,7 +66,6 @@ export async function segmentBed(
       } catch {
         return {
           conceptId: job.id,
-          extra: job.extra,
           masks: [] as MaskMark[],
           sourceSize: null,
           failed: true as const,
@@ -90,19 +74,9 @@ export async function segmentBed(
     }),
   );
 
-  if (passes.every((pass) => pass.failed)) {
-    throw new AnalyzeError("upstream");
-  }
-
-  const namedPlantReturned = passes.some((pass) => pass.extra && pass.conceptId === "plant" && !pass.failed);
-  const failed = passes
-    .filter((pass) => pass.failed && !pass.extra)
-    .map((pass) => pass.conceptId)
-    .filter((conceptId) => !(conceptId === "plant" && namedPlantReturned));
-
   return {
     masks: preferSpecificCrops(passes.flatMap((pass) => pass.masks)),
-    failed,
+    failed: passes.filter((pass) => pass.failed).map((pass) => pass.conceptId),
     sourceSize: passes.find((pass) => pass.sourceSize)?.sourceSize ?? null,
   };
 }

@@ -1,5 +1,5 @@
 import { emptyConceptCounts } from "@/lib/concepts";
-import { contextIsEmpty, noteContextUse, parseFarmerContext } from "@/lib/context";
+import { contextIsEmpty, parseFarmerContext } from "@/lib/context";
 import { normalizeLocale } from "@/lib/copy";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
@@ -67,7 +67,6 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     apiKey,
     locale,
     counts,
-    failedConcepts: segmented.failed,
     context,
     primaryCrop: focus.primaryCrop,
     farmerPlant,
@@ -93,7 +92,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     chemicals: advice.chemicals,
     counts,
     masks: segmented.masks,
-    observations: noteContextUse(locale, advice.observations, context),
+    observations: advice.observations,
     actions: advice.actions,
     confidence: advice.confidence,
     confidenceScore: advice.confidenceScore,

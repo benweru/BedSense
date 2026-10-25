@@ -1,10 +1,12 @@
 import { adviseChemicals } from "@/lib/agrovet";
 import { cleanContextAsk, cleanPlantName, contextIsEmpty, contextPromptBlock, fallbackPlantName } from "@/lib/context";
 import { copy, normalizeLocale } from "@/lib/copy";
+import { contextText, inferIssue, issueActives, issueTriage, issueUsesChemicals } from "@/lib/issues";
+import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { MUSE_MODELS, postMeta, type MuseModel } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
-import type { ChemicalAdvice, ConceptCounts, ConceptId, CropId, FarmerContext, Locale } from "@/lib/types";
+import type { ChemicalAdvice, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
 
 export type TriageDraft = {
   observations: string[];
@@ -25,7 +27,6 @@ export async function adviseBed(options: {
   apiKey: string;
   locale: Locale;
   counts: ConceptCounts;
-  failedConcepts: readonly ConceptId[];
   context: FarmerContext;
   primaryCrop: CropId | null;
   farmerPlant: string;
@@ -55,6 +56,7 @@ export async function adviseBed(options: {
       );
       const text = chatOutputText(payload);
       const parsed = parseModelJson(text);
+      const issue = inferIssue(contextText(options.context));
       const finalized = finalizeTriage({
         locale: options.locale,
         observations: parsed.observations,
@@ -62,57 +64,102 @@ export async function adviseBed(options: {
         confidence: parsed.confidence,
         confidenceScore: parsed.confidenceScore,
         counts: options.counts,
-        failedConcepts: options.failedConcepts,
+        plantName: options.farmerPlant,
+        context: options.context,
+        issue: issue ? undefined : "none",
       });
       return {
         ...finalized,
         model,
         triageSource: "muse",
-        detectedPlant:
-          cleanPlantName(parsed.detectedPlant) ??
-          parseFarmerPlant(options.farmerPlant) ??
-          fallbackPlantName(options.locale, options.primaryCrop),
+        detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
         contextAsk: cleanContextAsk(parsed.contextAsk),
-        chemicals: adviseChemicals({
+        chemicals: chemicalsFromModelOrIssue({
           locale: options.locale,
           diseaseIndicated: parsed.diseaseIndicated,
           suspect: parsed.suspect,
           chemicals: parsed.chemicals,
+          context: options.context,
+          farmerPlant: options.farmerPlant,
         }),
       };
     } catch {
       // Try the standard Muse Spark model, then the local backup.
     }
   }
-  return localFallback(options.locale, options.counts, options.failedConcepts, options.context, options.primaryCrop, options.farmerPlant);
+  return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.farmerPlant);
 }
 
 export function localFallback(
   locale: Locale,
   counts: ConceptCounts,
-  failedConcepts: readonly ConceptId[],
   context: FarmerContext,
   primaryCrop: CropId | null,
   farmerPlant: string,
 ): TriageDraft {
   const text = copy[locale];
+  const issue = inferIssue(contextText(context));
   const finalized = finalizeTriage({
     locale,
     observations: [],
     actions: text.fallbackActions,
-    confidence: "low",
-    confidenceScore: 0.33,
+    confidence: issue ? "medium" : "low",
+    confidenceScore: issue ? 0.56 : 0.33,
     counts,
-    failedConcepts,
+    plantName: farmerPlant,
+    context,
   });
   return {
     ...finalized,
     model: null,
     triageSource: "local-fallback",
-    detectedPlant: parseFarmerPlant(farmerPlant) ?? fallbackPlantName(locale, primaryCrop),
+    detectedPlant: namedPlant(locale, null, farmerPlant, primaryCrop),
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
-    chemicals: null,
+    chemicals: chemicalsFromModelOrIssue({
+      locale,
+      diseaseIndicated: false,
+      suspect: "",
+      chemicals: [],
+      context,
+      farmerPlant,
+    }),
   };
+}
+
+function namedPlant(locale: Locale, modelName: unknown, farmerPlant: string, primaryCrop: CropId | null): string {
+  const fromModel = cleanPlantName(modelName);
+  if (fromModel) {
+    const folded = displayPlantName(locale, fromModel);
+    return folded || fromModel;
+  }
+  return displayPlantName(locale, farmerPlant) || parseFarmerPlant(farmerPlant) || fallbackPlantName(locale, primaryCrop);
+}
+
+function chemicalsFromModelOrIssue(options: {
+  locale: Locale;
+  diseaseIndicated: unknown;
+  suspect: unknown;
+  chemicals: unknown;
+  context: FarmerContext;
+  farmerPlant: string;
+}): ChemicalAdvice | null {
+  const fromModel = adviseChemicals({
+    locale: options.locale,
+    diseaseIndicated: options.diseaseIndicated,
+    suspect: options.suspect,
+    chemicals: options.chemicals,
+  });
+  if (fromModel && fromModel.products.length > 0) return fromModel;
+  const issue = inferIssue(contextText(options.context));
+  if (!issue || !issueUsesChemicals(issue)) return fromModel;
+  const plant = displayPlantName(options.locale, options.farmerPlant) || copy[options.locale].unknownPlant;
+  const story = issueTriage(options.locale, plant, issue);
+  return adviseChemicals({
+    locale: options.locale,
+    diseaseIndicated: true,
+    suspect: story.hypotheses[0],
+    chemicals: issueActives(issue),
+  });
 }
 
 export function developerPrompt(locale: Locale): string {
@@ -127,6 +174,8 @@ export function developerPrompt(locale: Locale): string {
     "Do not invent where the beds are.",
     "observations describe only what stands out for the plants actually in the photo: symptoms, vigor, spacing, damage, soil, or how many of those plants are in the frame.",
     "Do not mention a crop that is not in the photo. Do not say another crop is missing, secondary, or grown on a different bed.",
+    "If SAM returned no marks, still triage from the photo, the plant name, and the farmer's notes. Empty marks are not a reason to skip observations, the three checks, or chemicals when a problem is visible or described.",
+    "Do not say that segmentation failed, that marks may be missing, or that no plants were marked.",
     "Return exactly three next checks in actions, even when you are unsure. Each check is a practical thing to look at or do next on the bed: look, feel soil moisture, remove the worst leaves from the bed, improve airflow, photograph again, visit an extension officer.",
     "Do not put a spray rate or a product dose in actions.",
     "If you find or strongly suspect a disease or pest, set diseaseIndicated to true, name it briefly in suspect, and recommend one or two chemicals that would help.",
@@ -150,6 +199,7 @@ export function userPrompt(locale: Locale, summary: string, context: FarmerConte
     "This is a phone photo of one farm bed.",
     `The farmer names the plant: ${farmerPlant}. Use that name.`,
     "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",
+    "If no marks were returned, still read the photo, the plant name, and the notes. Empty marks are not a reason to skip the check.",
     `In frame: ${summary}`,
     contextPromptBlock(context),
     "Use the photo, the plant name, those marks, and any context.",

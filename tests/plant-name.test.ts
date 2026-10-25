@@ -12,15 +12,12 @@ describe("farmer plant name", () => {
     expect(parseFarmerPlant(12)).toBeNull();
   });
 
-  it("adds the named plant to SAM when it is not already a concept phrase", () => {
-    const tomato = promptsForBed("tomato").map((prompt) => prompt.phrase);
-    expect(tomato).toContain("tomato plant");
-    expect(tomato.filter((phrase) => phrase === "tomato plant")).toHaveLength(1);
-    const onion = promptsForBed("onion").map((prompt) => prompt.phrase);
-    expect(onion).toContain("onion plant");
-    expect(onion).not.toContain("onion plant plant");
-    expect(onion.filter((phrase) => phrase === "onion plant")).toHaveLength(1);
+  it("asks SAM only for the named plant and symptom marks", () => {
+    expect(promptsForBed("tomato").map((prompt) => prompt.phrase)).toEqual(["tomato plant", "yellow leaf", "weed"]);
+    expect(promptsForBed("onion").map((prompt) => prompt.phrase)).toEqual(["onion plant", "yellow leaf", "weed"]);
+    expect(promptsForBed("chilly").map((prompt) => prompt.phrase)).toEqual(["chili pepper plant", "yellow leaf", "weed"]);
     expect(promptsForBed("chili").some((prompt) => prompt.phrase === "chili plant")).toBe(false);
+    expect(promptsForBed("onion").some((prompt) => prompt.phrase === "beetroot plant")).toBe(false);
   });
 
   it("points the demo at the named crop", () => {

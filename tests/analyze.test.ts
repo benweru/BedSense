@@ -150,10 +150,10 @@ describe("analyze pipeline", () => {
     const body = await response.json();
     expect(body.contextUsed).toBe(true);
     expect(body.contextAsk).toBeNull();
-    expect(body.detectedPlant).toBe("onion");
+    expect(body.detectedPlant).toBe("Onion");
     expect(body.farmerPlant).toBe("onion");
     expect(body.actions).toHaveLength(3);
-    expect(JSON.stringify(body.observations)).toContain("notes you added");
+    expect(JSON.stringify(body.observations)).not.toContain("notes you added");
   });
 
   it("stays in demo mode when no key is configured", async () => {
@@ -237,7 +237,7 @@ describe("analyze pipeline", () => {
       if (String(url).endsWith("/responses")) {
         expect(body.model).toBe("sam-3.1");
         const phrase = body.input?.[0]?.content.find((part) => part.type === "input_text")?.text;
-        const text = phrase === "onion plant" ? BUTTON_OUTPUT : "";
+        const text = phrase === "tomato plant" ? BUTTON_OUTPUT : "";
         const sse = [
           `data: ${JSON.stringify({ type: "response.output_text.delta", delta: text })}`,
           "",
@@ -298,7 +298,10 @@ describe("analyze pipeline", () => {
     expect(result.models.muse).toBe("muse-spark-1.3");
     expect(result.models.triageSource).toBe("muse");
     expect(result.masks.length).toBe(2);
-    expect(result.counts.onion).toBe(2);
+    expect(result.counts.plant).toBe(2);
+    expect(result.counts.onion).toBe(0);
+    expect(result.counts.beetroot).toBe(0);
+    expect(result.counts.chili).toBe(0);
     expect(result.image).toEqual({ width: 320, height: 334, mime: "image/png" });
     expect(result.actions).toHaveLength(3);
     expect(result.confidence).toBe("low");
@@ -306,10 +309,12 @@ describe("analyze pipeline", () => {
     expect(JSON.stringify(result)).not.toContain(liveKey);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
     expect(result.agronomistCallout.toLowerCase()).toContain("agroveterinary");
-    expect(result.detectedPlant).toBe("tomato");
+    expect(result.detectedPlant).toBe("Tomato");
     expect(result.contextAsk).toBe("When did you last water?");
     expect(result.contextUsed).toBe(true);
-    expect(result.observations.join(" ")).toContain("notes you added");
+    expect(result.observations.join(" ")).toContain("uneven");
+    expect(result.observations.join(" ")).not.toContain("notes you added");
+    expect(result.observations.join(" ")).not.toMatch(/segmentation did not return/i);
     expect(result.farmerPlant).toBe("tomato");
     expect(result.chemicals?.suspect).toBe("early blight");
     expect(result.chemicals?.lookup).toBe("catalog");
@@ -324,8 +329,11 @@ describe("analyze pipeline", () => {
       };
       return (payload.input ?? []).flatMap((item) => item.content ?? []).flatMap((part) => (part.text ? [part.text] : []));
     });
-    expect(phrases).toContain("tomato plant");
-    expect(phrases).toContain("onion plant");
+    expect(phrases).toEqual(expect.arrayContaining(["tomato plant", "yellow leaf", "weed"]));
+    expect(phrases).toHaveLength(3);
+    expect(phrases).not.toContain("onion plant");
+    expect(phrases).not.toContain("beetroot plant");
+    expect(phrases).not.toContain("chili pepper plant");
     const models = fetchMock.mock.calls
       .map((call) => JSON.parse(String(call[1]?.body)) as { model?: string })
       .map((body) => body.model);
