@@ -23,8 +23,15 @@ export type Copy = {
   retake: string;
   retry: string;
   observations: string;
+  likelyCauses: string;
+  likelyCausesHint: string;
+  mitigations: string;
+  mitigationsHint: string;
   actions: string;
   actionsHint: string;
+  progressTitle: string;
+  progressHint: string;
+  progressSteps: [string, string, string];
   chemicalsTitle: string;
   chemicalsSuspect: string;
   chemicalsWhere: string;
@@ -93,12 +100,19 @@ const en: Copy = {
   checkPhoto: "Check this photo",
   hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
-  analyzing: "Reading the plant you named. Three next checks come next.",
+  analyzing: "Reading the plant you named. Causes and next checks come next.",
   retake: "New photo",
   retry: "Try again",
   observations: "What stands out",
+  likelyCauses: "Likely causes",
+  likelyCausesHint: "Hypotheses for this symptom. Not a diagnosis.",
+  mitigations: "How to mitigate",
+  mitigationsHint: "Steps on the bed: culture, monitoring, sanitation, and water. A spray is listed only when it is the usual next step.",
   actions: "Three next checks",
-  actionsHint: "Practical things to look at or do next on the bed. Not a diagnosis or a spray rate.",
+  actionsHint: "Practical things to look at or do next on this plant. Not a diagnosis or a spray rate.",
+  progressTitle: "Checking this photo",
+  progressHint: "The bed is being read. Keep this screen open.",
+  progressSteps: ["Preparing the photo", "Reading the bed", "Writing causes and next steps"],
   chemicalsTitle: "Chemicals to consider",
   chemicalsSuspect: "Suspected problem",
   chemicalsWhere: "Where to buy in Kenya",
@@ -160,7 +174,7 @@ const en: Copy = {
     "Photograph the same plants again in two days and show both photos to an agronomist if the marks spread.",
   ],
   disclaimer:
-    "BedSense offers field triage, not a diagnosis. When a disease or pest looks likely, it names chemicals and active ingredients to consider, plus example Kenyan shops and KES price bands. It does not set a spray rate. Follow the product label, and confirm with a local agroveterinary officer before you buy or spray.",
+    "BedSense offers field triage, not a diagnosis. When a symptom is visible, it names likely causes and practical steps on the bed. A spray, with example Kenyan shops and KES price bands, appears only when a spray is the usual next step. It does not set a spray rate. Follow the product label, and confirm with a local agroveterinary officer before you buy or spray.",
   agronomistCallout:
     "Ask a local agroveterinary officer. Show them this photo, the plant name, and these three next checks before you buy or mix any spray.",
   countLine: (counts) =>
@@ -203,12 +217,19 @@ const sw: Copy = {
   checkPhoto: "Kagua picha hii",
   hint: "Jaza fremu na mmea mmoja au kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
-  analyzing: "Inasoma mmea ulioutaja. Ukaguzi tatu unafuata.",
+  analyzing: "Inasoma mmea ulioutaja. Sababu na ukaguzi vinafuata.",
   retake: "Picha nyingine",
   retry: "Jaribu tena",
   observations: "Kinachoonekana",
+  likelyCauses: "Sababu zinazowezekana",
+  likelyCausesHint: "Nadharia za dalili hii. Si utambuzi.",
+  mitigations: "Jinsi ya kupunguza",
+  mitigationsHint: "Hatua kwenye kitanda: kilimo, ufuatiliaji, usafi, na maji. Dawa inaonekana tu ikiwa ndiyo hatua ya kawaida inayofuata.",
   actions: "Ukaguzi tatu unaofuata",
-  actionsHint: "Mambo ya kivitendo ya kuangalia au kufanya kwenye kitanda. Si utambuzi wala kipimo cha dawa.",
+  actionsHint: "Mambo ya kivitendo ya kuangalia au kufanya kwenye mmea huu. Si utambuzi wala kipimo cha dawa.",
+  progressTitle: "Inakagua picha hii",
+  progressHint: "Kitanda kinasomwa. Acha skrini hii wazi.",
+  progressSteps: ["Inatayarisha picha", "Inasoma kitanda", "Inaandika sababu na hatua"],
   chemicalsTitle: "Kemikali za kuzingatia",
   chemicalsSuspect: "Tatizo linaloshukiwa",
   chemicalsWhere: "Mahali pa kununua Kenya",
@@ -270,7 +291,7 @@ const sw: Copy = {
     "Piga picha tena baada ya siku mbili, na peleka picha zote kwa mtaalamu wa kilimo ikiwa dalili zinaenea.",
   ],
   disclaimer:
-    "BedSense hutoa mapitio ya shambani, si utambuzi. Ugonjwa au wadudu wanapoonekana kuwa karibu, inataja kemikali na viambato vya kuzingatia, pamoja na mifano ya maduka ya Kenya na viwango vya bei kwa KES. Haitoi kipimo cha dawa. Fuata kibandiko cha bidhaa, na thibitisha na afisa wa agroveterinary wa eneo lako kabla ya kununua au kunyunyizia.",
+    "BedSense hutoa mapitio ya shambani, si utambuzi. Dalili inapoonekana, inataja sababu zinazowezekana na hatua za kivitendo kwenye kitanda. Dawa, pamoja na mifano ya maduka ya Kenya na viwango vya bei kwa KES, inaonekana tu ikiwa dawa ndiyo hatua ya kawaida inayofuata. Haitoi kipimo cha dawa. Fuata kibandiko cha bidhaa, na thibitisha na afisa wa agroveterinary wa eneo lako kabla ya kununua au kunyunyizia.",
   agronomistCallout:
     "Muulize afisa wa agroveterinary wa eneo lako. Mwonyeshe picha hii, jina la mmea, na ukaguzi tatu kabla ya kununua au kuchanganya dawa yoyote.",
   countLine: (counts) =>

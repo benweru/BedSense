@@ -131,6 +131,28 @@ export function readPlantName(value: unknown): string {
   return value.replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Rewrite known misspellings of the named plant only. Other crops stay untouched so they can be dropped. */
+export function foldPlantSpelling(locale: Locale, sentence: string, plantName: string): string {
+  const known = matchPlant(plantName);
+  if (!known) return sentence;
+  const record = PLANTS.find((plant) => plant.en === known.en);
+  if (!record) return sentence;
+  const display = locale === "sw" ? known.sw : known.en;
+  const surfaces = [...record.surfaces, record.en, record.sw]
+    .map((surface) => surface.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  let next = sentence;
+  for (const surface of surfaces) {
+    next = next.replace(new RegExp(`\\b${escapeRegExp(surface)}\\b`, "gi"), display);
+  }
+  return next;
+}
+
 export function displayPlantName(locale: Locale, value: string): string {
   const cleaned = readPlantName(value);
   if (!cleaned) return "";

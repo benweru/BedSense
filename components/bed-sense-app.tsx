@@ -43,11 +43,18 @@ export function BedSenseApp() {
   const [contextOpen, setContextOpen] = useState(false);
   const [plantName, setPlantName] = useState("");
   const [plantError, setPlantError] = useState(false);
+  const [progressStep, setProgressStep] = useState(0);
   const text = copy[locale];
 
   useEffect(() => {
     document.documentElement.lang = locale === "sw" ? "sw" : "en";
   }, [locale]);
+
+  useEffect(() => {
+    if (phase !== "analyzing") return;
+    const timer = window.setTimeout(() => setProgressStep(2), 4000);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
 
   function chooseLocale(next: Locale) {
     writeLocale(next);
@@ -55,6 +62,7 @@ export function BedSenseApp() {
 
   async function onFile(file: File | undefined) {
     if (!file) return;
+    setProgressStep(0);
     setPhase("preparing");
     setError(null);
     setResult(null);
@@ -97,7 +105,9 @@ export function BedSenseApp() {
       plantRef.current?.focus();
       return;
     }
+    setProgressStep(1);
     setPhase("analyzing");
+    setResult(null);
     setError(null);
     try {
       const response = await fetch("/api/analyze", {
@@ -277,11 +287,7 @@ export function BedSenseApp() {
           aria-label={text.upload}
           onChange={(event) => void onFile(event.target.files?.[0])}
         />
-        {busy ? (
-          <p className="mt-3 text-sm text-leaf" role="status">
-            {phase === "preparing" ? text.preparing : text.analyzing}
-          </p>
-        ) : null}
+        {busy ? <CheckProgress text={text} step={progressStep} /> : null}
         {error ? (
           <p className="mt-3 text-sm text-beet" role="alert">
             {error}
@@ -305,7 +311,7 @@ export function BedSenseApp() {
         ) : null}
       </section>
 
-      {result ? (
+      {result && !busy ? (
         <ResultCard
           locale={locale}
           result={result}
@@ -388,7 +394,7 @@ function ResultCard({
   const text = copy[locale];
   const score = Math.round(result.confidenceScore * 100);
   return (
-    <section className="mt-6 space-y-4" aria-live="polite">
+    <section id="result" className="mt-6 space-y-4" aria-live="polite">
       <div id="result-reading" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <div>
@@ -434,6 +440,9 @@ function ResultCard({
         </ul>
       </div>
 
+      <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
+      <AdviceList id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
+
       <div id="result-checks" className="rounded-[1.4rem] bg-white/80 p-3 shadow-sm">
         <h3 className="font-serif text-2xl leading-none text-soil">{text.actions}</h3>
         <p className="mt-2 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
@@ -466,6 +475,61 @@ function ResultCard({
         <p className="mt-2 text-sm leading-5 text-ink/80">{result.disclaimer}</p>
       </div>
     </section>
+  );
+}
+
+function CheckProgress({ text, step }: { text: Copy; step: number }) {
+  const clamped = Math.min(2, Math.max(0, step));
+  return (
+    <div id="check-progress" className="mt-3 rounded-[1.4rem] bg-white px-3 py-4 shadow-sm" role="status" aria-live="polite" aria-busy="true">
+      <div className="flex items-center gap-3">
+        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
+          <span className="absolute inset-0 animate-spin rounded-full border-2 border-sand border-t-leaf" />
+          <span className="h-2.5 w-2.5 rounded-full bg-leaf" />
+        </span>
+        <span>
+          <span className="block font-serif text-2xl leading-none text-soil">{text.progressTitle}</span>
+          <span className="mt-1 block text-sm leading-5 text-ink/70">{text.progressHint}</span>
+        </span>
+      </div>
+      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sand">
+        <div className="bedsense-indeterminate h-full w-1/2 rounded-full bg-leaf" />
+      </div>
+      <ol className="mt-4 space-y-2">
+        {text.progressSteps.map((label, index) => {
+          const state = index < clamped ? "done" : index === clamped ? "active" : "wait";
+          return (
+            <li key={label} className="flex min-h-11 items-center gap-3 text-sm" aria-current={state === "active" ? "step" : undefined}>
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  state === "wait" ? "bg-sand text-ink/40" : "bg-soil text-onion"
+                } ${state === "active" ? "animate-pulse" : ""}`}
+              >
+                {index + 1}
+              </span>
+              <span className={state === "wait" ? "text-ink/45" : "font-semibold"}>{label}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function AdviceList({ id, title, hint, items }: { id: string; title: string; hint: string; items: readonly string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div id={id} className="rounded-[1.4rem] bg-white/80 p-3 shadow-sm">
+      <h3 className="font-serif text-2xl leading-none text-soil">{title}</h3>
+      <p className="mt-2 text-sm leading-5 text-ink/70">{hint}</p>
+      <ul className="mt-4 space-y-2">
+        {items.map((item) => (
+          <li key={item} className="rounded-2xl bg-paper px-3 py-3 text-[0.95rem] leading-6 ring-1 ring-ink/10">
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

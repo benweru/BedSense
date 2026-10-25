@@ -1,16 +1,34 @@
 import { adviseChemicals } from "@/lib/agrovet";
 import { cleanContextAsk, cleanPlantName, contextIsEmpty, contextPromptBlock, fallbackPlantName } from "@/lib/context";
 import { copy, normalizeLocale } from "@/lib/copy";
-import { contextText, inferIssue, issueActives, issueTriage, issueUsesChemicals } from "@/lib/issues";
+import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { MUSE_MODELS, postMeta, type MuseModel } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
 import type { ChemicalAdvice, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
 
+export type ModelDraft = {
+  observations: unknown;
+  actions: unknown;
+  confidence: unknown;
+  confidenceScore: unknown;
+  detectedPlant: unknown;
+  contextAsk: unknown;
+  diseaseIndicated: unknown;
+  sprayIndicated: unknown;
+  suspect: unknown;
+  chemicals: unknown;
+  symptom: unknown;
+  likelyCauses: unknown;
+  mitigations: unknown;
+};
+
 export type TriageDraft = {
   observations: string[];
   actions: [string, string, string];
+  likelyCauses: string[];
+  mitigations: string[];
   confidence: "low" | "medium" | "high";
   confidenceScore: number;
   disclaimer: string;
@@ -40,7 +58,7 @@ export async function adviseBed(options: {
           model,
           stream: true,
           reasoning_effort: "low",
-          max_completion_tokens: 1400,
+          max_completion_tokens: 2400,
           messages: [
             { role: "developer", content: developerPrompt(options.locale) },
             {
@@ -55,18 +73,21 @@ export async function adviseBed(options: {
         options.apiKey,
       );
       const text = chatOutputText(payload);
-      const parsed = parseModelJson(text);
-      const issue = inferIssue(contextText(options.context));
+      const parsed = readModelDraft(text);
+      if (!parsed) throw new Error("no_json");
       const finalized = finalizeTriage({
         locale: options.locale,
         observations: parsed.observations,
         actions: parsed.actions,
+        likelyCauses: parsed.likelyCauses,
+        mitigations: parsed.mitigations,
         confidence: parsed.confidence,
         confidenceScore: parsed.confidenceScore,
         counts: options.counts,
         plantName: options.farmerPlant,
         context: options.context,
-        issue: issue ? undefined : "none",
+        symptom: parsed.symptom,
+        suspect: parsed.suspect,
       });
       return {
         ...finalized,
@@ -74,13 +95,15 @@ export async function adviseBed(options: {
         triageSource: "muse",
         detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
         contextAsk: cleanContextAsk(parsed.contextAsk),
-        chemicals: chemicalsFromModelOrIssue({
+        chemicals: chemicalsFromReading({
           locale: options.locale,
+          issue: finalized.issue,
+          sprayEvidence: finalized.sprayEvidence,
+          sprayIndicated: parsed.sprayIndicated,
           diseaseIndicated: parsed.diseaseIndicated,
           suspect: parsed.suspect,
           chemicals: parsed.chemicals,
-          context: options.context,
-          farmerPlant: options.farmerPlant,
+          fallbackSuspect: finalized.likelyCauses[0] ?? "",
         }),
       };
     } catch {
@@ -115,13 +138,15 @@ export function localFallback(
     triageSource: "local-fallback",
     detectedPlant: namedPlant(locale, null, farmerPlant, primaryCrop),
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
-    chemicals: chemicalsFromModelOrIssue({
+    chemicals: chemicalsFromReading({
       locale,
-      diseaseIndicated: false,
+      issue: finalized.issue,
+      sprayEvidence: finalized.sprayEvidence,
+      sprayIndicated: null,
+      diseaseIndicated: null,
       suspect: "",
       chemicals: [],
-      context,
-      farmerPlant,
+      fallbackSuspect: finalized.likelyCauses[0] ?? "",
     }),
   };
 }
@@ -135,30 +160,44 @@ function namedPlant(locale: Locale, modelName: unknown, farmerPlant: string, pri
   return displayPlantName(locale, farmerPlant) || parseFarmerPlant(farmerPlant) || fallbackPlantName(locale, primaryCrop);
 }
 
-function chemicalsFromModelOrIssue(options: {
+function parseFlag(value: unknown): boolean | null {
+  if (value === true || value === "true" || value === "yes") return true;
+  if (value === false || value === "false" || value === "no") return false;
+  return null;
+}
+
+function chemicalsFromReading(options: {
   locale: Locale;
+  issue: IssueId | null;
+  sprayEvidence: string;
+  sprayIndicated: unknown;
   diseaseIndicated: unknown;
   suspect: unknown;
   chemicals: unknown;
-  context: FarmerContext;
-  farmerPlant: string;
+  fallbackSuspect: string;
 }): ChemicalAdvice | null {
+  const sprayFlag = parseFlag(options.sprayIndicated);
+  if (sprayFlag === false) return null;
+  const diseaseFlag = parseFlag(options.diseaseIndicated);
+  const usual = sprayIsUsual(options.issue, options.sprayEvidence, sprayFlag);
+  const suspect = options.suspect || options.fallbackSuspect;
   const fromModel = adviseChemicals({
     locale: options.locale,
-    diseaseIndicated: options.diseaseIndicated,
-    suspect: options.suspect,
+    diseaseIndicated: true,
+    suspect,
     chemicals: options.chemicals,
   });
-  if (fromModel && fromModel.products.length > 0) return fromModel;
-  const issue = inferIssue(contextText(options.context));
-  if (!issue || !issueUsesChemicals(issue)) return fromModel;
-  const plant = displayPlantName(options.locale, options.farmerPlant) || copy[options.locale].unknownPlant;
-  const story = issueTriage(options.locale, plant, issue);
+  const hasModel = (fromModel?.products.length ?? 0) > 0;
+  const acceptModel = hasModel && (sprayFlag === true || diseaseFlag !== false || usual);
+  if (acceptModel) return fromModel;
+  if (!usual || !options.issue) return null;
+  const actives = issueActives(options.issue);
+  if (actives.length === 0) return null;
   return adviseChemicals({
     locale: options.locale,
     diseaseIndicated: true,
-    suspect: story.hypotheses[0],
-    chemicals: issueActives(issue),
+    suspect: options.fallbackSuspect || suspect,
+    chemicals: actives,
   });
 }
 
@@ -176,20 +215,26 @@ export function developerPrompt(locale: Locale): string {
     "Do not mention a crop that is not in the photo. Do not say another crop is missing, secondary, or grown on a different bed.",
     "If SAM returned no marks, still triage from the photo, the plant name, and the farmer's notes. Empty marks are not a reason to skip observations, the three checks, or chemicals when a problem is visible or described.",
     "Do not say that segmentation failed, that marks may be missing, or that no plants were marked.",
-    "Return exactly three next checks in actions, even when you are unsure. Each check is a practical thing to look at or do next on the bed: look, feel soil moisture, remove the worst leaves from the bed, improve airflow, photograph again, visit an extension officer.",
-    "Do not put a spray rate or a product dose in actions.",
-    "If you find or strongly suspect a disease or pest, set diseaseIndicated to true, name it briefly in suspect, and recommend one or two chemicals that would help.",
+    "When the photo or the notes show a concrete symptom (curl, deformity, spots, insects, wilt, or yellowing), fill likelyCauses with 2 short hypotheses and mitigations with 2 or 3 practical steps.",
+    "Mitigations are cultural practice, monitoring, sanitation, or irrigation. They are not spray rates, and they are not the same sentences as actions.",
+    "Return exactly three next checks in actions. Each check must be about the symptom you saw on the named plant.",
+    "Do not use a generic trio (feel the soil, lift the worst leaves, photograph again in two days) when a concrete symptom is visible. Those three are only for a bed with no symptom.",
+    "Do not put a spray rate or a product dose in actions, likelyCauses, or mitigations.",
+    "Set sprayIndicated to true only when a labeled spray is the usual next step, such as spreading spots or insects already seen on the plant.",
+    "Set sprayIndicated to false when the next step is to look, change water, or remove damaged growth. Curl or twisted fruit alone is not a spray.",
+    "If sprayIndicated is true, set diseaseIndicated to true, name the problem briefly in suspect, and recommend one or two chemicals.",
     "Each chemical has activeIngredient (the common name, such as mancozeb), productClass (such as fungicide or insecticide), and useNote (typical use, with no numeric rate).",
     "Do not invent an exact spray rate, mixing rate, millilitres, grams, or litres per area or per tank. Say the rate must follow the product label.",
     "This chemical advice is for the farmer to verify with a local agroveterinary officer before buying or spraying.",
-    "If no disease or pest is indicated, set diseaseIndicated to false, suspect to an empty string, and chemicals to an empty array.",
+    "If sprayIndicated is false, set diseaseIndicated to false, suspect to an empty string, and chemicals to an empty array. Still return likelyCauses and mitigations when a symptom is visible.",
     "If the farmer mentions products already used, treat that as history. Do not turn that history into a new numeric dose.",
     "If one extra fact would make the checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
     "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
     `Reply in ${language}.`,
     "Return one JSON object only, with this shape:",
-    '{"detectedPlant":"plant name","observations":["short field note","short field note"],"actions":["check","check","check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
-    "observations has 2 or 3 items. actions has exactly 3 items. confidenceScore is from 0 to 1. chemicals has at most 2 items.",
+    '{"detectedPlant":"plant name","symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
+    "symptom is curl, deformity, spots, wilt, yellowing, insects, or an empty string.",
+    "observations has 2 or 3 items. likelyCauses and mitigations are empty only when no symptom is visible. actions has exactly 3 items. confidenceScore is from 0 to 1. chemicals has at most 2 items.",
   ].join(" ");
 }
 
@@ -199,12 +244,14 @@ export function userPrompt(locale: Locale, summary: string, context: FarmerConte
     "This is a phone photo of one farm bed.",
     `The farmer names the plant: ${farmerPlant}. Use that name.`,
     "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",
-    "If no marks were returned, still read the photo, the plant name, and the notes. Empty marks are not a reason to skip the check.",
+    "If no marks were returned, still read the photo, the plant name, and the notes. Empty marks are not a reason to skip likely causes, mitigation, or the three checks.",
     `In frame: ${summary}`,
     contextPromptBlock(context),
     "Use the photo, the plant name, those marks, and any context.",
     "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
-    "If a disease or pest looks likely, name chemicals by active ingredient. Do not give a numeric spray rate.",
+    "If a symptom is visible, likelyCauses and mitigations are required even when SAM returned nothing.",
+    "Make the three actions specific to that symptom. Do not answer with a generic soil, leaf-removal, and re-photo list.",
+    "Set sprayIndicated and name chemicals by active ingredient only when a spray is the usual next step. Do not give a numeric spray rate.",
     `Write the JSON in ${language}.`,
   ].join("\n");
 }
@@ -212,16 +259,24 @@ export function userPrompt(locale: Locale, summary: string, context: FarmerConte
 export function chatOutputText(payload: { kind: "json"; value: unknown } | { kind: "sse"; events: Record<string, unknown>[] }): string {
   if (payload.kind === "json") return contentFromJson(payload.value);
   let text = "";
+  let reasoning = "";
   for (const event of payload.events) {
     const choices = event.choices;
     if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") continue;
-    const choice = choices[0] as { delta?: { content?: unknown }; message?: { content?: unknown } };
-    if (typeof choice.delta?.content === "string") text += choice.delta.content;
-    if (typeof choice.message?.content === "string" && choice.message.content.length >= text.length) {
-      text = choice.message.content;
-    }
+    const choice = choices[0] as {
+      delta?: { content?: unknown; reasoning_content?: unknown };
+      message?: { content?: unknown; reasoning_content?: unknown };
+    };
+    const delta = textOfContent(choice.delta?.content);
+    if (delta) text += delta;
+    const message = textOfContent(choice.message?.content);
+    if (message.length >= text.length) text = message;
+    reasoning += textOfContent(choice.delta?.reasoning_content);
+    const messageReasoning = textOfContent(choice.message?.reasoning_content);
+    if (messageReasoning.length >= reasoning.length) reasoning = messageReasoning;
   }
-  return text;
+  if (text.trim()) return text;
+  return reasoning.includes("{") ? reasoning : "";
 }
 
 function contentFromJson(value: unknown): string {
@@ -229,27 +284,92 @@ function contentFromJson(value: unknown): string {
   const choices = value.choices;
   if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return "";
   const message = "message" in choices[0] ? choices[0].message : undefined;
-  if (!message || typeof message !== "object" || !("content" in message)) return "";
-  return typeof message.content === "string" ? message.content : "";
+  if (!message || typeof message !== "object") return "";
+  const record = message as { content?: unknown; reasoning_content?: unknown };
+  const content = textOfContent(record.content);
+  if (content.trim()) return content;
+  const reasoning = textOfContent(record.reasoning_content);
+  return reasoning.includes("{") ? reasoning : "";
 }
 
-export function parseModelJson(text: string): {
-  observations: unknown;
-  actions: unknown;
-  confidence: unknown;
-  confidenceScore: unknown;
-  detectedPlant: unknown;
-  contextAsk: unknown;
-  diseaseIndicated: unknown;
-  suspect: unknown;
-  chemicals: unknown;
-} {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("no_json");
-  const parsed = JSON.parse(text.slice(start, end + 1)) as unknown;
-  if (!parsed || typeof parsed !== "object") throw new Error("no_json");
-  const record = parsed as Record<string, unknown>;
+function textOfContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part && typeof part.text === "string") return part.text;
+      return "";
+    })
+    .join("");
+}
+
+const DRAFT_KEYS = ["observations", "actions", "likelyCauses", "mitigations"] as const;
+
+/** JSON when Muse finished it, a closed array when the rest was cut off, or symptom prose. */
+export function readModelDraft(text: string): ModelDraft | null {
+  const fromJson = draftFromJson(text);
+  if (fromJson && draftHasReading(fromJson)) return fromJson;
+  const partial = draftFromPartial(text);
+  if (partial && draftHasReading(partial)) return partial;
+  const sentences = proseSentences(text);
+  if (!inferIssue(sentences.join(" "))) return null;
+  return emptyDraft({ observations: sentences.slice(0, 3) });
+}
+
+function draftHasReading(draft: ModelDraft): boolean {
+  return [draft.observations, draft.actions, draft.likelyCauses, draft.mitigations, draft.suspect, draft.symptom].some(
+    (value) => (Array.isArray(value) && value.length > 0) || (typeof value === "string" && value.trim().length > 0),
+  );
+}
+
+function draftFromJson(text: string): ModelDraft | null {
+  const fenced = text.replace(/```(?:json)?/gi, "");
+  const start = fenced.indexOf("{");
+  const end = fenced.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(fenced.slice(start, end + 1)) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return draftFromRecord(parsed as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
+function draftFromPartial(text: string): ModelDraft | null {
+  const found: Partial<Record<(typeof DRAFT_KEYS)[number], string[]>> = {};
+  for (const key of DRAFT_KEYS) {
+    const values = pullStringArray(text, key);
+    if (values && values.length > 0) found[key] = values;
+  }
+  if (Object.keys(found).length === 0) return null;
+  return emptyDraft(found);
+}
+
+function pullStringArray(source: string, key: string): string[] | null {
+  const match = new RegExp(`"${key}"\\s*:\\s*\\[([\\s\\S]*?)\\]`).exec(source);
+  if (!match?.[1]) return null;
+  try {
+    const parsed = JSON.parse(`[${match[1]}]`) as unknown;
+    if (!Array.isArray(parsed)) return null;
+    const values = parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+    return values.length > 0 ? values : null;
+  } catch {
+    return null;
+  }
+}
+
+function proseSentences(text: string): string[] {
+  const stripped = text.replace(/```(?:json)?/gi, " ").replace(/\s+/g, " ").trim();
+  if (!stripped || stripped.startsWith("{")) return [];
+  return stripped
+    .split(/(?<=[.!?)])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 24 && !sentence.startsWith("{"));
+}
+
+function draftFromRecord(record: Record<string, unknown>): ModelDraft {
   return {
     observations: record.observations,
     actions: record.actions,
@@ -258,7 +378,29 @@ export function parseModelJson(text: string): {
     detectedPlant: record.detectedPlant,
     contextAsk: record.contextAsk,
     diseaseIndicated: record.diseaseIndicated,
+    sprayIndicated: record.sprayIndicated,
     suspect: record.suspect,
     chemicals: record.chemicals,
+    symptom: record.symptom,
+    likelyCauses: record.likelyCauses,
+    mitigations: record.mitigations,
+  };
+}
+
+function emptyDraft(partial: Partial<ModelDraft>): ModelDraft {
+  return {
+    observations: partial.observations ?? [],
+    actions: partial.actions ?? [],
+    confidence: partial.confidence ?? "low",
+    confidenceScore: partial.confidenceScore ?? 0.45,
+    detectedPlant: partial.detectedPlant ?? "",
+    contextAsk: partial.contextAsk ?? "",
+    diseaseIndicated: partial.diseaseIndicated ?? null,
+    sprayIndicated: partial.sprayIndicated ?? null,
+    suspect: partial.suspect ?? "",
+    chemicals: partial.chemicals ?? [],
+    symptom: partial.symptom ?? "",
+    likelyCauses: partial.likelyCauses ?? [],
+    mitigations: partial.mitigations ?? [],
   };
 }

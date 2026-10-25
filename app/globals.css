@@ -26,3 +26,16 @@ body {
   background: #e7c56a;
   color: #1c2416;
 }
+
+@keyframes bedsense-indeterminate {
+  0% {
+    transform: translateX(-80%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.bedsense-indeterminate {
+  animation: bedsense-indeterminate 1.35s ease-in-out infinite;
+}

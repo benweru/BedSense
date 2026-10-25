@@ -102,6 +102,10 @@ export type AnalyzeResult = {
   counts: ConceptCounts;
   masks: MaskMark[];
   observations: string[];
+  /** Hypotheses for the symptom in the photo or notes. Empty when nothing concrete showed up. */
+  likelyCauses: string[];
+  /** Cultural, monitoring, sanitation, and irrigation steps. Not a spray rate. */
+  mitigations: string[];
   actions: [string, string, string];
   confidence: ConfidenceLevel;
   confidenceScore: number;

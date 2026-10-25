@@ -7,11 +7,13 @@ export type IssueId = (typeof ISSUE_IDS)[number];
 const RULES: readonly { id: IssueId; pattern: RegExp }[] = [
   {
     id: "deformity",
-    pattern: /\b(deform\w*|misshapen|twisted|twisting|distort\w*|spiral\w*|kipind\w*|potofu|yaliyopinda)\b/i,
+    pattern:
+      /\b(deform\w*|misshapen|malformed|twisted|twisting|distort\w*|spiral\w*|coil\w*|pucker\w*|kipind\w*|potofu|yaliyopinda)\b/i,
   },
   {
     id: "curl",
-    pattern: /\b(curls?|curling|curled|leaf\s*curl|kukunj\w*|kunjwa|kunja|yaliyokunj\w*)\b/i,
+    pattern:
+      /\b(curls?|curling|curled|leaf\s*curl|kukunj\w*|kunjwa|kunja|yaliyokunj\w*|yamekunj\w*|imekunj\w*|zimekunj\w*|lililokunj\w*|iliyokunj\w*)\b/i,
   },
   {
     id: "spots",
@@ -39,16 +41,42 @@ export function parseIssue(value: unknown): IssueId | null {
   return typeof value === "string" && (ISSUE_IDS as readonly string[]).includes(value) ? (value as IssueId) : null;
 }
 
-/** Symptom class from the farmer's notes. The same rules apply to every plant. */
-export function inferIssue(text: string): IssueId | null {
-  for (const rule of RULES) {
-    if (rule.pattern.test(text)) return rule.id;
+const NEGATION = /\b(no|not|without|never|none|isn't|aren't|wasn't|weren't|hakuna|bila|siyo|si)\b/i;
+
+/** A symptom word counts only when the nearby words do not negate it. "No spots" is not spots. */
+export function hasAffirmed(text: string, pattern: RegExp): boolean {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const global = new RegExp(pattern.source, flags);
+  for (const match of text.matchAll(global)) {
+    const index = match.index ?? 0;
+    const before = text.slice(Math.max(0, index - 32), index);
+    if (!NEGATION.test(before)) return true;
   }
-  return null;
+  return false;
+}
+
+/** Every symptom class the text actually affirms. The same rules apply to every plant. */
+export function inferIssues(text: string): IssueId[] {
+  return RULES.filter((rule) => hasAffirmed(text, rule.pattern)).map((rule) => rule.id);
+}
+
+/** First affirmed symptom. Notes, photo observations, and the model's suspect all count. */
+export function inferIssue(text: string): IssueId | null {
+  return inferIssues(text)[0] ?? null;
+}
+
+/** A labeled spray is the usual next step for spots and for insects already seen. Curl alone is not. */
+export function sprayIsUsual(issue: IssueId | null, evidence: string, sprayFlag: boolean | null): boolean {
+  if (sprayFlag === true) return true;
+  if (sprayFlag === false) return false;
+  if (!issue) return false;
+  if (issue === "spots" || issue === "insects") return true;
+  if (issue === "curl" || issue === "deformity") return inferIssues(evidence).includes("insects");
+  return false;
 }
 
 export function issueUsesChemicals(issue: IssueId): boolean {
-  return issue === "curl" || issue === "deformity" || issue === "spots" || issue === "insects";
+  return issue === "spots" || issue === "insects";
 }
 
 /** Catalog actives for a symptom. The same list is used for every plant. */
@@ -63,19 +91,88 @@ export function issueActives(issue: IssueId): { activeIngredient: string }[] {
 export type IssueStory = {
   observations: [string, string];
   hypotheses: [string, string];
+  mitigations: [string, string, string];
   actions: [string, string, string];
   chemicalsHelp: boolean;
 };
 
 export function issueTriage(locale: Locale, plant: string, issue: IssueId): IssueStory {
   const lines = locale === "sw" ? sw[issue] : en[issue];
+  const mitigations = locale === "sw" ? swMitigations : enMitigations;
   return {
     observations: lines.observations(plant),
     hypotheses: lines.hypotheses(plant),
+    mitigations: mitigations[issue](plant),
     actions: lines.actions(plant),
     chemicalsHelp: issueUsesChemicals(issue),
   };
 }
+
+const enMitigations: Record<IssueId, (plant: string) => [string, string, string]> = {
+  curl: (plant) => [
+    `Take the worst curled ${plant} fruit or leaves off the bed so the rest of the row is what you judge.`,
+    `Water ${plant} on an even rhythm. A dry spell and then a heavy soak, while fruit or leaves are forming, makes curl worse.`,
+    `Keep weeds off the ${plant} row, and stay out of the bed while the leaves are wet.`,
+  ],
+  deformity: (plant) => [
+    `Remove badly misshapen ${plant} fruit from the bed and do not compost it back onto the row.`,
+    `Keep water even while ${plant} fruit is setting. Do not let the row dry out and then flood it.`,
+    `If the same twist shows on new ${plant} growth, look for tiny pests before you buy a product.`,
+  ],
+  spots: (plant) => [
+    `Pick the worst spotted leaves off ${plant} and take them off the bed.`,
+    `Water the soil under ${plant}, not the leaves, and open the row if the plants are crowded.`,
+    `Stay out of the bed while ${plant} leaves are wet so you do not carry the spots along the row.`,
+  ],
+  wilt: (plant) => [
+    `Water ${plant} only when the root zone is dry, and do not run that water onto healthy plants.`,
+    `Pull a ${plant} that has a brown ring in the stem and take it off the bed.`,
+    `Clean the knife and your hands before you touch the next ${plant}.`,
+  ],
+  yellowing: (plant) => [
+    `Match water and feeding to where the yellow sits. Old ${plant} leaves are a different problem from yellow new growth.`,
+    `Water ${plant} only if the soil a few centimetres down is dry.`,
+    `Do not spray ${plant} for yellow lower leaves when the new growth is still green.`,
+  ],
+  insects: (plant) => [
+    `Remove the worst infested ${plant} growth from the bed after you have looked under the leaves.`,
+    `A firm wash of water on the underside can knock some insects off ${plant} when the plants are sturdy enough.`,
+    `Name the insect on ${plant} before you choose a product. The wrong spray will not help.`,
+  ],
+};
+
+const swMitigations: Record<IssueId, (plant: string) => [string, string, string]> = {
+  curl: (plant) => [
+    `Ondoa tunda au jani lililokunjika zaidi la ${plant} kwenye kitanda ili uamue kwa mimea iliyobaki.`,
+    `Mwagilia ${plant} kwa mpangilio sawa. Ukame kisha maji mengi, tunda au jani linapokua, huongeza kukunja.`,
+    `Ondoa magugu kwenye mstari wa ${plant}, na usiingie kitandani majani yakiwa na unyevu.`,
+  ],
+  deformity: (plant) => [
+    `Ondoa tunda potofu la ${plant} kwenye kitanda na usilirudishe kwenye mstari kama mboji.`,
+    `Weka maji sawa ${plant} inapozaa. Usiruhusu mstari ukauke kisha umwagiliwe kwa wingi.`,
+    `Ikiwa mzunguko huohuo uko kwenye ukuaji mpya wa ${plant}, tafuta wadudu wadogo kabla ya kununua dawa.`,
+  ],
+  spots: (plant) => [
+    `Chuma majani yenye madoa zaidi ya ${plant} na uyatoe nje ya kitanda.`,
+    `Mwagilia udongo chini ya ${plant}, si majani, na fungua nafasi ikiwa mimea imesongamana.`,
+    `Usiingie kitandani majani ya ${plant} yakiwa na unyevu ili usisambaze madoa kwenye mstari.`,
+  ],
+  wilt: (plant) => [
+    `Mwagilia ${plant} tu udongo wa mizizi ukiwa mkavu, na usipeleke maji hayo kwa mimea yenye afya.`,
+    `Ng'oa ${plant} yenye pete ya kahawia kwenye shina na uitoe nje ya kitanda.`,
+    `Safisha kisu na mikono kabla ya kugusa ${plant} inayofuata.`,
+  ],
+  yellowing: (plant) => [
+    `Linganisha maji na mbolea na mahali njano ilipo. Majani ya zamani ya ${plant} ni tatizo tofauti na njano ya ukuaji mpya.`,
+    `Mwagilia ${plant} tu ikiwa udongo sentimita chache chini umekauka.`,
+    `Usinyunyizie ${plant} kwa majani ya chini ya manjano ikiwa ukuaji mpya bado ni kijani.`,
+  ],
+  insects: (plant) => [
+    `Ondoa ukuaji ulioathirika zaidi wa ${plant} kwenye kitanda baada ya kuangalia chini ya majani.`,
+    `Maji yenye nguvu upande wa chini yanaweza kuondoa baadhi ya wadudu kwenye ${plant} ikiwa mmea una nguvu.`,
+    `Taja mdudu wa ${plant} kabla ya kuchagua dawa. Dawa isiyo sahihi haitasaidia.`,
+  ],
+};
 
 type Lines = {
   observations: (plant: string) => [string, string];

@@ -12,7 +12,7 @@ BedSense is an indie entry for the **Meta Global AI Developer Hackathon**, **Ind
 
 ## What a photo becomes
 
-The photo is read with the plant name you gave. You get three practical next checks. If a disease or pest looks likely, the result also names chemicals and active ingredients to consider, with example Kenyan agrovet shops and KES price bands by quality. Spray rates follow the product label. Confirm with a local agroveterinary officer before you buy or spray.
+The photo is read with the plant name you gave. When a symptom is visible, you get likely causes, practical mitigation, and three next checks for that plant. Example Kenyan agrovet shops and KES price bands appear only when a spray is the usual next step. Spray rates follow the product label. Confirm with a local agroveterinary officer before you buy or spray.
 
 ## License
 
