@@ -1,8 +1,10 @@
 import { copy } from "@/lib/copy";
 import { CONCEPTS, emptyConceptCounts } from "@/lib/concepts";
-import { contextIsEmpty, emptyFarmerContext, noteContextUse } from "@/lib/context";
+import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
+import { contextText, inferIssue, issueTriage } from "@/lib/issues";
+import { displayPlantName, matchPlant } from "@/lib/plants";
 import { finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
@@ -35,11 +37,64 @@ export function buildMockResult(options: {
   id: string;
   createdAt: string;
   context?: FarmerContext;
+  plantName?: string;
 }): AnalyzeResult {
   const width = Math.max(1, options.width);
   const height = Math.max(1, options.height);
   const context = options.context ?? emptyFarmerContext();
-  const masks = layout(options.scenario, width, height);
+  const plantName = options.plantName ?? "";
+  const text = copy[options.locale];
+  const display = displayPlantName(options.locale, plantName);
+  const issue = inferIssue(contextText(context));
+
+  if (issue) {
+    const label = display || text.unknownPlant;
+    const story = issueTriage(options.locale, label, issue);
+    const counts = emptyConceptCounts();
+    const triage = finalizeTriage({
+      locale: options.locale,
+      observations: story.observations,
+      actions: story.actions,
+      hypotheses: story.hypotheses,
+      confidence: "medium",
+      confidenceScore: 0.58,
+      counts,
+      plantName: label,
+      context,
+      chemicalsHelp: story.chemicalsHelp,
+      issue,
+    });
+    return {
+      id: options.id,
+      createdAt: options.createdAt,
+      locale: options.locale,
+      mode: "mock",
+      models: { sam: "sam-3.1", muse: "muse-spark-1.3-contributor", triageSource: "mock" },
+      image: { width, height, mime: options.mime },
+      cropFocus: "unknown",
+      primaryCrop: null,
+      detectedPlant: label,
+      contextAsk: null,
+      contextUsed: !contextIsEmpty(context),
+      counts,
+      masks: [],
+      observations: triage.observations,
+      hypotheses: triage.hypotheses,
+      actions: triage.actions,
+      chemicals: triage.chemicals,
+      confidence: triage.confidence,
+      confidenceScore: triage.confidenceScore,
+      disclaimer: text.disclaimer,
+      agronomistCallout: text.agronomistCallout,
+      note: null,
+    };
+  }
+
+  const known = matchPlant(plantName);
+  const namedCrop = Boolean(plantName) && Boolean(known?.cropId);
+  const openPlant = Boolean(plantName) && !known?.cropId;
+  const scenario = namedCrop ? scenarioForPlant(plantName, options.scenario) : options.scenario;
+  const masks = openPlant ? [] : layout(scenario, width, height);
   const counts = emptyConceptCounts();
   const areaByCrop: Record<CropId, number> = { onion: 0, beetroot: 0, chili: 0 };
   for (const mask of masks) {
@@ -47,8 +102,7 @@ export function buildMockResult(options: {
     if (mask.crop) areaByCrop[mask.crop] += mask.areaFraction;
   }
   const focus = chooseCropFocus(areaByCrop);
-  const text = copy[options.locale];
-  const story = stories(options.locale)[options.scenario];
+  const story = openPlant ? openPlantStory(options.locale, display || text.unknownPlant) : stories(options.locale)[scenario];
   const triage = finalizeTriage({
     locale: options.locale,
     observations: story.observations,
@@ -56,7 +110,9 @@ export function buildMockResult(options: {
     confidence: story.confidence,
     confidenceScore: story.confidenceScore,
     counts,
-    failedConcepts: [],
+    plantName: display,
+    context,
+    issue: "none",
   });
 
   return {
@@ -68,18 +124,56 @@ export function buildMockResult(options: {
     image: { width, height, mime: options.mime },
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
-    detectedPlant: focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant,
+    detectedPlant: display || (focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant),
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
     contextUsed: !contextIsEmpty(context),
     counts,
     masks,
-    observations: noteContextUse(options.locale, triage.observations, context),
+    observations: triage.observations,
+    hypotheses: triage.hypotheses,
     actions: triage.actions,
+    chemicals: triage.chemicals,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,
     disclaimer: text.disclaimer,
     agronomistCallout: text.agronomistCallout,
     note: null,
+  };
+}
+
+function scenarioForPlant(plantName: string, fallback: DemoScenario): DemoScenario {
+  const crop = matchPlant(plantName)?.cropId;
+  if (crop === "onion") return 0;
+  if (crop === "beetroot") return 1;
+  if (crop === "chili") return 2;
+  return fallback;
+}
+
+function openPlantStory(locale: Locale, plant: string): {
+  observations: string[];
+  actions: [string, string, string];
+  confidence: "low" | "medium" | "high";
+  confidenceScore: number;
+} {
+  if (locale === "sw") {
+    return {
+      observations: [
+        `${plant} ndio mmea wa ukaguzi huu.`,
+        "Angalia rangi ya majani, udongo, na kama dalili hiyo hiyo iko kwenye mmea zaidi ya mmoja.",
+      ],
+      actions: copy.sw.fallbackActions,
+      confidence: "low",
+      confidenceScore: 0.4,
+    };
+  }
+  return {
+    observations: [
+      `${plant} is the plant in this check.`,
+      "Look at leaf colour, the soil, and whether the same sign is on more than one plant.",
+    ],
+    actions: copy.en.fallbackActions,
+    confidence: "low",
+    confidenceScore: 0.4,
   };
 }
 
@@ -226,8 +320,8 @@ function stories(locale: Locale): Record<
       },
       1: {
         observations: [
-          "Fremu hii ni kitanda cha beetroot. Kitunguu hukuzwa kwenye kitanda kingine, kwa hiyo hakipo kwenye picha hii.",
-          "Madoa kwenye jani yanastahili kutazamwa, si kutibiwa kwa dawa leo.",
+          "Madoa ya njano yako kwenye majani ya beetroot kwenye fremu hii.",
+          "Udongo kati ya mimea unaonekana mkavu zaidi ukingoni.",
         ],
         actions: [
           "Linganisha jani lenye madoa na jani jipya kwenye mmea huohuo.",
@@ -268,8 +362,8 @@ function stories(locale: Locale): Record<
     },
     1: {
       observations: [
-        "This frame is a beetroot bed. Onion is grown on a different bed, so it is not in this photo.",
-        "Leaf spots are worth a closer look, not a spray today.",
+        "Yellow patches sit on the beetroot leaves in this frame.",
+        "The soil between the plants looks drier at the edge than in the middle.",
       ],
       actions: [
         "Compare a spotted leaf with a newer leaf on the same plant.",

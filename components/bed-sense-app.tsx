@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MaskCanvas } from "@/components/mask-canvas";
 import { CONCEPTS } from "@/lib/concepts";
-import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
+import { emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, rememberCheck } from "@/lib/history";
 import { clearHistoryStore, useHistory, useLocale, writeHistory, writeLocale } from "@/lib/phone-store";
-import { CONTEXT_FIELDS, type AnalyzeResult, type ContextField, type FarmerContext, type HistoryEntry, type Locale } from "@/lib/types";
+import { CONTEXT_FIELDS, type AnalyzeResult, type ChemicalOffer, type ContextField, type FarmerContext, type HistoryEntry, type Locale } from "@/lib/types";
 
 type PreparedPhoto = {
   dataUrl: string;
@@ -29,7 +29,9 @@ export function BedSenseApp() {
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<FarmerContext>(emptyFarmerContext);
   const [contextOpen, setContextOpen] = useState(false);
+  const [plantName, setPlantName] = useState("");
   const text = copy[locale];
+  const plantReady = plantName.trim().length >= 2;
 
   useEffect(() => {
     document.documentElement.lang = locale === "sw" ? "sw" : "en";
@@ -70,6 +72,7 @@ export function BedSenseApp() {
           width: photo.width,
           height: photo.height,
           context,
+          plantName: plantName.trim(),
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
@@ -160,6 +163,20 @@ export function BedSenseApp() {
         <p className="mt-2 text-sm leading-5 text-ink/70">{text.supportNote}</p>
       </div>
 
+      <label className="mt-5 block">
+        <span className="text-sm font-semibold">{text.plantNameLabel}</span>
+        <input
+          required
+          value={plantName}
+          placeholder={text.plantNamePlaceholder}
+          disabled={busy}
+          autoComplete="off"
+          onChange={(event) => setPlantName(event.target.value)}
+          className="mt-1 min-h-12 w-full rounded-2xl border border-ink/15 bg-white px-3 text-base font-normal"
+        />
+      </label>
+      <p className="mt-1 text-sm leading-5 text-ink/70">{plantReady ? text.plantNameHint : text.plantNameRequired}</p>
+
       <section className="mt-5 rounded-[1.6rem] border border-ink/10 bg-white/55 p-3 shadow-[0_10px_30px_rgba(36,48,36,0.05)]">
         {preview ? (
           <MaskCanvas src={preview} alt={text.title} result={result} />
@@ -173,7 +190,7 @@ export function BedSenseApp() {
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !plantReady}
             onClick={() => cameraRef.current?.click()}
             className="min-h-12 rounded-2xl bg-soil px-3 text-sm font-semibold text-paper disabled:opacity-60"
           >
@@ -181,7 +198,7 @@ export function BedSenseApp() {
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !plantReady}
             onClick={() => libraryRef.current?.click()}
             className="min-h-12 rounded-2xl bg-sand px-3 text-sm font-semibold text-ink disabled:opacity-60"
           >
@@ -245,7 +262,7 @@ export function BedSenseApp() {
               disabled={busy}
               open={contextOpen}
               onOpenChange={setContextOpen}
-              canUpdate={Boolean(prepared)}
+              canUpdate={Boolean(prepared) && plantReady}
               onUpdate={() => {
                 if (prepared) void runCheck(prepared);
               }}
@@ -338,14 +355,16 @@ function ResultCard({
         </p>
       </div>
 
-      <ul className="flex flex-wrap gap-2">
-        {CONCEPTS.map((concept) => (
-          <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs">
-            <span className="h-2 w-2 rounded-full" style={{ background: concept.swatch }} />
-            {text.concepts[concept.id]} {result.counts[concept.id]}
-          </li>
-        ))}
-      </ul>
+      {CONCEPTS.some((concept) => result.counts[concept.id] > 0) ? (
+        <ul className="flex flex-wrap gap-2">
+          {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
+            <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs">
+              <span className="h-2 w-2 rounded-full" style={{ background: concept.swatch }} />
+              {text.concepts[concept.id]} {result.counts[concept.id]}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {result.masks.length === 0 ? <p className="text-sm text-ink/75">{text.noMasks}</p> : null}
 
@@ -360,6 +379,20 @@ function ResultCard({
         </ul>
       </div>
 
+      {(result.hypotheses ?? []).length > 0 ? (
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.hypotheses}</h3>
+          <p className="mt-1 text-sm leading-5 text-ink/70">{text.hypothesesHint}</p>
+          <ul className="mt-2 space-y-2">
+            {result.hypotheses.map((item) => (
+              <li key={item} className="rounded-2xl bg-[#f8ebe7] px-3 py-3 text-sm leading-5">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div>
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.actions}</h3>
         <p className="mt-1 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
@@ -372,6 +405,8 @@ function ResultCard({
           ))}
         </ol>
       </div>
+
+      <ChemicalList text={text} offers={result.chemicals ?? []} />
 
       {contextSlot}
 
@@ -387,6 +422,28 @@ function ResultCard({
         <p className="mt-2 text-sm leading-5 text-ink/80">{result.disclaimer}</p>
       </div>
     </section>
+  );
+}
+
+function ChemicalList({ text, offers }: { text: Copy; offers: ChemicalOffer[] }) {
+  if (offers.length === 0) return null;
+  return (
+    <div>
+      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
+      <p className="mt-1 text-sm leading-5 text-ink/70">{text.chemicalsHint}</p>
+      <ul className="mt-2 space-y-2">
+        {offers.map((offer) => (
+          <li key={`${offer.quality}-${offer.name}`} className="rounded-2xl bg-white px-3 py-3 text-sm leading-5">
+            <span className="block font-semibold">{offer.name}</span>
+            <span className="mt-0.5 block font-semibold text-leaf">
+              {text.qualityLabel(offer.quality)} · {offer.kesBand}
+            </span>
+            <span className="mt-1 block">{offer.shops}</span>
+            <span className="mt-1 block text-ink/80">{offer.why}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -461,7 +518,7 @@ function ContextForm({
           {canUpdate ? (
             <button
               type="button"
-              disabled={disabled || contextIsEmpty(context)}
+              disabled={disabled || !canUpdate}
               onClick={onUpdate}
               className="min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper disabled:opacity-60"
             >

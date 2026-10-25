@@ -44,7 +44,7 @@ export function contextIsEmpty(context: FarmerContext): boolean {
 
 export function contextPromptBlock(context: FarmerContext): string {
   if (contextIsEmpty(context)) {
-    return "Farmer context: none. Still name the plant and return three next checks. Put one short question in contextAsk only if a missing fact would change those checks.";
+    return "Farmer context: none. Still read the photo and the named plant, and return three next checks. Put one short question in contextAsk only if a missing fact would change those checks.";
   }
   const lines = CONTEXT_FIELDS.filter((field) => context[field]).map((field) => `- ${PROMPT_LABELS[field]}: ${context[field]}`);
   return [
@@ -52,14 +52,6 @@ export function contextPromptBlock(context: FarmerContext): string {
     ...lines,
     "Use this as history. Do not repeat a spray dose or a mixing rate.",
   ].join("\n");
-}
-
-export function noteContextUse(locale: Locale, observations: readonly string[], context: FarmerContext): string[] {
-  if (contextIsEmpty(context)) return [...observations];
-  const note = copy[locale].contextNoted;
-  if (observations.includes(note)) return [...observations];
-  if (observations.length === 0) return [note];
-  return [observations[0] ?? note, note, ...observations.slice(1)];
 }
 
 export function cleanPlantName(value: unknown): string | null {

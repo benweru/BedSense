@@ -26,13 +26,17 @@ describe("farmer context", () => {
 
   it("puts offered context into the Muse prompt and still names any plant", () => {
     const context = parseFarmerContext({ stage: "three weeks", weather: "dry for three days" });
-    const prompt = userPrompt("en", "Marks — onion 0", context);
+    const prompt = userPrompt("en", "none", context, "tomatoes");
     expect(prompt).toContain("three weeks");
     expect(prompt).toContain("dry for three days");
+    expect(prompt).toContain("Tomato");
     expect(prompt.toLowerCase()).toContain("any farm plant");
+    expect(prompt.toLowerCase()).toContain("empty marks are not a reason to skip");
     expect(developerPrompt("sw")).toContain("contextAsk");
     expect(developerPrompt("en").toLowerCase()).toContain("any farm plant");
     expect(developerPrompt("en")).toContain("never on the same bed");
+    expect(developerPrompt("en").toLowerCase()).not.toContain("you do not diagnose");
+    expect(developerPrompt("en")).toContain("chemicalsHelp");
     expect(contextPromptBlock(emptyFarmerContext())).toContain("none");
   });
 

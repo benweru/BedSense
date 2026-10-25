@@ -32,7 +32,6 @@ describe("dosage guard", () => {
       confidence: "high",
       confidenceScore: 0.93,
       counts,
-      failedConcepts: [],
     });
     expect(result.actions).toHaveLength(3);
     expect(result.actions.join(" ")).not.toMatch(/\d+\s*ml/i);
@@ -42,5 +41,6 @@ describe("dosage guard", () => {
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
     expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
     expect(result.observations[0]).toContain("onion 2");
+    expect(result.observations.join(" ").toLowerCase()).not.toContain("beetroot");
   });
 });

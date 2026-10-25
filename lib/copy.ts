@@ -1,4 +1,4 @@
-import type { ConceptCounts, ConceptId, ConfidenceLevel, CropFocus, CropId, Locale } from "@/lib/types";
+import type { ChemicalQuality, ConceptCounts, ConceptId, ConfidenceLevel, CropFocus, CropId, Locale } from "@/lib/types";
 
 export type PlantLineInput = {
   detectedPlant?: string | null;
@@ -49,7 +49,15 @@ export type Copy = {
   contextAskLabel: string;
   contextUpdate: string;
   contextAskDefault: string;
-  contextNoted: string;
+  plantNameLabel: string;
+  plantNamePlaceholder: string;
+  plantNameRequired: string;
+  plantNameHint: string;
+  hypotheses: string;
+  hypothesesHint: string;
+  chemicalsTitle: string;
+  chemicalsHint: string;
+  qualityLabel: (quality: ChemicalQuality) => string;
   contextFields: {
     stage: string;
     practices: string;
@@ -63,14 +71,13 @@ export type Copy = {
   agronomistCallout: string;
   countLine: (counts: ConceptCounts) => string;
   plantLine: (input: PlantLineInput) => string;
-  segmentFailed: (name: string) => string;
   levelLabel: (level: ConfidenceLevel) => string;
 };
 
 const en: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Photograph any plant on a vegetable farm bed. You do not pick a crop first. SAM 3.1 and Muse Spark read the photo and return exactly three next checks: practical, non-chemical things to look at or do next. Triage steps only — not a diagnosis, and not a treatment rate.",
+  lede: "Name the plant, then photograph a bed, a leaf, or fruit in your hand. SAM 3.1 and Muse Spark read that photo and any notes you add. You get exactly three next checks, likely causes when something looks wrong, and Kenyan shop options when a product would help. Not a diagnosis, and not a treatment rate.",
   supportLine: "Works well with onion. Often used for beetroot and chili.",
   supportNote:
     "Each of those crops grows on its own bed. Onion and beetroot are never on the same bed, and chili is a separate bed too. Any other farm plant is welcome.",
@@ -78,12 +85,12 @@ const en: Copy = {
   upload: "Choose a photo",
   hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
-  analyzing: "Reading the plant in this photo. Three next checks come next.",
+  analyzing: "Reading the photo, the plant name, and your notes.",
   retake: "New photo",
   retry: "Try again",
   observations: "What stands out",
   actions: "Three next checks",
-  actionsHint: "Practical, non-chemical things to look at or do on the bed. Not a diagnosis or a treatment rate.",
+  actionsHint: "Practical checks for this plant. Not a diagnosis or a treatment rate.",
   confidence: "Confidence",
   low: "Low",
   medium: "Medium",
@@ -92,7 +99,7 @@ const en: Copy = {
   historyEmpty: "Your last five checks stay on this phone.",
   clear: "Clear",
   marks: "Marks",
-  noMasks: "No familiar crop marks landed in this frame. The photo is still read.",
+  noMasks: "No plant marks landed in this frame. The photo, the plant name, and your notes are still used.",
   errorGeneric: "The check did not finish. Try another photo.",
   errorFormat: "This photo did not open. Take it again or choose a JPEG.",
   language: "Language",
@@ -103,7 +110,7 @@ const en: Copy = {
   modeMock: "Demo mode",
   modeLive: "Live models",
   backupNote: "This advice came from the on-phone backup because Muse Spark did not answer.",
-  footer: "Triage, not a diagnosis. No spray doses.",
+  footer: "Hypotheses, not a diagnosis. No spray doses.",
   concepts: {
     onion: "Onion",
     beetroot: "Beetroot",
@@ -113,12 +120,20 @@ const en: Copy = {
     weed: "Weed",
   },
   unknownPlant: "Farm plant",
+  plantNameLabel: "Plant",
+  plantNamePlaceholder: "Onion / mf. Kitunguu",
+  plantNameRequired: "Name the plant before you take the photo.",
+  plantNameHint: "Any plant. A bed, a leaf, or fruit in your hand.",
+  hypotheses: "Likely causes",
+  hypothesesHint: "Possibilities to check. Not a diagnosis.",
+  chemicalsTitle: "Chemicals and Kenyan shops",
+  chemicalsHint: "Indicative KES bands by quality. A licensed agrovet confirms the product and the label rate. BedSense does not give a spray dose.",
+  qualityLabel: (quality) => (quality === "economy" ? "Economy" : quality === "standard" ? "Standard" : "Premium"),
   contextTitle: "Add context (optional)",
   contextHint: "Plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, or a note. This is not required.",
   contextAskLabel: "A clearer check would use this",
   contextUpdate: "Update the check",
   contextAskDefault: "If you know it, add the plant’s age and when you last watered.",
-  contextNoted: "The notes you added are part of this check.",
   contextFields: {
     stage: "Plant age or stage",
     practices: "Current practices",
@@ -133,11 +148,20 @@ const en: Copy = {
     "Photograph the same plants again in two days and show both photos to an agronomist if the marks spread.",
   ],
   disclaimer:
-    "BedSense offers field triage, not a diagnosis. It does not name a disease with certainty, and it does not give a treatment rate or a spray dose. Confirm with a qualified agronomist or your local extension officer before you treat the bed.",
+    "BedSense offers field hypotheses, not a diagnosis. It does not give a treatment rate or a spray dose. Confirm with a qualified agronomist or a licensed agrovet before you treat the bed.",
   agronomistCallout:
-    "Ask an agronomist. Show them this photo and these three next checks before you buy or mix any spray.",
-  countLine: (counts) =>
-    `Marks — onion ${counts.onion}, beetroot ${counts.beetroot}, chili ${counts.chili}, other plant ${counts.plant}, yellow leaf ${counts["yellow-leaf"]}, weed ${counts.weed}.`,
+    "Ask an agronomist or a licensed agrovet. Show them this photo, the likely causes, and any listed product before you buy or mix a spray.",
+  countLine: (counts) => {
+    const parts = [
+      counts.onion ? `onion ${counts.onion}` : "",
+      counts.beetroot ? `beetroot ${counts.beetroot}` : "",
+      counts.chili ? `chili ${counts.chili}` : "",
+      counts.plant ? `other plant ${counts.plant}` : "",
+      counts["yellow-leaf"] ? `yellow leaf ${counts["yellow-leaf"]}` : "",
+      counts.weed ? `weed ${counts.weed}` : "",
+    ].filter(Boolean);
+    return parts.length ? `In this frame: ${parts.join(", ")}.` : "";
+  },
   plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
     const named = detectedPlant?.trim() || (primaryCrop === "onion" ? "Onion" : primaryCrop === "beetroot" ? "Beetroot" : primaryCrop === "chili" ? "Chili" : "");
     if (cropFocus === "mixed") {
@@ -147,14 +171,13 @@ const en: Copy = {
     if (named) return `This looks like ${named}.`;
     return "This looks like a farm plant. The three next checks still apply.";
   },
-  segmentFailed: (name) => `${name} segmentation did not return, so those marks may be missing.`,
   levelLabel: (level) => (level === "low" ? "Low" : level === "medium" ? "Medium" : "High"),
 };
 
 const sw: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Piga picha ya mmea wowote kwenye kitanda cha mboga shambani. Huchagui zao kwanza. SAM 3.1 na Muse Spark zinasoma picha na kurudisha ukaguzi tatu hasa: mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya. Hatua za mapitio tu — si utambuzi, wala kipimo cha tiba.",
+  lede: "Taja mmea, kisha piga picha ya kitanda, jani, au tunda mkononi. SAM 3.1 na Muse Spark zinasoma picha hiyo na maelezo yako. Unapata ukaguzi tatu hasa, visababishi vinavyowezekana, na maduka ya Kenya ikiwa dawa ingesaidia. Si utambuzi, wala kipimo cha tiba.",
   supportLine: "Hufanya kazi vizuri na kitunguu. Hutumika mara nyingi kwa beetroot na pilipili.",
   supportNote:
     "Kila moja ya mazao hayo iko kwenye kitanda chake. Kitunguu na beetroot havipandwi kamwe kwenye kitanda kimoja, na pilipili iko kwenye kitanda chake. Mmea mwingine wowote shambani unakubalika.",
@@ -162,12 +185,12 @@ const sw: Copy = {
   upload: "Chagua picha",
   hint: "Jaza fremu na mmea mmoja au kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
-  analyzing: "Inasoma mmea kwenye picha hii. Ukaguzi tatu unafuata.",
+  analyzing: "Inasoma picha, jina la mmea, na maelezo yako.",
   retake: "Picha nyingine",
   retry: "Jaribu tena",
   observations: "Kinachoonekana",
   actions: "Ukaguzi tatu unaofuata",
-  actionsHint: "Mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya kwenye kitanda. Si utambuzi wala kipimo cha tiba.",
+  actionsHint: "Ukaguzi wa kivitendo kwa mmea huu. Si utambuzi wala kipimo cha tiba.",
   confidence: "Imani",
   low: "Chini",
   medium: "Wastani",
@@ -176,7 +199,7 @@ const sw: Copy = {
   historyEmpty: "Ukaguzi tano wa mwisho unabaki kwenye simu hii.",
   clear: "Futa",
   marks: "Alama",
-  noMasks: "Hakuna alama za mazao ya kawaida kwenye fremu hii. Picha bado inasomwa.",
+  noMasks: "Hakuna alama za mmea kwenye fremu hii. Picha, jina la mmea, na maelezo yako bado yanatumika.",
   errorGeneric: "Ukaguzi haujakamilika. Jaribu picha nyingine.",
   errorFormat: "Picha hii haikufunguka. Piga tena au chagua JPEG.",
   language: "Lugha",
@@ -187,7 +210,7 @@ const sw: Copy = {
   modeMock: "Hali ya onyesho",
   modeLive: "Modeli hai",
   backupNote: "Ushauri huu umetoka kwenye chelezo ya ndani kwa sababu Muse Spark haijajibu.",
-  footer: "Mapitio si utambuzi. Hakuna vipimo vya dawa.",
+  footer: "Nadharia, si utambuzi. Hakuna vipimo vya dawa.",
   concepts: {
     onion: "Kitunguu",
     beetroot: "Beetroot",
@@ -197,12 +220,20 @@ const sw: Copy = {
     weed: "Magugu",
   },
   unknownPlant: "Mmea wa shamba",
+  plantNameLabel: "Mmea",
+  plantNamePlaceholder: "Kitunguu / mf. Onion",
+  plantNameRequired: "Taja mmea kabla ya kupiga picha.",
+  plantNameHint: "Mmea wowote. Kitanda, jani, au tunda mkononi.",
+  hypotheses: "Visababishi vinavyowezekana",
+  hypothesesHint: "Uwezekano wa kukagua. Si utambuzi.",
+  chemicalsTitle: "Kemikali na maduka ya Kenya",
+  chemicalsHint: "Viwango vya KES kwa ubora, si bei rasmi. Agrovet yenye leseni inathibitisha dawa na maagizo ya lebo. BedSense haitoi kipimo cha dawa.",
+  qualityLabel: (quality) => (quality === "economy" ? "Bei nafuu" : quality === "standard" ? "Kawaida" : "Daraja la juu"),
   contextTitle: "Ongeza muktadha (si lazima)",
   contextHint: "Umri au hatua ya mmea, mazoea, kemikali zilizotumika, hali ya hewa au umwagiliaji, matatizo unayoyajua, au maelezo. Haihitajiki.",
   contextAskLabel: "Ukaguzi ulio wazi zaidi ungetumia hili",
   contextUpdate: "Sasisha ukaguzi",
   contextAskDefault: "Ikiwa unajua, ongeza umri wa mmea na lini ulimwagilia mara ya mwisho.",
-  contextNoted: "Maelezo uliyoongeza yameingia kwenye ukaguzi huu.",
   contextFields: {
     stage: "Umri au hatua ya mmea",
     practices: "Mazoea ya sasa",
@@ -217,11 +248,20 @@ const sw: Copy = {
     "Piga picha tena baada ya siku mbili, na peleka picha zote kwa mtaalamu wa kilimo ikiwa dalili zinaenea.",
   ],
   disclaimer:
-    "BedSense hutoa mapitio ya shambani, si utambuzi wa ugonjwa. Haitaji ugonjwa kwa uhakika, wala haitoi kipimo cha tiba au kipimo cha dawa. Thibitisha na mtaalamu wa kilimo au afisa ugani kabla ya kutibu kitanda.",
+    "BedSense hutoa nadharia za shambani, si utambuzi. Haitoi kipimo cha tiba wala kipimo cha dawa. Thibitisha na mtaalamu wa kilimo au agrovet yenye leseni kabla ya kutibu kitanda.",
   agronomistCallout:
-    "Muulize mtaalamu wa kilimo. Mwonyeshe picha hii na ukaguzi tatu kabla ya kununua au kuchanganya dawa yoyote.",
-  countLine: (counts) =>
-    `Alama — kitunguu ${counts.onion}, beetroot ${counts.beetroot}, pilipili ${counts.chili}, mmea mwingine ${counts.plant}, jani njano ${counts["yellow-leaf"]}, magugu ${counts.weed}.`,
+    "Muulize mtaalamu wa kilimo au agrovet yenye leseni. Mwonyeshe picha hii, visababishi, na dawa iliyoorodheshwa kabla ya kununua au kuchanganya dawa.",
+  countLine: (counts) => {
+    const parts = [
+      counts.onion ? `kitunguu ${counts.onion}` : "",
+      counts.beetroot ? `beetroot ${counts.beetroot}` : "",
+      counts.chili ? `pilipili ${counts.chili}` : "",
+      counts.plant ? `mmea mwingine ${counts.plant}` : "",
+      counts["yellow-leaf"] ? `jani njano ${counts["yellow-leaf"]}` : "",
+      counts.weed ? `magugu ${counts.weed}` : "",
+    ].filter(Boolean);
+    return parts.length ? `Katika fremu hii: ${parts.join(", ")}.` : "";
+  },
   plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
     const named =
       detectedPlant?.trim() ||
@@ -233,7 +273,6 @@ const sw: Copy = {
     if (named) return `Hii inaonekana kama ${named}.`;
     return "Hii inaonekana kama mmea wa shamba. Ukaguzi tatu bado unatumika.";
   },
-  segmentFailed: (name) => `Alama za ${name} hazijarudi, kwa hiyo zinaweza kukosekana.`,
   levelLabel: (level) => (level === "low" ? "Chini" : level === "medium" ? "Wastani" : "Juu"),
 };
 

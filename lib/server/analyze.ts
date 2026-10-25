@@ -1,8 +1,9 @@
 import { emptyConceptCounts } from "@/lib/concepts";
-import { contextIsEmpty, noteContextUse, parseFarmerContext } from "@/lib/context";
+import { contextIsEmpty, parseFarmerContext } from "@/lib/context";
 import { normalizeLocale } from "@/lib/copy";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
+import { readPlantName } from "@/lib/plants";
 import { buildMockResult, demoScenario } from "@/lib/server/mock";
 import { adviseBed } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
@@ -15,6 +16,7 @@ export type AnalyzeInput = {
   width?: unknown;
   height?: unknown;
   context?: unknown;
+  plantName?: unknown;
 };
 
 export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResult> {
@@ -33,6 +35,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
 
   const locale = normalizeLocale(input.locale);
   const context = parseFarmerContext(input.context);
+  const plantName = readPlantName(input.plantName);
   const size = resolveSize(decoded.size, clampDeclaredSize(input.width, input.height));
   const createdAt = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -47,13 +50,14 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       id,
       createdAt,
       context,
+      plantName,
     });
   }
 
   const apiKey = readApiKey();
   if (!apiKey) throw new AnalyzeError("missing_key");
 
-  const segmented = await segmentBed(input.image, apiKey, size.width * size.height);
+  const segmented = await segmentBed(input.image, apiKey, size.width * size.height, plantName);
   const image = segmented.sourceSize ?? size;
   const counts = countMasks(segmented.masks);
   const focus = chooseCropFocus(areaByCrop(segmented.masks));
@@ -62,9 +66,9 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     apiKey,
     locale,
     counts,
-    failedConcepts: segmented.failed,
     context,
     primaryCrop: focus.primaryCrop,
+    plantName,
   });
 
   return {
@@ -85,8 +89,10 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     contextUsed: !contextIsEmpty(context),
     counts,
     masks: segmented.masks,
-    observations: noteContextUse(locale, advice.observations, context),
+    observations: advice.observations,
+    hypotheses: advice.hypotheses,
     actions: advice.actions,
+    chemicals: advice.chemicals,
     confidence: advice.confidence,
     confidenceScore: advice.confidenceScore,
     disclaimer: advice.disclaimer,

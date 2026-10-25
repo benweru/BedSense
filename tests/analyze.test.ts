@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/analyze/route";
+import { copy } from "@/lib/copy";
 import { analyzeBedPhoto } from "@/lib/server/analyze";
 import { buildMockResult } from "@/lib/server/mock";
 import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
@@ -103,7 +104,8 @@ describe("analyze pipeline", () => {
     expect(body.contextAsk).toBeNull();
     expect(body.detectedPlant).toBeTruthy();
     expect(body.actions).toHaveLength(3);
-    expect(JSON.stringify(body.observations)).toContain("notes you added");
+    expect(JSON.stringify(body.observations)).not.toContain("notes you added");
+    expect(JSON.stringify(body.observations)).not.toMatch(/segmentation did not return/i);
   });
 
   it("stays in demo mode when no key is configured", async () => {
@@ -150,6 +152,7 @@ describe("analyze pipeline", () => {
     const liveKey = "k".repeat(40);
     vi.stubEnv("MODEL_API_KEY", liveKey);
     clearModelKeyChunks();
+    const phrases: string[] = [];
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => {
       const headers = new Headers(init.headers);
       expect(headers.get("authorization")).toBe(`Bearer ${liveKey}`);
@@ -164,10 +167,12 @@ describe("analyze pipeline", () => {
         expect(String(developer?.content)).toContain("contextAsk");
         const user = body.messages.find((message) => message.role === "user");
         expect(JSON.stringify(user?.content)).toContain("three weeks");
+        expect(JSON.stringify(user?.content)).toContain("Onion");
       }
       if (String(url).endsWith("/responses")) {
         expect(body.model).toBe("sam-3.1");
         const phrase = body.input?.[0]?.content.find((part) => part.type === "input_text")?.text;
+        if (phrase) phrases.push(phrase);
         const text = phrase === "onion plant" ? BUTTON_OUTPUT : "";
         const sse = [
           `data: ${JSON.stringify({ type: "response.output_text.delta", delta: text })}`,
@@ -189,7 +194,14 @@ describe("analyze pipeline", () => {
             {
               message: {
                 content: JSON.stringify({
-                  observations: ["The row looks uneven from this side of the bed."],
+                  observations: [
+                    "The row looks uneven from this side of the bed.",
+                    "Beetroot segmentation did not return, so those marks may be missing.",
+                    "The notes you added are part of this check.",
+                  ],
+                  hypotheses: ["The onion row may be thirsty."],
+                  chemicalsHelp: false,
+                  issue: "none",
                   actions: [
                     "Feel the soil before watering.",
                     "Spray 20 ml per 20 L of water tonight.",
@@ -212,6 +224,7 @@ describe("analyze pipeline", () => {
     const result = await analyzeBedPhoto({
       image: pngDataUrl(),
       locale: "en",
+      plantName: "onion",
       context: { stage: "three weeks" },
     });
     expect(result.mode).toBe("live");
@@ -227,15 +240,66 @@ describe("analyze pipeline", () => {
     expect(JSON.stringify(result)).not.toContain(liveKey);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
     expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
-    expect(result.detectedPlant).toBe("tomato");
+    expect(result.detectedPlant).toBe("Onion");
     expect(result.contextAsk).toBe("When did you last water?");
     expect(result.contextUsed).toBe(true);
-    expect(result.observations.join(" ")).toContain("notes you added");
+    expect(result.observations.join(" ")).toContain("uneven");
+    expect(result.observations.join(" ").toLowerCase()).not.toContain("beetroot");
+    expect(result.observations.join(" ")).not.toContain("notes you added");
+    expect(result.hypotheses).toContain("The onion row may be thirsty.");
+    expect(result.chemicals).toEqual([]);
+    expect(phrases).toEqual(expect.arrayContaining(["onion plant", "yellow leaf", "weed"]));
+    expect(phrases).not.toContain("beetroot plant");
+    expect(phrases).not.toContain("chili pepper plant");
     const models = fetchMock.mock.calls
       .map((call) => JSON.parse(String(call[1]?.body)) as { model?: string })
       .map((body) => body.model);
     expect(models).toContain("sam-3.1");
     expect(models).toContain("muse-spark-1.3-contributor");
     expect(models).toContain("muse-spark-1.3");
+  });
+
+  it("triages a named plant when marks are empty and Muse is down", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    clearModelKeyChunks();
+    const phrases: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as {
+          input?: Array<{ content: Array<{ type: string; text?: string }> }>;
+        };
+        if (String(url).endsWith("/responses")) {
+          const phrase = body.input?.[0]?.content.find((part) => part.type === "input_text")?.text;
+          if (phrase) phrases.push(phrase);
+          return new Response("data: {\"type\":\"response.completed\"}\n\n", {
+            status: 200,
+            headers: { "content-type": "text/event-stream" },
+          });
+        }
+        return new Response(JSON.stringify({ error: { message: "unavailable" } }), { status: 503 });
+      }),
+    );
+
+    const result = await analyzeBedPhoto({
+      image: pngDataUrl(),
+      locale: "en",
+      plantName: "chilly",
+      context: { notes: "Yes other chillies are like this. What could be the cause of the curling?" },
+    });
+    expect(result.mode).toBe("live");
+    expect(result.models.triageSource).toBe("local-fallback");
+    expect(result.detectedPlant).toBe("Chili");
+    expect(result.masks).toEqual([]);
+    expect(result.hypotheses.length).toBeGreaterThan(0);
+    expect(result.chemicals.length).toBeGreaterThan(0);
+    expect(result.chemicals.some((offer) => /KES \d+–\d+/.test(offer.kesBand))).toBe(true);
+    expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
+    const visible = [...result.observations, ...result.hypotheses, ...result.actions, ...result.chemicals.map((offer) => `${offer.why} ${offer.shops}`)].join(" ");
+    expect(visible.toLowerCase()).not.toContain("beetroot");
+    expect(visible.toLowerCase()).not.toContain("onion");
+    expect(phrases).not.toContain("beetroot plant");
+    expect(phrases).toContain("chili pepper plant");
   });
 });

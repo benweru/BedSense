@@ -1,9 +1,10 @@
 import { decodeMaskToRaster, parseImageStream, recordsOfKind, type ResponsesEvent } from "@meta-sam/parser";
-import { CONCEPTS, conceptById } from "@/lib/concepts";
+import { conceptById } from "@/lib/concepts";
 import { areaFractionFromRaster, downsampleRaster } from "@/lib/grid";
 import { preferSpecificCrops } from "@/lib/plant-marks";
+import { probesForPlant } from "@/lib/plants";
 import { postMeta, SAM_MODEL, textFromPayload, type MetaPayload } from "@/lib/server/meta";
-import { AnalyzeError, type ConceptId, type MaskMark } from "@/lib/types";
+import type { ConceptId, MaskMark } from "@/lib/types";
 
 const PER_CONCEPT_CAP = 8;
 
@@ -13,9 +14,9 @@ export type SegmentPass = {
   sourceSize: { width: number; height: number } | null;
 };
 
-export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint: number): Promise<SegmentPass> {
+export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint: number, plantName = ""): Promise<SegmentPass> {
   const passes = await Promise.all(
-    CONCEPTS.map(async (concept) => {
+    probesForPlant(plantName).map(async (concept) => {
       try {
         const payload = await postMeta(
           "/responses",
@@ -52,10 +53,6 @@ export async function segmentBed(imageUrl: string, apiKey: string, imageAreaHint
       }
     }),
   );
-
-  if (passes.every((pass) => pass.failed)) {
-    throw new AnalyzeError("upstream");
-  }
 
   return {
     masks: preferSpecificCrops(passes.flatMap((pass) => pass.masks)),

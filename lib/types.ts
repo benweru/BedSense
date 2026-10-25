@@ -11,6 +11,17 @@ export type ConceptKind = "crop" | "symptom" | "other";
 
 export type ConfidenceLevel = "low" | "medium" | "high";
 
+export const CHEMICAL_QUALITIES = ["economy", "standard", "premium"] as const;
+export type ChemicalQuality = (typeof CHEMICAL_QUALITIES)[number];
+
+export type ChemicalOffer = {
+  name: string;
+  quality: ChemicalQuality;
+  kesBand: string;
+  shops: string;
+  why: string;
+};
+
 /** One of the familiar crops, an unusual multi-crop frame (`mixed`), or none of those marks (`unknown`). Other plants are still named from the photo. */
 export type CropFocus = CropId | "mixed" | "unknown";
 
@@ -69,7 +80,9 @@ export type AnalyzeResult = {
   counts: ConceptCounts;
   masks: MaskMark[];
   observations: string[];
+  hypotheses: string[];
   actions: [string, string, string];
+  chemicals: ChemicalOffer[];
   confidence: ConfidenceLevel;
   confidenceScore: number;
   disclaimer: string;
