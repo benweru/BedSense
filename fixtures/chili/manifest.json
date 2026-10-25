@@ -1,0 +1,8 @@
+[
+  { "id": "high-res", "file": "high-res.jpg", "quality": "High resolution" },
+  { "id": "blurred", "file": "blurred.jpg", "quality": "Blurred" },
+  { "id": "low-res", "file": "low-res.jpg", "quality": "Low resolution" },
+  { "id": "bad-lighting", "file": "bad-lighting.jpg", "quality": "Bad lighting" },
+  { "id": "odd-angle", "file": "odd-angle.jpg", "quality": "Odd angle" },
+  { "id": "occluded", "file": "occluded.jpg", "quality": "Occluded" }
+]

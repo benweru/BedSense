@@ -69,6 +69,9 @@ flowchart LR
 npm test
 npm run lint
 npm run build
+npm run messy-chili
 ```
+
+`npm run messy-chili` grades six chili fixtures (high resolution, blurred, low resolution, bad lighting, odd angle, occluded) through SAM and then Muse. Without a key it checks the simulated log in `docs/messy-chili-summary.md`. With `MOCK_META=0` and `MESSY_CHILI_KEY` set to the same key as `MODEL_API_KEY`, it calls the live models and prints a failure-rate table. The fixtures are generated drawings so the qualities stay repeatable; swap in field JPEGs by replacing the files named in `fixtures/chili/manifest.json`.
 
 `npm start` serves a production build.
