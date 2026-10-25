@@ -12,9 +12,23 @@ export function isMockMode(): boolean {
   return !readApiKey();
 }
 
+const COMPLETE_KEY_MIN_LENGTH = 40;
+const KEY_PARTS = 6;
+
+// A host can truncate one long MODEL_API_KEY. Forty characters counts as
+// complete; otherwise join MODEL_API_KEY_0 through MODEL_API_KEY_5.
 export function readApiKey(): string | null {
-  const key = process.env.MODEL_API_KEY?.trim();
-  return key ? key : null;
+  const direct = process.env.MODEL_API_KEY?.trim() ?? "";
+  if (direct.length >= COMPLETE_KEY_MIN_LENGTH) return direct;
+  return readChunkedApiKey();
+}
+
+function readChunkedApiKey(): string | null {
+  let joined = "";
+  for (let index = 0; index < KEY_PARTS; index += 1) {
+    joined += process.env[`MODEL_API_KEY_${index}`]?.trim() ?? "";
+  }
+  return joined ? joined : null;
 }
 
 export type MetaPayload =
