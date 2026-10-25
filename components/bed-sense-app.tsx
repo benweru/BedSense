@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MaskCanvas } from "@/components/mask-canvas";
+import { VoiceContext } from "@/components/voice-context";
 import { CONCEPTS } from "@/lib/concepts";
 import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
@@ -324,6 +325,7 @@ export function BedSenseApp() {
           contextSlot={
             <ContextForm
               text={text}
+              locale={locale}
               context={context}
               onChange={setContext}
               disabled={busy}
@@ -340,6 +342,7 @@ export function BedSenseApp() {
       ) : (
         <ContextForm
           text={text}
+          locale={locale}
           context={context}
           onChange={setContext}
           disabled={busy}
@@ -599,6 +602,7 @@ function kesRange(min: number, max: number): string {
 
 function ContextForm({
   text,
+  locale,
   context,
   onChange,
   disabled,
@@ -609,6 +613,7 @@ function ContextForm({
   ask,
 }: {
   text: Copy;
+  locale: Locale;
   context: FarmerContext;
   onChange: (next: FarmerContext) => void;
   disabled: boolean;
@@ -644,6 +649,7 @@ function ContextForm({
       ) : null}
       {open ? (
         <div className="mt-3 space-y-3">
+          <VoiceContext text={text} locale={locale} context={context} onChange={onChange} disabled={disabled} />
           {CONTEXT_FIELDS.map((field) => (
             <label key={field} className="block text-sm font-semibold">
               {text.contextFields[field]}
