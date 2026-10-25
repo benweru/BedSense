@@ -203,7 +203,7 @@ export function BedSenseApp() {
   const busy = phase === "preparing" || phase === "analyzing";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pb-16 pt-6">
+    <main className={`mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4 pt-6 ${photos.length > 0 && !busy ? "pb-32" : "pb-16"}`}>
       <header className="flex items-start justify-between gap-3">
         <p className="max-w-[16rem] text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-leaf">{text.kicker}</p>
         <div role="group" aria-label={text.language} className="flex shrink-0 rounded-full bg-sand p-1">
@@ -253,15 +253,6 @@ export function BedSenseApp() {
           <p className="mt-2 text-sm text-beet" role="alert">
             {text.plantNameMissing}
           </p>
-        ) : null}
-        {photos.length > 0 && !busy ? (
-          <button
-            type="button"
-            onClick={() => void submitPrepared()}
-            className="mt-3 min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper"
-          >
-            {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
-          </button>
         ) : null}
       </div>
 
@@ -472,6 +463,19 @@ export function BedSenseApp() {
       </section>
 
       <footer className="mt-8 text-xs leading-5 text-ink/60">{text.footer}</footer>
+      {photos.length > 0 && !busy ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-paper/95 px-4 pt-3 shadow-[0_-10px_30px_rgba(36,48,36,0.12)] backdrop-blur-sm pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto w-full max-w-lg">
+            <button
+              type="button"
+              onClick={() => void submitPrepared()}
+              className="min-h-14 w-full rounded-2xl bg-soil px-3 text-base font-semibold text-paper"
+            >
+              {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -492,7 +496,7 @@ function ResultCard({
       <div id="result-reading" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-leaf">
+          <p className="inline-block rounded-full bg-[#f6b23a] px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink">
             {result.mode === "mock" ? text.modeMock : text.modeLive}
           </p>
           <h2 className="mt-1 font-serif text-3xl leading-tight">
@@ -512,27 +516,31 @@ function ResultCard({
         </p>
       </div>
 
-      <ul className="flex flex-wrap gap-2">
-        {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
-          <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs">
-            <span className="h-2 w-2 rounded-full" style={{ background: concept.swatch }} />
-            {text.concepts[concept.id]} {result.counts[concept.id]}
-          </li>
-        ))}
-      </ul>
-
-      {result.masks.length === 0 ? <p className="text-sm text-ink/75">{text.noMasks}</p> : null}
-
-      <div id="result-stands-out">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.observations}</h3>
-        <ul className="mt-3 space-y-2">
-          {result.observations.map((item) => (
-            <li key={item} className="rounded-2xl bg-white px-3 py-3 text-sm leading-6 shadow-sm">
-              {item}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <section id="result-stands-out" className="overflow-hidden rounded-[1.4rem] border border-[#c8881a]/50 bg-white shadow-sm">
+        <div className="border-b border-[#c8881a]/30 bg-[#f8e7c4] px-4 py-3">
+          <h3 className="font-serif text-2xl leading-none text-soil">{text.observations}</h3>
+        </div>
+        <div className="space-y-3 px-4 py-4">
+          {result.masks.length === 0 ? <p className="text-sm leading-5 text-ink/75">{text.noMasks}</p> : null}
+          {CONCEPTS.some((concept) => result.counts[concept.id] > 0) ? (
+            <ul className="flex flex-wrap gap-2">
+              {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
+                <li key={concept.id} className="flex items-center gap-1.5 rounded-full bg-sand px-2.5 py-1 text-xs font-semibold">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: concept.swatch }} />
+                  {text.concepts[concept.id]} {result.counts[concept.id]}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <ul className="space-y-3">
+            {result.observations.map((item) => (
+              <li key={item} className="border-l-4 border-[#e0941a] bg-paper px-3 py-3 text-[0.95rem] leading-6">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
       <AdviceList id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
@@ -575,11 +583,11 @@ function ResultCard({
 function CheckProgress({ text, step }: { text: Copy; step: number }) {
   const clamped = Math.min(2, Math.max(0, step));
   return (
-    <div id="check-progress" className="mt-3 rounded-[1.4rem] bg-white px-3 py-4 shadow-sm" role="status" aria-live="polite" aria-busy="true">
+    <div id="check-progress" className="mt-3 rounded-[1.4rem] border-2 border-[#c56a00] bg-[#fff4dc] px-3 py-4 shadow-sm" role="status" aria-live="polite" aria-busy="true">
       <div className="flex items-center gap-3">
         <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
-          <span className="absolute inset-0 animate-spin rounded-full border-2 border-sand border-t-leaf" />
-          <span className="h-2.5 w-2.5 rounded-full bg-leaf" />
+          <span className="absolute inset-0 animate-spin rounded-full border-2 border-[#f0d7a4] border-t-[#c56a00]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#c56a00]" />
         </span>
         <span>
           <span className="block font-serif text-2xl leading-none text-soil">{text.progressTitle}</span>
@@ -587,7 +595,7 @@ function CheckProgress({ text, step }: { text: Copy; step: number }) {
         </span>
       </div>
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sand">
-        <div className="bedsense-indeterminate h-full w-1/2 rounded-full bg-leaf" />
+        <div className="bedsense-indeterminate h-full w-1/2 rounded-full bg-[#e0941a]" />
       </div>
       <ol className="mt-4 space-y-2">
         {text.progressSteps.map((label, index) => {
