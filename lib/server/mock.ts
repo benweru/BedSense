@@ -100,6 +100,7 @@ function layout(scenario: DemoScenario, width: number, height: number): MaskMark
 }
 
 function placements(scenario: DemoScenario, width: number, height: number): Placed[] {
+  // Each scene is one bed. Onion, beetroot, and chili are not placed together.
   const col = (fraction: number, size: number) => clamp(Math.round(width * fraction), 0, Math.max(0, width - size));
   const row = (fraction: number, size: number) => clamp(Math.round(height * fraction), 0, Math.max(0, height - size));
   const w = Math.max(1, Math.round(width * 0.16));
@@ -117,14 +118,21 @@ function placements(scenario: DemoScenario, width: number, height: number): Plac
     const beetW = Math.max(1, Math.round(width * 0.28));
     const beetH = Math.max(1, Math.round(height * 0.34));
     return [
-      onion(col(0.08, w), row(0.18, h), 0.62),
       {
         conceptId: "beetroot",
-        x: col(0.38, beetW),
-        y: row(0.22, beetH),
+        x: col(0.12, beetW),
+        y: row(0.16, beetH),
         width: beetW,
         height: beetH,
-        confidence: 0.81,
+        confidence: 0.84,
+      },
+      {
+        conceptId: "beetroot",
+        x: col(0.5, beetW),
+        y: row(0.36, beetH),
+        width: beetW,
+        height: beetH,
+        confidence: 0.76,
       },
       {
         conceptId: "yellow-leaf",
@@ -141,7 +149,14 @@ function placements(scenario: DemoScenario, width: number, height: number): Plac
     const chiliW = Math.max(1, Math.round(width * 0.22));
     const chiliH = Math.max(1, Math.round(height * 0.3));
     return [
-      onion(col(0.08, w), row(0.2, h), 0.55),
+      {
+        conceptId: "chili",
+        x: col(0.14, chiliW),
+        y: row(0.16, chiliH),
+        width: chiliW,
+        height: chiliH,
+        confidence: 0.8,
+      },
       {
         conceptId: "chili",
         x: col(0.4, chiliW),
@@ -205,7 +220,7 @@ function stories(locale: Locale): Record<
       },
       1: {
         observations: [
-          "Beetroot ina alama nyingi zaidi, na kitunguu bado kipo kwenye fremu.",
+          "Fremu hii ni kitanda cha beetroot. Kitunguu hukuzwa kwenye kitanda kingine, kwa hiyo hakipo kwenye picha hii.",
           "Madoa kwenye jani yanastahili kutazamwa, si kutibiwa kwa dawa leo.",
         ],
         actions: [
@@ -218,7 +233,7 @@ function stories(locale: Locale): Record<
       },
       2: {
         observations: [
-          "Pilipili inaonekana zaidi kuliko kitunguu, na magugu yanagusia mstari.",
+          "Fremu hii ni kitanda cha pilipili, na magugu yanagusia mstari.",
           "Angalia kama pilipili inanyauka kwa ukosefu wa maji au kwa msongamano.",
         ],
         actions: [
@@ -247,7 +262,7 @@ function stories(locale: Locale): Record<
     },
     1: {
       observations: [
-        "Beetroot covers more of the frame than onion, and onion is still in view.",
+        "This frame is a beetroot bed. Onion is grown on a different bed, so it is not in this photo.",
         "Leaf spots are worth a closer look, not a spray today.",
       ],
       actions: [
@@ -260,7 +275,7 @@ function stories(locale: Locale): Record<
     },
     2: {
       observations: [
-        "Chili marks outweigh the onion, and weeds are touching the row.",
+        "This frame is a chili bed, and weeds are touching the row.",
         "Check whether the chili looks crowded or simply thirsty.",
       ],
       actions: [

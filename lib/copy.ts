@@ -49,12 +49,12 @@ export type Copy = {
 const en: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Photograph any vegetable farm bed. SAM 3.1 marks the plants. Muse Spark returns exactly three next checks: practical, non-chemical things to look at or do next on the bed. Triage steps only — not a diagnosis, and not a treatment rate.",
+  lede: "Photograph any vegetable farm bed. Onion is the primary crop. Beetroot and chili are secondary crops, each on its own bed: onion and beetroot are never on the same bed, and chili is a separate bed too. SAM 3.1 marks the plants. Muse Spark returns exactly three next checks: practical, non-chemical things to look at or do next on the bed. Triage steps only — not a diagnosis, and not a treatment rate.",
   primary: "First",
   secondary: "Also",
   capture: "Take a photo",
   upload: "Choose a photo",
-  hint: "Fill the frame with the bed. Morning light and a steady phone help.",
+  hint: "Fill the frame with one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
   analyzing: "SAM 3.1 is marking the bed. Muse Spark will return three next checks.",
   retake: "New photo",
@@ -107,7 +107,7 @@ const en: Copy = {
     if (focus === "onion") return "Onion is the crop this check follows first.";
     if (focus === "mixed") {
       const name = primary === "onion" ? "Onion" : primary === "beetroot" ? "Beetroot" : "Chili";
-      return `${name} leads the marks on a mixed bed. Onion is still the crop BedSense watches first.`;
+      return `${name} leads the marks, but this frame has more than one crop. A photo is one bed, and these crops are grown on different beds, so this mix is unusual. Onion is still the crop BedSense watches first.`;
     }
     const name = focus === "beetroot" ? "Beetroot" : "Chili";
     return `${name} is the strongest mark. Onion stays the crop BedSense is built around.`;
@@ -119,12 +119,12 @@ const en: Copy = {
 const sw: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Piga picha ya kitanda chochote cha mboga shambani. SAM 3.1 inaweka alama kwenye mimea. Muse Spark inarudisha ukaguzi tatu hasa: mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya kwenye kitanda. Hatua za mapitio tu — si utambuzi, wala kipimo cha tiba.",
+  lede: "Piga picha ya kitanda chochote cha mboga shambani. Kitunguu ndicho zao kuu. Beetroot na pilipili ni mazao ya ziada, kila moja kwenye kitanda chake: kitunguu na beetroot havipandwi kamwe kwenye kitanda kimoja, na pilipili iko kwenye kitanda chake. SAM 3.1 inaweka alama kwenye mimea. Muse Spark inarudisha ukaguzi tatu hasa: mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya kwenye kitanda. Hatua za mapitio tu — si utambuzi, wala kipimo cha tiba.",
   primary: "Kwanza",
   secondary: "Pia",
   capture: "Piga picha",
   upload: "Chagua picha",
-  hint: "Jaza fremu na kitanda. Mwanga wa asubuhi na simu tulivu husaidia.",
+  hint: "Jaza fremu na kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
   analyzing: "SAM 3.1 inaweka alama kwenye kitanda. Muse Spark itarudisha ukaguzi tatu.",
   retake: "Picha nyingine",
@@ -177,7 +177,7 @@ const sw: Copy = {
     if (focus === "onion") return "Kitunguu ndicho zao linalofuatiliwa kwanza katika ukaguzi huu.";
     if (focus === "mixed") {
       const name = primary === "onion" ? "Kitunguu" : primary === "beetroot" ? "Beetroot" : "Pilipili";
-      return `${name} linaongoza alama kwenye kitanda kilichochanganyika. Kitunguu bado ndicho zao ambalo BedSense inalinda kwanza.`;
+      return `Alama zinaongozwa na ${name}, lakini fremu hii ina zaidi ya zao moja. Picha ni kitanda kimoja, na mazao haya hukuzwa kwenye vitanda tofauti, kwa hiyo mchanganyiko huu si wa kawaida. Kitunguu bado ndicho zao ambalo BedSense inafuata kwanza.`;
     }
     const name = focus === "beetroot" ? "Beetroot" : "Pilipili";
     return `${name} ndiyo alama kali zaidi. Kitunguu kinabaki zao ambalo BedSense imejengwa kulizungumzia.`;

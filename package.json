@@ -2,7 +2,7 @@
   "name": "bedsense",
   "version": "1.0.0",
   "private": true,
-  "description": "BedSense — phone photo of any vegetable farm bed, SAM 3.1 masks, Muse Spark returns exactly three next checks. Meta Global AI Developer Hackathon indie demo.",
+  "description": "BedSense — phone photo of any vegetable farm bed. Onion is primary; beetroot and chili are secondary crops on their own beds. SAM 3.1 masks, Muse Spark returns exactly three next checks. Meta Global AI Developer Hackathon indie demo.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",

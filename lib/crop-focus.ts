@@ -1,5 +1,15 @@
 import type { CropFocus, CropId } from "@/lib/types";
 
+/**
+ * One photo is one bed. Onion is the primary crop. Beetroot and chili are
+ * secondary crops, each grown on its own bed. Onion and beetroot are never
+ * on the same bed, and chili is a separate bed as well. This file does not
+ * describe where the beds are.
+ *
+ * Onion area is weighted so a close score stays onion-first. Any second crop
+ * in the frame is `mixed`: unusual multi-crop on one photo, not the planting
+ * pattern. A frame with only one of these crops is labeled that crop.
+ */
 const WEIGHT: Record<CropId, number> = {
   onion: 1.25,
   beetroot: 1,
@@ -23,10 +33,9 @@ export function chooseCropFocus(areaByCrop: Record<CropId, number>): {
     return { cropFocus: "unknown", primaryCrop: null };
   }
 
-  const second = ranked[1];
-  const mixed = Boolean(second && second.area > 0 && second.score >= best.score * 0.72);
+  const multiCropFrame = ranked.some((entry) => entry.crop !== best.crop && entry.area > 0);
   return {
-    cropFocus: mixed ? "mixed" : best.crop,
+    cropFocus: multiCropFrame ? "mixed" : best.crop,
     primaryCrop: best.crop,
   };
 }

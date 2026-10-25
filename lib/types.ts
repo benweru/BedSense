@@ -11,6 +11,7 @@ export type ConceptKind = "crop" | "symptom" | "other";
 
 export type ConfidenceLevel = "low" | "medium" | "high";
 
+/** One crop on this bed, an unusual multi-crop frame (`mixed`), or no crop marks (`unknown`). */
 export type CropFocus = CropId | "mixed" | "unknown";
 
 export type MaskGrid = {

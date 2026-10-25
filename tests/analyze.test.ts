@@ -61,9 +61,18 @@ describe("analyze pipeline", () => {
       }),
     );
     expect(focuses[0]?.primaryCrop).toBe("onion");
+    expect(focuses[0]?.cropFocus).toBe("onion");
     expect(focuses[0]?.counts.onion).toBeGreaterThan(0);
+    expect(focuses[0]?.counts.beetroot).toBe(0);
+    expect(focuses[0]?.counts.chili).toBe(0);
     expect(focuses[1]?.cropFocus).toBe("beetroot");
+    expect(focuses[1]?.counts.beetroot).toBeGreaterThan(0);
+    expect(focuses[1]?.counts.onion).toBe(0);
+    expect(focuses[1]?.counts.chili).toBe(0);
     expect(focuses[2]?.cropFocus).toBe("chili");
+    expect(focuses[2]?.counts.chili).toBeGreaterThan(0);
+    expect(focuses[2]?.counts.onion).toBe(0);
+    expect(focuses[2]?.counts.beetroot).toBe(0);
     for (const result of focuses) {
       expect(result.actions).toHaveLength(3);
       expect(result.models.sam).toBe("sam-3.1");
