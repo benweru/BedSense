@@ -1,7 +1,28 @@
 export const META_BASE = "https://api.meta.ai/v1";
 export const SAM_MODEL = "sam-3.1" as const;
 export const MUSE_MODELS = ["muse-spark-1.3-contributor", "muse-spark-1.3"] as const;
+/** Used only after the preferred ids return model_not_found and the catalog does not name a chat model. */
+export const MUSE_RESERVE_MODELS = ["muse-spark-1.2-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-wonder-1.0"] as const;
 export type MuseModel = (typeof MUSE_MODELS)[number];
+
+const CHAT_MUSE = /^muse-(?:spark|wonder)-\d/;
+
+/** Chat models only. SAM, image, and voice ids stay off the triage call. */
+export function chatMuseModels(ids: readonly string[]): string[] {
+  const sorted = ids.filter((id) => CHAT_MUSE.test(id)).sort((a, b) => museRank(a) - museRank(b));
+  const unique: string[] = [];
+  for (const id of sorted) {
+    if (!unique.includes(id)) unique.push(id);
+  }
+  return unique;
+}
+
+function museRank(id: string): number {
+  if (id.startsWith("muse-spark") && id.includes("contributor")) return 0;
+  if (id.startsWith("muse-spark")) return 1;
+  if (id.startsWith("muse-wonder")) return 2;
+  return 9;
+}
 
 export function isMockMode(): boolean {
   const value = process.env.MOCK_META?.trim().toLowerCase();
@@ -87,6 +108,35 @@ export async function postMeta(
     }
   }
   return { kind: "sse", events: parseSse(raw) };
+}
+
+/** Models this key can call. A 404 on a hardcoded id is not the whole catalog. */
+export async function listMetaModels(apiKey: string, timeoutMs = 8_000): Promise<string[]> {
+  let response: Response;
+  try {
+    response = await fetch(`${META_BASE}/models`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(Math.max(1_000, timeoutMs)),
+    });
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new MetaHttpError(0, timedOut ? "timeout" : "network");
+  }
+  const raw = await response.text();
+  if (!response.ok) throw new MetaHttpError(response.status, errorReason(response.status, raw));
+  try {
+    const parsed = JSON.parse(raw) as { data?: unknown };
+    if (!Array.isArray(parsed.data)) return [];
+    return parsed.data.flatMap((item) => {
+      if (item && typeof item === "object" && "id" in item && typeof (item as { id: unknown }).id === "string") {
+        return [(item as { id: string }).id];
+      }
+      return [];
+    });
+  } catch {
+    throw new MetaHttpError(response.status, "bad_json");
+  }
 }
 
 export function parseSse(raw: string): Record<string, unknown>[] {

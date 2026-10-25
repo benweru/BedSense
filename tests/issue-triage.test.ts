@@ -119,6 +119,23 @@ describe("sparse marks and a reported issue", () => {
     expect(swahili.actions).not.toEqual([...copy.sw.fallbackActions]);
     expect(inferIssues("glossy green with no visible spots or rot, both fruits curled and twisted")).toEqual(["deformity", "curl"]);
     expect(inferIssue("no visible spots")).toBeNull();
+    const looped = finalizeTriage({
+      locale: "en",
+      plantName: "chili",
+      observations: ["Two chili fruits in the hand are looped into tight rings."],
+      actions: [...copy.en.fallbackActions],
+      likelyCauses: [],
+      mitigations: [],
+      counts: emptyCounts,
+      confidence: "low",
+      confidenceScore: 0.3,
+    });
+    expect(looped.issue).toBe("deformity");
+    expect(looped.likelyCauses.length).toBeGreaterThan(0);
+    expect(looped.mitigations.length).toBeGreaterThan(1);
+    expect(looped.actions).not.toEqual([...copy.en.fallbackActions]);
+    expect(looped.actions.join(" ").toLowerCase()).not.toMatch(/press a finger|worst leaves|photograph the same plants/);
+    expect(inferIssue("no looped fruit in this frame")).toBeNull();
   });
 
   it("shows a diagnosis path in the demo when context reports an issue and marks would have been another crop", () => {
