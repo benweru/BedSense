@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BedSense",
   description:
-    "Phone photo of a Kenya farm bed. SAM 3.1 marks onion, beetroot, and chili. Muse Spark suggests three triage checks — not a diagnosis, and never a spray dose.",
+    "Phone photo of any vegetable farm bed. SAM 3.1 marks onion, beetroot, and chili. Muse Spark returns exactly three next checks: practical, non-chemical things to look at or do next. Not a diagnosis, and not a treatment rate.",
 };
 
 export const viewport: Viewport = {

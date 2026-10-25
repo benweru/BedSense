@@ -15,6 +15,7 @@ export type Copy = {
   retry: string;
   observations: string;
   actions: string;
+  actionsHint: string;
   confidence: string;
   low: string;
   medium: string;
@@ -48,18 +49,19 @@ export type Copy = {
 const en: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Photograph a Kenya farm bed. SAM 3.1 marks the plants. Muse Spark suggests three checks. Triage only — not a diagnosis, and never a spray dose.",
+  lede: "Photograph any vegetable farm bed. SAM 3.1 marks the plants. Muse Spark returns exactly three next checks: practical, non-chemical things to look at or do next on the bed. Triage steps only — not a diagnosis, and not a treatment rate.",
   primary: "First",
   secondary: "Also",
   capture: "Take a photo",
   upload: "Choose a photo",
   hint: "Fill the frame with the bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
-  analyzing: "SAM 3.1 is marking the bed. Muse Spark will suggest three checks.",
+  analyzing: "SAM 3.1 is marking the bed. Muse Spark will return three next checks.",
   retake: "New photo",
   retry: "Try again",
   observations: "What stands out",
-  actions: "Three things to do next",
+  actions: "Three next checks",
+  actionsHint: "Practical, non-chemical things to look at or do on the bed. Not a diagnosis or a treatment rate.",
   confidence: "Confidence",
   low: "Low",
   medium: "Medium",
@@ -93,9 +95,9 @@ const en: Copy = {
     "Photograph the same plants again in two days and show both photos to an agronomist if the marks spread.",
   ],
   disclaimer:
-    "BedSense offers field triage, not a diagnosis. It does not name a disease with certainty, and it never gives a spray dose. Confirm with a qualified agronomist or your local extension officer before you treat the bed.",
+    "BedSense offers field triage, not a diagnosis. It does not name a disease with certainty, and it does not give a treatment rate or a spray dose. Confirm with a qualified agronomist or your local extension officer before you treat the bed.",
   agronomistCallout:
-    "Ask an agronomist. Show them this photo and the three checks before you buy or mix any spray.",
+    "Ask an agronomist. Show them this photo and these three next checks before you buy or mix any spray.",
   countLine: (counts) =>
     `Marks — onion ${counts.onion}, beetroot ${counts.beetroot}, chili ${counts.chili}, yellow leaf ${counts["yellow-leaf"]}, weed ${counts.weed}.`,
   focusLine: (focus, primary) => {
@@ -117,18 +119,19 @@ const en: Copy = {
 const sw: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Piga picha ya kitanda cha shamba nchini Kenya. SAM 3.1 inaweka alama kwenye mimea. Muse Spark inapendekeza hatua tatu. Mapitio tu — si utambuzi, wala kipimo cha dawa.",
+  lede: "Piga picha ya kitanda chochote cha mboga shambani. SAM 3.1 inaweka alama kwenye mimea. Muse Spark inarudisha ukaguzi tatu hasa: mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya kwenye kitanda. Hatua za mapitio tu — si utambuzi, wala kipimo cha tiba.",
   primary: "Kwanza",
   secondary: "Pia",
   capture: "Piga picha",
   upload: "Chagua picha",
   hint: "Jaza fremu na kitanda. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
-  analyzing: "SAM 3.1 inaweka alama kwenye kitanda. Muse Spark itapendekeza hatua tatu.",
+  analyzing: "SAM 3.1 inaweka alama kwenye kitanda. Muse Spark itarudisha ukaguzi tatu.",
   retake: "Picha nyingine",
   retry: "Jaribu tena",
   observations: "Kinachoonekana",
-  actions: "Hatua tatu zinazofuata",
+  actions: "Ukaguzi tatu unaofuata",
+  actionsHint: "Mambo ya kivitendo, bila kemikali, ya kuangalia au kufanya kwenye kitanda. Si utambuzi wala kipimo cha tiba.",
   confidence: "Imani",
   low: "Chini",
   medium: "Wastani",
@@ -162,9 +165,9 @@ const sw: Copy = {
     "Piga picha tena baada ya siku mbili, na peleka picha zote kwa mtaalamu wa kilimo ikiwa dalili zinaenea.",
   ],
   disclaimer:
-    "BedSense hutoa mapitio ya shambani, si utambuzi wa ugonjwa. Haitaji ugonjwa kwa uhakika, wala haitoi kipimo cha dawa. Thibitisha na mtaalamu wa kilimo au afisa ugani kabla ya kutibu kitanda.",
+    "BedSense hutoa mapitio ya shambani, si utambuzi wa ugonjwa. Haitaji ugonjwa kwa uhakika, wala haitoi kipimo cha tiba au kipimo cha dawa. Thibitisha na mtaalamu wa kilimo au afisa ugani kabla ya kutibu kitanda.",
   agronomistCallout:
-    "Muulize mtaalamu wa kilimo. Mwonyeshe picha hii na hatua hizi tatu kabla ya kununua au kuchanganya dawa yoyote.",
+    "Muulize mtaalamu wa kilimo. Mwonyeshe picha hii na ukaguzi tatu kabla ya kununua au kuchanganya dawa yoyote.",
   countLine: (counts) =>
     `Alama — kitunguu ${counts.onion}, beetroot ${counts.beetroot}, pilipili ${counts.chili}, jani njano ${counts["yellow-leaf"]}, magugu ${counts.weed}.`,
   focusLine: (focus, primary) => {

@@ -32,7 +32,7 @@ MODEL_API_KEY=your_key_here
 MOCK_META=0
 ```
 
-Muse Spark is called as `muse-spark-1.3-contributor` first (contributor mode, lower price; prompts may be used to train future Meta models). If that call fails, BedSense retries `muse-spark-1.3` (standard mode). If both fail, the masks still return with a local backup of three non-chemical checks, and the screen says so.
+Muse Spark is called as `muse-spark-1.3-contributor` first (contributor mode, lower price; prompts may be used to train future Meta models). If that call fails, BedSense retries `muse-spark-1.3` (standard mode). If both fail, the masks still return with a local backup of three non-chemical next checks, and the screen says so. Those checks are practical things to look at or do on the bed, not a diagnosis and not a treatment rate.
 
 ## Pipeline
 
@@ -44,14 +44,14 @@ flowchart LR
   sam --> marks[Masks, boxes, counts]
   marks --> muse["Muse Spark · POST /v1/chat/completions"]
   muse --> guard[Dosage guard and fixed disclaimer]
-  guard --> ui[Marks, observations, 3 actions, confidence]
+  guard --> ui[Marks, observations, 3 next checks, confidence]
 ```
 
 1. The browser keeps the last five checks in `localStorage` and can switch the chrome between English and Kiswahili. Model text follows the language selected when you take the photo.
 2. `/api/analyze` accepts a JPEG, PNG, or WebP data URL. The key never goes to the client.
 3. The segmentation model id is `sam-3.1`. It runs five concept prompts, one noun phrase each: `onion plant`, `beetroot plant`, `chili pepper plant`, `yellow leaf`, `weed`. Requests use `metadata.mask_encoding=one_bit` and `metadata.include_confidence=true`. Masks are decoded with `@meta-sam/parser` and sent to the phone as a small grid drawn over the photo.
 4. Onion area is weighted slightly higher when the bed is a near-tie, so the primary crop stays onion-first. A bed that is clearly beetroot or chili is labeled that way, and the copy still says onion is what BedSense is built around.
-5. Muse Spark sees the photo plus the counts and must return JSON: observations, exactly three actions, and a confidence score. A server-side guard drops any spray rate (millilitres, grams, litres per tank or hectare, including common Swahili units) and replaces it with a safe check. The disclaimer and the ask-an-agronomist callout are fixed copy, not model prose.
+5. Muse Spark sees the photo plus the counts and must return JSON: observations, exactly three `actions`, and a confidence score. Each action is one next check shown in the app: a practical, non-chemical thing to look at or do on the bed. The three checks are triage steps for any vegetable farm bed. They are not a diagnosis and not a treatment rate. Onion stays first; beetroot and chili stay secondary. A server-side guard drops any spray rate (millilitres, grams, litres per tank or hectare, including common Swahili units) and replaces it with a safe check. The disclaimer and the ask-an-agronomist callout are fixed copy, not model prose.
 
 ## Scripts
 

@@ -93,4 +93,27 @@ describe("public project boundaries", () => {
   it("gives English and Swahili the same UI shape", () => {
     expect(shape(copy.en)).toEqual(shape(copy.sw));
   });
+
+  it("speaks to any vegetable bed and explains the three next checks", () => {
+    const surfaces = ["README.md", "app/layout.tsx", "package.json", "lib/copy.ts", "lib/server/muse.ts", "docs/development.md"];
+    for (const file of surfaces) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/Kenya/i);
+    }
+    const readme = readFileSync("README.md", "utf8").toLowerCase();
+    expect(readme).toContain("any vegetable farm bed");
+    expect(readme).toContain("exactly three next checks");
+    expect(readme).toContain("not a diagnosis");
+    expect(readme).toContain("treatment rate");
+    expect(readme).toContain("onion");
+    expect(readme).toContain("beetroot");
+    expect(readme).toContain("chili");
+    expect(copy.en.lede.toLowerCase()).toContain("exactly three next checks");
+    expect(copy.en.lede.toLowerCase()).toContain("not a treatment rate");
+    expect(copy.en.actions.toLowerCase()).toContain("three next checks");
+    expect(copy.en.actionsHint.toLowerCase()).toContain("not a diagnosis");
+    expect(copy.sw.lede).toContain("ukaguzi tatu");
+    expect(copy.sw.lede).not.toMatch(/Kenya/i);
+    expect(copy.sw.actions).toContain("Ukaguzi tatu");
+    expect(copy.sw.actionsHint).toContain("kipimo cha tiba");
+  });
 });
