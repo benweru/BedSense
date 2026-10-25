@@ -83,6 +83,14 @@ export type Copy = {
     issues: string;
     notes: string;
   };
+  voiceHold: string;
+  voiceListening: string;
+  voiceWriting: string;
+  voiceInto: string;
+  voiceFailed: string;
+  voiceEmpty: string;
+  voiceUnsupported: string;
+  voiceUnavailable: string;
   fallbackActions: [string, string, string];
   disclaimer: string;
   agronomistCallout: string;
@@ -179,6 +187,14 @@ const en: Copy = {
     issues: "Known issues",
     notes: "Anything else",
   },
+  voiceHold: "Hold to talk",
+  voiceListening: "Listening…",
+  voiceWriting: "Writing what you said…",
+  voiceInto: "Add the words to",
+  voiceFailed: "The voice note did not transcribe. Type the note, or hold the button and try again.",
+  voiceEmpty: "Nothing was heard. Hold the button and speak.",
+  voiceUnsupported: "This browser cannot record a voice note. Type the context instead.",
+  voiceUnavailable: "Muse Voice is not available for this key. Type the note, or enable Muse Voice Transcribe in the Meta Model API dashboard.",
   fallbackActions: [
     "Press a finger a few centimetres into the soil and water only if it feels dry.",
     "Lift the worst leaves off the bed so they do not sit on healthy plants.",
@@ -302,6 +318,14 @@ const sw: Copy = {
     issues: "Matatizo unayoyajua",
     notes: "Mengineyo",
   },
+  voiceHold: "Shikilia uongee",
+  voiceListening: "Inasikiliza…",
+  voiceWriting: "Inaandika ulichosema…",
+  voiceInto: "Weka maneno kwenye",
+  voiceFailed: "Dondoo la sauti halijaandikwa. Andika maelezo, au shikilia kitufe ujaribu tena.",
+  voiceEmpty: "Hakuna kilichosikika. Shikilia kitufe na uongee.",
+  voiceUnsupported: "Kivinjari hiki hakiwezi kurekodi sauti. Andika muktadha.",
+  voiceUnavailable: "Muse Voice haipatikani kwa ufunguo huu. Andika maelezo, au washa Muse Voice Transcribe kwenye dashibodi ya Meta Model API.",
   fallbackActions: [
     "Bonyeza kidole sentimita chache kwenye udongo; mwagilia tu ikiwa umekauka.",
     "Ondoa majani yaliyoathirika zaidi kwenye kitanda ili yasiguse mimea yenye afya.",
