@@ -1,5 +1,3 @@
-import { AnalyzeError } from "@/lib/types";
-
 export const META_BASE = "https://api.meta.ai/v1";
 export const SAM_MODEL = "sam-3.1" as const;
 export const MUSE_MODELS = ["muse-spark-1.3-contributor", "muse-spark-1.3"] as const;
@@ -35,7 +33,25 @@ export type MetaPayload =
   | { kind: "json"; value: unknown }
   | { kind: "sse"; events: Record<string, unknown>[] };
 
-export async function postMeta(path: string, body: unknown, apiKey: string): Promise<MetaPayload> {
+/** A Meta call failed before a usable body was parsed. `status` is 0 for a timeout or a dropped connection. */
+export class MetaHttpError extends Error {
+  readonly status: number;
+  readonly reason: string;
+
+  constructor(status: number, reason: string) {
+    super(reason);
+    this.name = "MetaHttpError";
+    this.status = status;
+    this.reason = reason;
+  }
+}
+
+export async function postMeta(
+  path: string,
+  body: unknown,
+  apiKey: string,
+  timeoutMs = 25_000,
+): Promise<MetaPayload> {
   let response: Response;
   try {
     response = await fetch(`${META_BASE}${path}`, {
@@ -45,24 +61,29 @@ export async function postMeta(path: string, body: unknown, apiKey: string): Pro
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(55_000),
+      signal: AbortSignal.timeout(Math.max(1_000, timeoutMs)),
     });
-  } catch {
-    throw new AnalyzeError("upstream");
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new MetaHttpError(0, timedOut ? "timeout" : "network");
   }
 
   const raw = await response.text();
   if (!response.ok) {
-    throw new AnalyzeError("upstream");
+    throw new MetaHttpError(response.status, errorReason(response.status, raw));
   }
 
   const contentType = response.headers.get("content-type") ?? "";
   const trimmed = raw.trim();
+  if (contentType.includes("text/event-stream") || trimmed.startsWith("data:")) {
+    return { kind: "sse", events: parseSse(raw) };
+  }
   if (contentType.includes("application/json") || trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
       return { kind: "json", value: JSON.parse(trimmed) as unknown };
     } catch {
-      throw new AnalyzeError("upstream");
+      if (raw.includes("data:")) return { kind: "sse", events: parseSse(raw) };
+      throw new MetaHttpError(response.status, "bad_json");
     }
   }
   return { kind: "sse", events: parseSse(raw) };
@@ -70,7 +91,9 @@ export async function postMeta(path: string, body: unknown, apiKey: string): Pro
 
 export function parseSse(raw: string): Record<string, unknown>[] {
   const events: Record<string, unknown>[] = [];
-  for (const block of raw.split(/\n\n/)) {
+  // HTTP streams use CRLF. Splitting only on LF glues every data line into one invalid JSON value.
+  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  for (const block of normalized.split(/\n\n/)) {
     const data = block
       .split("\n")
       .filter((line) => line.startsWith("data:"))
@@ -85,6 +108,17 @@ export function parseSse(raw: string): Record<string, unknown>[] {
     }
   }
   return events;
+}
+
+function errorReason(status: number, raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { error?: { code?: unknown; type?: unknown } };
+    const code = parsed.error?.code ?? parsed.error?.type;
+    if (typeof code === "string" && /^[a-z0-9_.-]{1,64}$/i.test(code)) return code;
+  } catch {
+    // The status is enough when the body is not the error envelope.
+  }
+  return `http_${status}`;
 }
 
 export function textFromPayload(payload: MetaPayload, pick: (events: Record<string, unknown>[], json: unknown) => string): string {

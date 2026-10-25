@@ -58,7 +58,9 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
   const apiKey = readApiKey();
   if (!apiKey) throw new AnalyzeError("missing_key");
 
-  const segmented = await segmentBed(input.image, apiKey, size.width * size.height, farmerPlant);
+  // The Hobby function ends at 60s. Leave the last moments for a finished JSON body.
+  const deadline = Date.now() + 50_000;
+  const segmented = await segmentBed(input.image, apiKey, size.width * size.height, farmerPlant, 20_000);
   const image = segmented.sourceSize ?? size;
   const counts = countMasks(segmented.masks);
   const focus = chooseCropFocus(areaByCrop(segmented.masks));
@@ -70,6 +72,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     context,
     primaryCrop: focus.primaryCrop,
     farmerPlant,
+    deadline,
   });
 
   return {

@@ -4,7 +4,7 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
-import { MUSE_MODELS, postMeta, type MuseModel } from "@/lib/server/meta";
+import { MUSE_MODELS, MetaHttpError, postMeta, type MuseModel } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
 import type { ChemicalAdvice, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
 
@@ -48,69 +48,138 @@ export async function adviseBed(options: {
   context: FarmerContext;
   primaryCrop: CropId | null;
   farmerPlant: string;
+  /** Wall clock for every Muse attempt. The Hobby function ends at 60s, SAM included. */
+  deadline?: number;
 }): Promise<TriageDraft> {
-  const summary = copy[options.locale].countLine(options.counts);
-  for (const model of MUSE_MODELS) {
-    try {
-      const payload = await postMeta(
-        "/chat/completions",
-        {
-          model,
-          stream: true,
-          reasoning_effort: "low",
-          max_completion_tokens: 2400,
-          messages: [
-            { role: "developer", content: developerPrompt(options.locale) },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant) },
-                { type: "image_url", image_url: { url: options.imageUrl } },
-              ],
-            },
-          ],
-        },
-        options.apiKey,
-      );
-      const text = chatOutputText(payload);
-      const parsed = readModelDraft(text);
-      if (!parsed) throw new Error("no_json");
-      const finalized = finalizeTriage({
-        locale: options.locale,
-        observations: parsed.observations,
-        actions: parsed.actions,
-        likelyCauses: parsed.likelyCauses,
-        mitigations: parsed.mitigations,
-        confidence: parsed.confidence,
-        confidenceScore: parsed.confidenceScore,
-        counts: options.counts,
-        plantName: options.farmerPlant,
-        context: options.context,
-        symptom: parsed.symptom,
-        suspect: parsed.suspect,
-      });
-      return {
-        ...finalized,
-        model,
-        triageSource: "muse",
-        detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
-        contextAsk: cleanContextAsk(parsed.contextAsk),
-        chemicals: chemicalsFromReading({
-          locale: options.locale,
-          issue: finalized.issue,
-          sprayEvidence: finalized.sprayEvidence,
-          sprayIndicated: parsed.sprayIndicated,
-          diseaseIndicated: parsed.diseaseIndicated,
-          suspect: parsed.suspect,
-          chemicals: parsed.chemicals,
-          fallbackSuspect: finalized.likelyCauses[0] ?? "",
-        }),
-      };
-    } catch {
-      // Try the standard Muse Spark model, then the local backup.
-    }
+  const deadline = options.deadline ?? Date.now() + 36_000;
+  for (let index = 0; index < MUSE_MODELS.length; index += 1) {
+    const model = MUSE_MODELS[index];
+    if (!model) continue;
+    const draft = await tryModel(options, model, deadline, index === 0 ? 12_000 : 1_000);
+    if (draft) return draft;
   }
   return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.farmerPlant);
+}
+
+async function tryModel(
+  options: {
+    imageUrl: string;
+    apiKey: string;
+    locale: Locale;
+    counts: ConceptCounts;
+    context: FarmerContext;
+    primaryCrop: CropId | null;
+    farmerPlant: string;
+  },
+  model: MuseModel,
+  deadline: number,
+  keepMs: number,
+): Promise<TriageDraft | null> {
+  for (let tryIndex = 0; tryIndex < 2; tryIndex += 1) {
+    const timeoutMs = attemptTimeout(deadline, keepMs);
+    if (timeoutMs === null) return null;
+    const started = Date.now();
+    try {
+      return await completeModel(options, model, timeoutMs);
+    } catch (error) {
+      const elapsed = Date.now() - started;
+      const retryable = tryIndex === 0 && isFastRetry(error) && elapsed < 3_000 && attemptTimeout(deadline, keepMs) !== null;
+      if (retryable) {
+        if (error instanceof MetaHttpError && error.status === 429) await delay(250);
+        continue;
+      }
+      const reason = error instanceof MetaHttpError ? `${error.status} ${error.reason}` : error instanceof Error ? error.message : "error";
+      console.error(`muse ${model} ${reason}`);
+      return null;
+    }
+  }
+  return null;
+}
+
+function attemptTimeout(deadline: number, keepMs: number): number | null {
+  const remaining = deadline - Date.now() - keepMs;
+  if (remaining < 7_000) return null;
+  return Math.min(28_000, remaining);
+}
+
+function isFastRetry(error: unknown): boolean {
+  if (!(error instanceof MetaHttpError)) return false;
+  return error.reason === "timeout" || error.reason === "network" || error.status === 429 || error.status === 502 || error.status === 503 || error.status === 504;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function completeModel(
+  options: {
+    imageUrl: string;
+    apiKey: string;
+    locale: Locale;
+    counts: ConceptCounts;
+    context: FarmerContext;
+    primaryCrop: CropId | null;
+    farmerPlant: string;
+  },
+  model: MuseModel,
+  timeoutMs: number,
+): Promise<TriageDraft> {
+  const summary = copy[options.locale].countLine(options.counts);
+  const payload = await postMeta(
+    "/chat/completions",
+    {
+      model,
+      stream: true,
+      reasoning_effort: "low",
+      max_completion_tokens: 8192,
+      messages: [
+        { role: "developer", content: developerPrompt(options.locale) },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant) },
+            { type: "image_url", image_url: { url: options.imageUrl } },
+          ],
+        },
+      ],
+    },
+    options.apiKey,
+    timeoutMs,
+  );
+  const text = chatOutputText(payload);
+  const parsed = readModelDraft(text);
+  if (!parsed) throw new Error("no_json");
+  const finalized = finalizeTriage({
+    locale: options.locale,
+    observations: parsed.observations,
+    actions: parsed.actions,
+    likelyCauses: parsed.likelyCauses,
+    mitigations: parsed.mitigations,
+    confidence: parsed.confidence,
+    confidenceScore: parsed.confidenceScore,
+    counts: options.counts,
+    plantName: options.farmerPlant,
+    context: options.context,
+    symptom: parsed.symptom,
+    suspect: parsed.suspect,
+  });
+  return {
+    ...finalized,
+    model,
+    triageSource: "muse",
+    detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
+    contextAsk: cleanContextAsk(parsed.contextAsk),
+    chemicals: chemicalsFromReading({
+      locale: options.locale,
+      issue: finalized.issue,
+      sprayEvidence: finalized.sprayEvidence,
+      sprayIndicated: parsed.sprayIndicated,
+      diseaseIndicated: parsed.diseaseIndicated,
+      suspect: parsed.suspect,
+      chemicals: parsed.chemicals,
+      fallbackSuspect: finalized.likelyCauses[0] ?? "",
+    }),
+  };
 }
 
 export function localFallback(
