@@ -306,6 +306,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
 
       <div>
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.actions}</h3>
+        <p className="mt-1 text-sm leading-5 text-ink/70">{text.actionsHint}</p>
         <ol className="mt-2 space-y-2">
           {result.actions.map((action, index) => (
             <li key={action} className="flex gap-3 rounded-2xl bg-soil px-3 py-3 text-sm leading-5 text-paper">
