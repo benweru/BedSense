@@ -17,6 +17,10 @@ export type Copy = {
   capture: string;
   upload: string;
   checkPhoto: string;
+  checkPhotos: string;
+  addAngle: string;
+  removePhoto: string;
+  photoLimit: string;
   hint: string;
   preparing: string;
   analyzing: string;
@@ -107,6 +111,10 @@ const en: Copy = {
   capture: "Take a photo",
   upload: "Choose a photo",
   checkPhoto: "Check this photo",
+  checkPhotos: "Check these photos",
+  addAngle: "Add another angle",
+  removePhoto: "Remove",
+  photoLimit: "Three photos is the limit for one check.",
   hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
   analyzing: "Reading the plant you named. Causes and next checks come next.",
@@ -234,6 +242,10 @@ const sw: Copy = {
   capture: "Piga picha",
   upload: "Chagua picha",
   checkPhoto: "Kagua picha hii",
+  checkPhotos: "Kagua picha hizi",
+  addAngle: "Ongeza pembe nyingine",
+  removePhoto: "Ondoa",
+  photoLimit: "Picha tatu ndio kikomo cha ukaguzi mmoja.",
   hint: "Jaza fremu na mmea mmoja au kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
   analyzing: "Inasoma mmea ulioutaja. Sababu na ukaguzi vinafuata.",

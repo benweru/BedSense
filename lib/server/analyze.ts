@@ -12,6 +12,8 @@ import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type
 
 export type AnalyzeInput = {
   image?: unknown;
+  /** Up to three data URLs of the same plant, from different angles. */
+  images?: unknown;
   locale?: unknown;
   width?: unknown;
   height?: unknown;
@@ -19,35 +21,37 @@ export type AnalyzeInput = {
   plantName?: unknown;
 };
 
-export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResult> {
-  if (typeof input.image !== "string" || !input.image.trim()) {
-    throw new AnalyzeError("bad_request");
-  }
+const MAX_PHOTOS = 3;
 
-  let decoded;
-  try {
-    decoded = decodeDataUrl(input.image);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (message === "image_too_large") throw new AnalyzeError("image_too_large");
-    throw new AnalyzeError("unsupported_image");
-  }
+export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResult> {
+  const urls = photoUrls(input);
+  const decoded = urls.map((url) => {
+    try {
+      return { url, ...decodeDataUrl(url) };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "image_too_large") throw new AnalyzeError("image_too_large");
+      throw new AnalyzeError("unsupported_image");
+    }
+  });
+  const first = decoded[0];
+  if (!first) throw new AnalyzeError("bad_request");
 
   const locale = normalizeLocale(input.locale);
   const context = parseFarmerContext(input.context);
   const farmerPlant = parseFarmerPlant(input.plantName);
   if (!farmerPlant) throw new AnalyzeError("missing_plant");
-  const size = resolveSize(decoded.size, clampDeclaredSize(input.width, input.height));
+  const size = resolveSize(first.size, clampDeclaredSize(input.width, input.height));
   const createdAt = new Date().toISOString();
   const id = crypto.randomUUID();
 
   if (isMockMode()) {
     return buildMockResult({
-      scenario: scenarioForPlant(farmerPlant, decoded.bytes),
+      scenario: scenarioForPlant(farmerPlant, first.bytes),
       locale,
       width: size.width,
       height: size.height,
-      mime: decoded.mime,
+      mime: first.mime,
       id,
       createdAt,
       context,
@@ -60,15 +64,29 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
 
   // The Hobby function ends at 60s. Leave the last moments for a finished JSON body.
   const deadline = Date.now() + 50_000;
-  const segmented = await segmentBed(input.image, apiKey, size.width * size.height, farmerPlant, 20_000);
-  const image = segmented.sourceSize ?? size;
-  const counts = countMasks(segmented.masks);
-  const focus = chooseCropFocus(areaByCrop(segmented.masks));
+  const segmented = await Promise.all(
+    decoded.map(async (photo, frame) => {
+      const pass = await segmentBed(photo.url, apiKey, (photo.size?.width ?? size.width) * (photo.size?.height ?? size.height), farmerPlant, 18_000);
+      return {
+        frame,
+        url: photo.url,
+        size: pass.sourceSize ?? photo.size ?? size,
+        mime: photo.mime,
+        masks: pass.masks.map((mask) => ({ ...mask, id: `${frame}-${mask.id}`, frame })),
+      };
+    }),
+  );
+  const masks = segmented.flatMap((photo) => photo.masks);
+  const image = segmented[0]?.size ?? size;
+  const counts = countMasks(masks);
+  const focus = chooseCropFocus(areaByCrop(masks));
   const advice = await adviseBed({
-    imageUrl: input.image,
+    imageUrl: first.url,
+    imageUrls: decoded.map((photo) => photo.url),
     apiKey,
     locale,
     counts,
+    frameCounts: segmented.map((photo) => countMasks(photo.masks)),
     context,
     primaryCrop: focus.primaryCrop,
     farmerPlant,
@@ -85,7 +103,8 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       muse: advice.model,
       triageSource: advice.triageSource,
     },
-    image: { width: image.width, height: image.height, mime: decoded.mime },
+    image: { width: image.width, height: image.height, mime: first.mime },
+    frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
     detectedPlant: advice.detectedPlant,
@@ -94,7 +113,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     contextUsed: !contextIsEmpty(context),
     chemicals: advice.chemicals,
     counts,
-    masks: segmented.masks,
+    masks,
     observations: advice.observations,
     likelyCauses: advice.likelyCauses,
     mitigations: advice.mitigations,
@@ -105,6 +124,16 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     agronomistCallout: advice.agronomistCallout,
     note: advice.triageSource === "local-fallback" ? "local-fallback" : null,
   };
+}
+
+function photoUrls(input: AnalyzeInput): string[] {
+  if (Array.isArray(input.images)) {
+    if (input.images.length === 0 || input.images.length > MAX_PHOTOS) throw new AnalyzeError("bad_request");
+    if (input.images.some((item) => typeof item !== "string" || !item.trim())) throw new AnalyzeError("bad_request");
+    return input.images as string[];
+  }
+  if (typeof input.image === "string" && input.image.trim()) return [input.image];
+  throw new AnalyzeError("bad_request");
 }
 
 function resolveSize(decoded: ImageSize | null, declared: ImageSize | null): ImageSize {

@@ -51,9 +51,13 @@ export type TriageDraft = {
 
 export async function adviseBed(options: {
   imageUrl: string;
+  /** Every angle of this bed. Defaults to the single `imageUrl`. */
+  imageUrls?: readonly string[];
   apiKey: string;
   locale: Locale;
   counts: ConceptCounts;
+  /** Per-photo SAM counts. The prompt lists these when there is more than one angle. */
+  frameCounts?: readonly ConceptCounts[];
   context: FarmerContext;
   primaryCrop: CropId | null;
   farmerPlant: string;
@@ -69,7 +73,7 @@ export async function adviseBed(options: {
   for (let index = 0; index < models.length; index += 1) {
     const model = models[index];
     if (!model) continue;
-    const attempt = await tryModel(options, model, deadline, index === 0 ? 12_000 : 1_000);
+    const attempt = await tryModel(options, model, imageUrlsOf(options), deadline, index === 0 ? 12_000 : 1_000);
     if (attempt.draft) return attempt.draft;
     if (!attempt.missing) sawLiveModel = true;
   }
@@ -96,17 +100,23 @@ async function catalogModels(apiKey: string, deadline: number): Promise<string[]
   return models;
 }
 
+function imageUrlsOf(options: { imageUrl: string; imageUrls?: readonly string[] }): string[] {
+  const urls = (options.imageUrls ?? []).filter((url) => url.trim().length > 0);
+  return urls.length > 0 ? urls.slice(0, 3) : [options.imageUrl];
+}
+
 async function tryModel(
   options: {
-    imageUrl: string;
     apiKey: string;
     locale: Locale;
     counts: ConceptCounts;
+    frameCounts?: readonly ConceptCounts[];
     context: FarmerContext;
     primaryCrop: CropId | null;
     farmerPlant: string;
   },
   model: string,
+  imageUrls: readonly string[],
   deadline: number,
   keepMs: number,
 ): Promise<{ draft: TriageDraft | null; missing: boolean }> {
@@ -115,7 +125,7 @@ async function tryModel(
     if (timeoutMs === null) return { draft: null, missing: false };
     const started = Date.now();
     try {
-      return { draft: await completeModel(options, model, timeoutMs), missing: false };
+      return { draft: await completeModel(options, imageUrls, model, timeoutMs), missing: false };
     } catch (error) {
       const elapsed = Date.now() - started;
       const retryable = tryIndex === 0 && isFastRetry(error) && elapsed < 3_000 && attemptTimeout(deadline, keepMs) !== null;
@@ -149,18 +159,20 @@ function delay(ms: number): Promise<void> {
 
 async function completeModel(
   options: {
-    imageUrl: string;
     apiKey: string;
     locale: Locale;
     counts: ConceptCounts;
+    frameCounts?: readonly ConceptCounts[];
     context: FarmerContext;
     primaryCrop: CropId | null;
     farmerPlant: string;
   },
+  imageUrls: readonly string[],
   model: string,
   timeoutMs: number,
 ): Promise<TriageDraft> {
-  const summary = marksSummary(options.locale, options.counts);
+  const frames = options.frameCounts && options.frameCounts.length > 1 ? options.frameCounts : [options.counts];
+  const summary = framesSummary(options.locale, frames);
   const payload = await postMeta(
     "/chat/completions",
     {
@@ -173,8 +185,8 @@ async function completeModel(
         {
           role: "user",
           content: [
-            { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant) },
-            { type: "image_url", image_url: { url: options.imageUrl } },
+            { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant, imageUrls.length) },
+            ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
           ],
         },
       ],
@@ -310,7 +322,8 @@ export function developerPrompt(locale: Locale): string {
   const language = locale === "sw" ? "Swahili" : "English";
   return [
     "You are BedSense, a field triage assistant for any vegetable farm bed.",
-    "A photo is one bed. The farmer names the plant in free text to assist you. Prefer that name in detectedPlant unless the photo clearly shows a different plant.",
+    "A photo is one bed. If more than one photo is attached, they are different angles of that one bed and the one named plant.",
+    "The farmer names the plant in free text to assist you. Prefer that name in detectedPlant unless the photo clearly shows a different plant.",
     "The plant may be any farm plant, not a fixed list.",
     "Onion, beetroot, and chili are common crops, each grown on its own bed. They are not a limit on what you can advise.",
     "Onion and beetroot are never on the same bed. Chili is a separate secondary crop on its own bed.",
@@ -344,17 +357,27 @@ export function developerPrompt(locale: Locale): string {
   ].join(" ");
 }
 
-export function userPrompt(locale: Locale, summary: string, context: FarmerContext, farmerPlant: string): string {
+export function framesSummary(locale: Locale, frames: readonly ConceptCounts[]): string {
+  const lines = frames.map((counts) => marksSummary(locale, counts));
+  if (lines.length <= 1) return lines[0] ?? marksSummary(locale, { onion: 0, beetroot: 0, chili: 0, plant: 0, "yellow-leaf": 0, weed: 0 });
+  return lines.map((line, index) => `Frame ${index + 1}: ${line}`).join("\n");
+}
+
+export function userPrompt(locale: Locale, summary: string, context: FarmerContext, farmerPlant: string, angles = 1): string {
   const language = normalizeLocale(locale) === "sw" ? "Swahili" : "English";
   return [
-    "This is a phone photo of one farm bed.",
+    angles > 1 ? `These are ${angles} phone photos of one farm bed, each from a different angle.` : "This is a phone photo of one farm bed.",
     `The farmer names the plant: ${farmerPlant}. Use that name.`,
-    "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",
+    angles > 1
+      ? "SAM marks below are listed per frame. A crop that is not listed in a frame was not marked there."
+      : "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",
     "If no marks were returned, still read the photo, the plant name, and the notes. Empty marks are not a reason to skip likely causes, mitigation, or the three checks.",
-    `In frame: ${summary}`,
+    angles > 1 ? `Frames:\n${summary}` : `In frame: ${summary}`,
     contextPromptBlock(context),
     "Use the photo, the plant name, those marks, and any context.",
-    "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
+    angles > 1
+      ? "observations must describe only the plants actually in these photos. Do not name a crop that is not in the photos."
+      : "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
     "If a symptom is visible, likelyCauses and mitigations are required even when SAM returned nothing. Looped, hooked, or corkscrew growth is a symptom.",
     "Make the three actions specific to that symptom. Do not answer with a generic soil, leaf-removal, and re-photo list.",
     "Set sprayIndicated and name chemicals by active ingredient only when a spray is the usual next step. Do not give a numeric spray rate.",

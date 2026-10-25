@@ -8,10 +8,16 @@ export function MaskCanvas({
   src,
   alt,
   result,
+  frame = 0,
+  width,
+  height,
 }: {
   src: string;
   alt: string;
   result: AnalyzeResult | null;
+  frame?: number;
+  width?: number;
+  height?: number;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -22,15 +28,16 @@ export function MaskCanvas({
     if (!image || !canvas) return;
 
     const draw = () => {
-      const width = result?.image.width || image.naturalWidth || 1;
-      const height = result?.image.height || image.naturalHeight || 1;
-      canvas.width = width;
-      canvas.height = height;
+      const drawWidth = width || result?.frames?.[frame]?.width || result?.image.width || image.naturalWidth || 1;
+      const drawHeight = height || result?.frames?.[frame]?.height || result?.image.height || image.naturalHeight || 1;
+      canvas.width = drawWidth;
+      canvas.height = drawHeight;
       const context = canvas.getContext("2d");
       if (!context) return;
-      context.clearRect(0, 0, width, height);
+      context.clearRect(0, 0, drawWidth, drawHeight);
       if (!result) return;
       for (const mask of result.masks) {
+        if ((mask.frame ?? 0) !== frame) continue;
         context.fillStyle = conceptById(mask.conceptId).color;
         const cellW = mask.box.width / Math.max(1, mask.grid.width);
         const cellH = mask.box.height / Math.max(1, mask.grid.height);
@@ -46,7 +53,7 @@ export function MaskCanvas({
     if (image.complete && image.naturalWidth > 0) draw();
     image.addEventListener("load", draw);
     return () => image.removeEventListener("load", draw);
-  }, [result, src]);
+  }, [frame, height, result, src, width]);
 
   return (
     <div className="relative overflow-hidden rounded-[1.35rem] bg-soil shadow-[0_18px_40px_rgba(36,48,36,0.16)]">
