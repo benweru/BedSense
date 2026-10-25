@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MaskCanvas } from "@/components/mask-canvas";
 import { CONCEPTS } from "@/lib/concepts";
-import { copy } from "@/lib/copy";
+import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
+import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, rememberCheck } from "@/lib/history";
 import { clearHistoryStore, useHistory, useLocale, writeHistory, writeLocale } from "@/lib/phone-store";
-import type { AnalyzeResult, HistoryEntry, Locale } from "@/lib/types";
+import { CONTEXT_FIELDS, type AnalyzeResult, type ContextField, type FarmerContext, type HistoryEntry, type Locale } from "@/lib/types";
 
 type PreparedPhoto = {
   dataUrl: string;
@@ -26,6 +27,8 @@ export function BedSenseApp() {
   const [prepared, setPrepared] = useState<PreparedPhoto | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [context, setContext] = useState<FarmerContext>(emptyFarmerContext);
+  const [contextOpen, setContextOpen] = useState(false);
   const text = copy[locale];
 
   useEffect(() => {
@@ -66,6 +69,7 @@ export function BedSenseApp() {
           locale,
           width: photo.width,
           height: photo.height,
+          context,
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
@@ -75,6 +79,7 @@ export function BedSenseApp() {
         return;
       }
       setResult(body);
+      if (body.contextAsk) setContextOpen(true);
       setPreview(photo.dataUrl);
       setPhase("ready");
       const thumbnail = await makeThumbnail(photo.dataUrl);
@@ -93,6 +98,7 @@ export function BedSenseApp() {
 
   function restore(entry: HistoryEntry) {
     setResult(entry.result);
+    if (entry.result.contextAsk) setContextOpen(true);
     setPreview(entry.thumbnail);
     setPrepared(null);
     setError(null);
@@ -139,17 +145,20 @@ export function BedSenseApp() {
       <h1 className="mt-4 font-serif text-5xl leading-none tracking-tight">{text.title}</h1>
       <p className="mt-3 text-[1.02rem] leading-6 text-ink/80">{text.lede}</p>
 
-      <ul className="mt-5 flex gap-2 overflow-x-auto pb-1">
-        {CONCEPTS.filter((concept) => concept.crop).map((concept) => (
-          <li key={concept.id} className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm shadow-sm">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: concept.swatch }} />
-            <span className="font-semibold">{text.concepts[concept.id]}</span>
-            <span className="text-xs uppercase tracking-wide text-ink/55">
-              {concept.id === "onion" ? text.primary : text.secondary}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-5">
+        <p id="supported-crops" className="text-sm leading-5 text-ink/80">
+          {text.supportLine}
+        </p>
+        <ul aria-labelledby="supported-crops" className="mt-2 flex gap-2 overflow-x-auto pb-1">
+          {CONCEPTS.filter((concept) => concept.crop).map((concept) => (
+            <li key={concept.id} className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm shadow-sm">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: concept.swatch }} />
+              <span className="font-semibold">{text.concepts[concept.id]}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 text-sm leading-5 text-ink/70">{text.supportNote}</p>
+      </div>
 
       <section className="mt-5 rounded-[1.6rem] border border-ink/10 bg-white/55 p-3 shadow-[0_10px_30px_rgba(36,48,36,0.05)]">
         {preview ? (
@@ -224,7 +233,39 @@ export function BedSenseApp() {
         ) : null}
       </section>
 
-      {result ? <ResultCard locale={locale} result={result} /> : null}
+      {result ? (
+        <ResultCard
+          locale={locale}
+          result={result}
+          contextSlot={
+            <ContextForm
+              text={text}
+              context={context}
+              onChange={setContext}
+              disabled={busy}
+              open={contextOpen}
+              onOpenChange={setContextOpen}
+              canUpdate={Boolean(prepared)}
+              onUpdate={() => {
+                if (prepared) void runCheck(prepared);
+              }}
+              ask={result.contextAsk}
+            />
+          }
+        />
+      ) : (
+        <ContextForm
+          text={text}
+          context={context}
+          onChange={setContext}
+          disabled={busy}
+          open={contextOpen}
+          onOpenChange={setContextOpen}
+          canUpdate={false}
+          onUpdate={() => undefined}
+          ask={null}
+        />
+      )}
 
       <section className="mt-8">
         <div className="flex items-baseline justify-between">
@@ -247,7 +288,8 @@ export function BedSenseApp() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={entry.thumbnail} alt="" className="h-20 w-full object-cover" />
                 <span className="block px-2 py-2 text-xs font-semibold">
-                  {entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks}
+                  {entry.result.detectedPlant ||
+                    (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks)}
                   <span className="mt-0.5 block font-normal text-ink/60">{text.levelLabel(entry.result.confidence)}</span>
                 </span>
               </button>
@@ -261,7 +303,15 @@ export function BedSenseApp() {
   );
 }
 
-function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult }) {
+function ResultCard({
+  locale,
+  result,
+  contextSlot,
+}: {
+  locale: Locale;
+  result: AnalyzeResult;
+  contextSlot: ReactNode;
+}) {
   const text = copy[locale];
   const score = Math.round(result.confidenceScore * 100);
   return (
@@ -271,7 +321,13 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-leaf">
             {result.mode === "mock" ? text.modeMock : text.modeLive}
           </p>
-          <h2 className="mt-1 font-serif text-3xl leading-tight">{text.focusLine(result.cropFocus, result.primaryCrop)}</h2>
+          <h2 className="mt-1 font-serif text-3xl leading-tight">
+            {text.plantLine({
+              detectedPlant: result.detectedPlant,
+              cropFocus: result.cropFocus,
+              primaryCrop: result.primaryCrop,
+            })}
+          </h2>
         </div>
         <p className="shrink-0 text-right">
           <span className="block text-xs uppercase tracking-wide text-ink/50">{text.confidence}</span>
@@ -317,6 +373,8 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
         </ol>
       </div>
 
+      {contextSlot}
+
       <aside className="rounded-2xl border border-beet/30 bg-[#f8ebe7] px-4 py-4">
         <h3 className="font-serif text-xl text-beet">{text.askAgronomist}</h3>
         <p className="mt-1 text-sm leading-5">{result.agronomistCallout}</p>
@@ -328,6 +386,90 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.beforeYouAct}</h3>
         <p className="mt-2 text-sm leading-5 text-ink/80">{result.disclaimer}</p>
       </div>
+    </section>
+  );
+}
+
+function ContextForm({
+  text,
+  context,
+  onChange,
+  disabled,
+  open,
+  onOpenChange,
+  canUpdate,
+  onUpdate,
+  ask,
+}: {
+  text: Copy;
+  context: FarmerContext;
+  onChange: (next: FarmerContext) => void;
+  disabled: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  canUpdate: boolean;
+  onUpdate: () => void;
+  ask: string | null;
+}) {
+  function setField(field: ContextField, value: string) {
+    onChange({ ...context, [field]: value });
+  }
+
+  return (
+    <section className="mt-4 rounded-[1.4rem] border border-ink/10 bg-white/70 p-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => onOpenChange(!open)}
+        className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
+      >
+        <span>
+          <span className="block font-semibold">{text.contextTitle}</span>
+          <span className="mt-0.5 block text-sm leading-5 text-ink/70">{text.contextHint}</span>
+        </span>
+        <span className="text-sm font-semibold text-leaf">{open ? "–" : "+"}</span>
+      </button>
+      {ask ? (
+        <p className="mt-3 rounded-2xl bg-[#f8ebe7] px-3 py-3 text-sm leading-5" role="status">
+          <span className="block font-semibold text-beet">{text.contextAskLabel}</span>
+          {ask}
+        </p>
+      ) : null}
+      {open ? (
+        <div className="mt-3 space-y-3">
+          {CONTEXT_FIELDS.map((field) => (
+            <label key={field} className="block text-sm font-semibold">
+              {text.contextFields[field]}
+              {field === "notes" ? (
+                <textarea
+                  value={context[field]}
+                  disabled={disabled}
+                  rows={3}
+                  onChange={(event) => setField(field, event.target.value)}
+                  className="mt-1 w-full rounded-2xl border border-ink/15 bg-paper px-3 py-2 text-sm font-normal"
+                />
+              ) : (
+                <input
+                  value={context[field]}
+                  disabled={disabled}
+                  onChange={(event) => setField(field, event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-ink/15 bg-paper px-3 text-sm font-normal"
+                />
+              )}
+            </label>
+          ))}
+          {canUpdate ? (
+            <button
+              type="button"
+              disabled={disabled || contextIsEmpty(context)}
+              onClick={onUpdate}
+              className="min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper disabled:opacity-60"
+            >
+              {text.contextUpdate}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

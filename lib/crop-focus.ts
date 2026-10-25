@@ -1,14 +1,16 @@
 import type { CropFocus, CropId } from "@/lib/types";
 
 /**
- * One photo is one bed. Onion is the primary crop. Beetroot and chili are
- * secondary crops, each grown on its own bed. Onion and beetroot are never
- * on the same bed, and chili is a separate bed as well. This file does not
- * describe where the beds are.
+ * One photo is one bed. Onion, beetroot, and chili are familiar crops SAM
+ * can mark. Onion is weighted first. Beetroot and chili are common secondary
+ * crops, each grown on its own bed. Onion and beetroot are never on the same
+ * bed, and chili is a separate bed as well. This file does not describe where
+ * the beds are, and it does not decide every plant: Muse names whatever is
+ * in the photo, including plants other than these three.
  *
- * Onion area is weighted so a close score stays onion-first. Any second crop
- * in the frame is `mixed`: unusual multi-crop on one photo, not the planting
- * pattern. A frame with only one of these crops is labeled that crop.
+ * Any second familiar crop in the frame is `mixed`: unusual multi-crop on
+ * one photo, not the planting pattern. A frame that shows one of these crops
+ * and not the others is labeled that crop.
  */
 const WEIGHT: Record<CropId, number> = {
   onion: 1.25,

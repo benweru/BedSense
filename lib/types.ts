@@ -4,15 +4,19 @@ export type Locale = (typeof LOCALES)[number];
 export const CROPS = ["onion", "beetroot", "chili"] as const;
 export type CropId = (typeof CROPS)[number];
 
-export const CONCEPT_IDS = ["onion", "beetroot", "chili", "yellow-leaf", "weed"] as const;
+export const CONCEPT_IDS = ["onion", "beetroot", "chili", "plant", "yellow-leaf", "weed"] as const;
 export type ConceptId = (typeof CONCEPT_IDS)[number];
 
 export type ConceptKind = "crop" | "symptom" | "other";
 
 export type ConfidenceLevel = "low" | "medium" | "high";
 
-/** One crop on this bed, an unusual multi-crop frame (`mixed`), or no crop marks (`unknown`). */
+/** One of the familiar crops, an unusual multi-crop frame (`mixed`), or none of those marks (`unknown`). Other plants are still named from the photo. */
 export type CropFocus = CropId | "mixed" | "unknown";
+
+export const CONTEXT_FIELDS = ["stage", "practices", "chemicals", "weather", "issues", "notes"] as const;
+export type ContextField = (typeof CONTEXT_FIELDS)[number];
+export type FarmerContext = Record<ContextField, string>;
 
 export type MaskGrid = {
   width: number;
@@ -59,6 +63,9 @@ export type AnalyzeResult = {
   };
   cropFocus: CropFocus;
   primaryCrop: CropId | null;
+  detectedPlant: string;
+  contextAsk: string | null;
+  contextUsed: boolean;
   counts: ConceptCounts;
   masks: MaskMark[];
   observations: string[];

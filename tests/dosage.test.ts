@@ -3,7 +3,7 @@ import { copy } from "@/lib/copy";
 import { containsDosage, finalizeTriage } from "@/lib/triage";
 import type { ConceptCounts } from "@/lib/types";
 
-const counts: ConceptCounts = { onion: 2, beetroot: 0, chili: 0, "yellow-leaf": 1, weed: 0 };
+const counts: ConceptCounts = { onion: 2, beetroot: 0, chili: 0, plant: 0, "yellow-leaf": 1, weed: 0 };
 
 describe("dosage guard", () => {
   it("flags spray rates and leaves field notes alone", () => {

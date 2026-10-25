@@ -1,9 +1,10 @@
 import { copy } from "@/lib/copy";
-import { CONCEPTS } from "@/lib/concepts";
+import { CONCEPTS, emptyConceptCounts } from "@/lib/concepts";
+import { contextIsEmpty, emptyFarmerContext, noteContextUse } from "@/lib/context";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
 import { finalizeTriage } from "@/lib/triage";
-import type { AnalyzeResult, ConceptCounts, ConceptId, CropId, Locale, MaskMark } from "@/lib/types";
+import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
 export type DemoScenario = 0 | 1 | 2;
 
@@ -33,11 +34,13 @@ export function buildMockResult(options: {
   mime: string;
   id: string;
   createdAt: string;
+  context?: FarmerContext;
 }): AnalyzeResult {
   const width = Math.max(1, options.width);
   const height = Math.max(1, options.height);
+  const context = options.context ?? emptyFarmerContext();
   const masks = layout(options.scenario, width, height);
-  const counts = emptyCounts();
+  const counts = emptyConceptCounts();
   const areaByCrop: Record<CropId, number> = { onion: 0, beetroot: 0, chili: 0 };
   for (const mask of masks) {
     counts[mask.conceptId] += 1;
@@ -65,9 +68,12 @@ export function buildMockResult(options: {
     image: { width, height, mime: options.mime },
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
+    detectedPlant: focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant,
+    contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
+    contextUsed: !contextIsEmpty(context),
     counts,
     masks,
-    observations: triage.observations,
+    observations: noteContextUse(options.locale, triage.observations, context),
     actions: triage.actions,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,
@@ -287,10 +293,6 @@ function stories(locale: Locale): Record<
       confidenceScore: 0.57,
     },
   };
-}
-
-function emptyCounts(): ConceptCounts {
-  return { onion: 0, beetroot: 0, chili: 0, "yellow-leaf": 0, weed: 0 };
 }
 
 function clamp(value: number, min: number, max: number): number {

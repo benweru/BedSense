@@ -73,10 +73,37 @@ describe("analyze pipeline", () => {
     expect(focuses[2]?.counts.chili).toBeGreaterThan(0);
     expect(focuses[2]?.counts.onion).toBe(0);
     expect(focuses[2]?.counts.beetroot).toBe(0);
+    expect(focuses[0]?.detectedPlant).toBe("Onion");
+    expect(focuses[1]?.detectedPlant).toBe("Beetroot");
+    expect(focuses[2]?.detectedPlant).toBe("Chili");
     for (const result of focuses) {
       expect(result.actions).toHaveLength(3);
       expect(result.models.sam).toBe("sam-3.1");
+      expect(result.contextUsed).toBe(false);
+      expect(result.contextAsk).toBeTruthy();
     }
+  });
+
+  it("accepts optional context in demo mode and stops asking once it is present", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(
+      new Request("http://localhost/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          image: pngDataUrl(),
+          locale: "en",
+          context: { stage: "three weeks", notes: "leaves look tired" },
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.contextUsed).toBe(true);
+    expect(body.contextAsk).toBeNull();
+    expect(body.detectedPlant).toBeTruthy();
+    expect(body.actions).toHaveLength(3);
+    expect(JSON.stringify(body.observations)).toContain("notes you added");
   });
 
   it("stays in demo mode when no key is configured", async () => {
@@ -129,7 +156,15 @@ describe("analyze pipeline", () => {
       const body = JSON.parse(String(init.body)) as {
         model?: string;
         input?: Array<{ content: Array<{ type: string; text?: string }> }>;
+        messages?: Array<{ role?: string; content?: unknown }>;
       };
+      if (Array.isArray(body.messages)) {
+        const developer = body.messages.find((message) => message.role === "developer");
+        expect(String(developer?.content).toLowerCase()).toContain("any farm plant");
+        expect(String(developer?.content)).toContain("contextAsk");
+        const user = body.messages.find((message) => message.role === "user");
+        expect(JSON.stringify(user?.content)).toContain("three weeks");
+      }
       if (String(url).endsWith("/responses")) {
         expect(body.model).toBe("sam-3.1");
         const phrase = body.input?.[0]?.content.find((part) => part.type === "input_text")?.text;
@@ -162,6 +197,8 @@ describe("analyze pipeline", () => {
                   ],
                   confidence: "high",
                   confidenceScore: 0.91,
+                  detectedPlant: "tomato",
+                  contextAsk: "When did you last water?",
                 }),
               },
             },
@@ -172,7 +209,11 @@ describe("analyze pipeline", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await analyzeBedPhoto({ image: pngDataUrl(), locale: "en" });
+    const result = await analyzeBedPhoto({
+      image: pngDataUrl(),
+      locale: "en",
+      context: { stage: "three weeks" },
+    });
     expect(result.mode).toBe("live");
     expect(result.models.sam).toBe("sam-3.1");
     expect(result.models.muse).toBe("muse-spark-1.3");
@@ -186,6 +227,10 @@ describe("analyze pipeline", () => {
     expect(JSON.stringify(result)).not.toContain(liveKey);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
     expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
+    expect(result.detectedPlant).toBe("tomato");
+    expect(result.contextAsk).toBe("When did you last water?");
+    expect(result.contextUsed).toBe(true);
+    expect(result.observations.join(" ")).toContain("notes you added");
     const models = fetchMock.mock.calls
       .map((call) => JSON.parse(String(call[1]?.body)) as { model?: string })
       .map((body) => body.model);
