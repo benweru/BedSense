@@ -2,7 +2,7 @@
   "name": "bedsense",
   "version": "1.0.0",
   "private": true,
-  "description": "BedSense — phone photo of any plant on a vegetable farm bed. Works well with onion; often used for beetroot and chili, each on its own bed. SAM 3.1 and Muse Spark name the plant and return exactly three next checks. Meta Global AI Developer Hackathon indie demo.",
+  "description": "BedSense — photograph any plant on your farm bed. Meta intelligence models return diagnoses and practical next steps. Meta Global AI Developer Hackathon indie demo.",
   "license": "MIT",
   "scripts": {
     "dev": "next dev",

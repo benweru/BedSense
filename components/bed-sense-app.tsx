@@ -6,8 +6,19 @@ import { CONCEPTS } from "@/lib/concepts";
 import { contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, rememberCheck } from "@/lib/history";
+import { parseFarmerPlant } from "@/lib/plant-name";
 import { clearHistoryStore, useHistory, useLocale, writeHistory, writeLocale } from "@/lib/phone-store";
-import { CONTEXT_FIELDS, type AnalyzeResult, type ContextField, type FarmerContext, type HistoryEntry, type Locale } from "@/lib/types";
+import {
+  CONTEXT_FIELDS,
+  QUALITY_BANDS,
+  type AnalyzeResult,
+  type ChemicalAdvice,
+  type ContextField,
+  type FarmerContext,
+  type HistoryEntry,
+  type Locale,
+  type ShopOffer,
+} from "@/lib/types";
 
 type PreparedPhoto = {
   dataUrl: string;
@@ -20,6 +31,7 @@ type Phase = "idle" | "preparing" | "analyzing" | "ready" | "error";
 export function BedSenseApp() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
+  const plantRef = useRef<HTMLInputElement>(null);
   const locale = useLocale();
   const history = useHistory();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -29,6 +41,8 @@ export function BedSenseApp() {
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<FarmerContext>(emptyFarmerContext);
   const [contextOpen, setContextOpen] = useState(false);
+  const [plantName, setPlantName] = useState("");
+  const [plantError, setPlantError] = useState(false);
   const text = copy[locale];
 
   useEffect(() => {
@@ -50,6 +64,13 @@ export function BedSenseApp() {
       const photo = await preparePhoto(file);
       setPrepared(photo);
       setPreview(photo.dataUrl);
+      if (!parseFarmerPlant(plantName)) {
+        setPlantError(true);
+        setPhase("idle");
+        plantRef.current?.focus();
+        return;
+      }
+      setPlantError(false);
       await runCheck(photo);
     } catch {
       setPhase("error");
@@ -57,7 +78,25 @@ export function BedSenseApp() {
     }
   }
 
+  async function submitPrepared() {
+    if (!prepared) return;
+    if (!parseFarmerPlant(plantName)) {
+      setPlantError(true);
+      plantRef.current?.focus();
+      return;
+    }
+    setPlantError(false);
+    await runCheck(prepared);
+  }
+
   async function runCheck(photo: PreparedPhoto) {
+    const named = parseFarmerPlant(plantName);
+    if (!named) {
+      setPlantError(true);
+      setPhase("idle");
+      plantRef.current?.focus();
+      return;
+    }
     setPhase("analyzing");
     setError(null);
     try {
@@ -70,10 +109,18 @@ export function BedSenseApp() {
           width: photo.width,
           height: photo.height,
           context,
+          plantName: named,
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
       if (!response.ok) {
+        if (body.error === "missing_plant") {
+          setPlantError(true);
+          setPhase("idle");
+          setError(text.plantNameMissing);
+          plantRef.current?.focus();
+          return;
+        }
         setPhase("error");
         setError(body.error === "unsupported_image" || body.error === "image_too_large" ? text.errorFormat : text.errorGeneric);
         return;
@@ -98,6 +145,7 @@ export function BedSenseApp() {
 
   function restore(entry: HistoryEntry) {
     setResult(entry.result);
+    if (entry.result.farmerPlant) setPlantName(entry.result.farmerPlant);
     if (entry.result.contextAsk) setContextOpen(true);
     setPreview(entry.thumbnail);
     setPrepared(null);
@@ -146,18 +194,42 @@ export function BedSenseApp() {
       <p className="mt-3 text-[1.02rem] leading-6 text-ink/80">{text.lede}</p>
 
       <div className="mt-5">
-        <p id="supported-crops" className="text-sm leading-5 text-ink/80">
-          {text.supportLine}
+        <label htmlFor="plant-name" className="block text-sm font-semibold">
+          {text.plantNameLabel}
+        </label>
+        <input
+          ref={plantRef}
+          id="plant-name"
+          name="plantName"
+          value={plantName}
+          required
+          autoComplete="off"
+          placeholder={text.plantNamePlaceholder}
+          aria-invalid={plantError || undefined}
+          aria-describedby="plant-name-hint"
+          onChange={(event) => {
+            setPlantName(event.target.value);
+            if (parseFarmerPlant(event.target.value)) setPlantError(false);
+          }}
+          className="mt-2 min-h-12 w-full rounded-2xl border border-ink/15 bg-white px-3 text-base"
+        />
+        <p id="plant-name-hint" className="mt-2 text-sm leading-5 text-ink/70">
+          {text.plantNameHint}
         </p>
-        <ul aria-labelledby="supported-crops" className="mt-2 flex gap-2 overflow-x-auto pb-1">
-          {CONCEPTS.filter((concept) => concept.crop).map((concept) => (
-            <li key={concept.id} className="flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-sm shadow-sm">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: concept.swatch }} />
-              <span className="font-semibold">{text.concepts[concept.id]}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-sm leading-5 text-ink/70">{text.supportNote}</p>
+        {plantError ? (
+          <p className="mt-2 text-sm text-beet" role="alert">
+            {text.plantNameMissing}
+          </p>
+        ) : null}
+        {prepared && !busy ? (
+          <button
+            type="button"
+            onClick={() => void submitPrepared()}
+            className="mt-3 min-h-12 w-full rounded-2xl bg-leaf px-3 text-sm font-semibold text-paper"
+          >
+            {text.checkPhoto}
+          </button>
+        ) : null}
       </div>
 
       <section className="mt-5 rounded-[1.6rem] border border-ink/10 bg-white/55 p-3 shadow-[0_10px_30px_rgba(36,48,36,0.05)]">
@@ -288,7 +360,8 @@ export function BedSenseApp() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={entry.thumbnail} alt="" className="h-20 w-full object-cover" />
                 <span className="block px-2 py-2 text-xs font-semibold">
-                  {entry.result.detectedPlant ||
+                  {entry.result.farmerPlant ||
+                    entry.result.detectedPlant ||
                     (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks)}
                   <span className="mt-0.5 block font-normal text-ink/60">{text.levelLabel(entry.result.confidence)}</span>
                 </span>
@@ -373,6 +446,8 @@ function ResultCard({
         </ol>
       </div>
 
+      {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
+
       {contextSlot}
 
       <aside className="rounded-2xl border border-beet/30 bg-[#f8ebe7] px-4 py-4">
@@ -388,6 +463,52 @@ function ResultCard({
       </div>
     </section>
   );
+}
+
+function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) {
+  return (
+    <div className="rounded-[1.4rem] border border-leaf/25 bg-white/80 px-3 py-4">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
+      <p className="mt-2 text-sm leading-5">
+        <span className="font-semibold">{text.chemicalsSuspect}. </span>
+        {advice.suspect}
+      </p>
+      <p className="mt-2 text-sm leading-5 text-ink/80">{advice.verifyNote}</p>
+      <ul className="mt-3 space-y-3">
+        {advice.products.map((product) => (
+          <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-3 py-3">
+            <p className="font-semibold">{product.activeIngredient}</p>
+            <p className="text-sm text-ink/70">{product.productClass}</p>
+            <p className="mt-1 text-sm leading-5">{product.useNote}</p>
+            <h4 className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsWhere}</h4>
+            {product.offers.length === 0 ? <p className="mt-1 text-sm leading-5">{text.chemicalsNoShop}</p> : null}
+            <ul className="mt-2 space-y-2">
+              {orderedOffers(product.offers).map((offer) => (
+                <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl bg-white px-3 py-2 text-sm leading-5">
+                  <span className="font-semibold">{text.quality[offer.quality]}</span>
+                  <span className="text-ink/70"> · {offer.brand} · {offer.pack}</span>
+                  <span className="mt-0.5 block">
+                    {offer.shopName} · {offer.shopKind} · {offer.place}
+                  </span>
+                  <span className="mt-0.5 block font-semibold">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-sm leading-5 text-ink/70">{advice.priceNote}</p>
+    </div>
+  );
+}
+
+function orderedOffers(offers: readonly ShopOffer[]): ShopOffer[] {
+  return [...offers].sort((a, b) => QUALITY_BANDS.indexOf(a.quality) - QUALITY_BANDS.indexOf(b.quality));
+}
+
+function kesRange(min: number, max: number): string {
+  const format = new Intl.NumberFormat("en-KE");
+  return `KES ${format.format(min)}–${format.format(max)}`;
 }
 
 function ContextForm({

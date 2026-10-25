@@ -20,6 +20,9 @@ describe("dosage guard", () => {
       const text = copy[locale];
       expect(containsDosage(text.disclaimer)).toBe(false);
       expect(containsDosage(text.agronomistCallout)).toBe(false);
+      expect(containsDosage(text.verifyNote)).toBe(false);
+      expect(containsDosage(text.priceNote)).toBe(false);
+      expect(containsDosage(text.chemicalUseFallback)).toBe(false);
       for (const action of text.fallbackActions) expect(containsDosage(action)).toBe(false);
     }
   });
@@ -40,7 +43,7 @@ describe("dosage guard", () => {
     expect(result.confidence).toBe("low");
     expect(result.confidenceScore).toBeLessThanOrEqual(0.4);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
-    expect(result.agronomistCallout.toLowerCase()).toContain("agronomist");
+    expect(result.agronomistCallout.toLowerCase()).toContain("agroveterinary");
     expect(result.observations[0]).toContain("onion 2");
   });
 });
