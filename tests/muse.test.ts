@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyConceptCounts } from "@/lib/concepts";
 import { emptyFarmerContext } from "@/lib/context";
 import { copy } from "@/lib/copy";
-import { chatMuseModels, parseSse, postMeta } from "@/lib/server/meta";
+import { AnalyzeError } from "@/lib/types";
+import { chatMuseModels, parseSse, postMeta, triageModelIds } from "@/lib/server/meta";
 import { adviseBed, chatOutputText, marksSummary, readModelDraft } from "@/lib/server/muse";
 
 const triage = {
@@ -39,6 +40,18 @@ function jsonResponse(body: unknown, status = 200, contentType = "application/js
   return new Response(JSON.stringify(body), { status, headers: { "content-type": contentType } });
 }
 
+const SPARK = ["muse-spark-1.3-contributor", "muse-spark-1.3"];
+
+function routeFetch(
+  chat: (body: { model?: string; messages?: unknown; max_completion_tokens?: number; stream?: boolean }) => Response | Promise<Response>,
+  ids: readonly string[] = SPARK,
+) {
+  return vi.fn(async (url: string, init: RequestInit) => {
+    if (String(url).endsWith("/models")) return jsonResponse({ data: ids.map((id) => ({ id })) });
+    return chat(JSON.parse(String(init.body)) as { model?: string; messages?: unknown; max_completion_tokens?: number; stream?: boolean });
+  });
+}
+
 function bedOptions() {
   return {
     imageUrl: "data:image/jpeg;base64,aaaa",
@@ -70,6 +83,16 @@ describe("Muse model choice", () => {
         "muse-spark-1.2-contributor",
       ]),
     ).toEqual(["muse-spark-1.2-contributor", "muse-spark-1.2", "muse-wonder-1.0"]);
+    expect(
+      triageModelIds([
+        "muse-spark-1.3",
+        "muse-spark-1.2",
+        "muse-spark-1.1",
+        "muse-spark-1.3-contributor",
+        "muse-wonder-1.0",
+        "sam-3.1",
+      ]),
+    ).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-spark-1.2", "muse-wonder-1.0"]);
     expect(marksSummary("en", emptyConceptCounts())).toBe("SAM mark count is zero. Describe the named plant in the photo.");
     expect(marksSummary("en", emptyConceptCounts())).not.toContain("No plants were marked");
     expect(marksSummary("sw", emptyConceptCounts())).toContain("sifuri");
@@ -119,8 +142,7 @@ describe("Muse stream parsing", () => {
 describe("adviseBed", () => {
   it("accepts a CRLF Muse stream as a real answer, with causes and symptom checks", async () => {
     const raw = sseBody(JSON.stringify(triage), "\r\n");
-    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
-      const body = JSON.parse(String(init.body)) as { model?: string; max_completion_tokens?: number; stream?: boolean };
+    const fetchMock = routeFetch((body) => {
       expect(body.model).toBe("muse-spark-1.3-contributor");
       expect(body.stream).toBe(true);
       expect(body.max_completion_tokens).toBeGreaterThan(2400);
@@ -129,7 +151,7 @@ describe("adviseBed", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const result = await adviseBed(bedOptions());
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.triageSource).toBe("muse");
     expect(result.model).toBe("muse-spark-1.3-contributor");
     expect(result.detectedPlant).toBe("Chili");
@@ -144,7 +166,7 @@ describe("adviseBed", () => {
     let calls = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      routeFetch(() => {
         calls += 1;
         if (calls === 1) return jsonResponse({ error: { code: "rate_limit_exceeded" } }, 429);
         return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
@@ -162,8 +184,7 @@ describe("adviseBed", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as { model?: string };
+      routeFetch((body) => {
         models.push(body.model ?? "");
         if (body.model === "muse-spark-1.3-contributor") {
           return jsonResponse({ error: { code: "model_not_found" } }, 404);
@@ -183,8 +204,7 @@ describe("adviseBed", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as { model?: string };
+      routeFetch((body) => {
         if (body.model === "muse-spark-1.3-contributor") {
           return jsonResponse({ choices: [{ message: { content: "" } }] });
         }
@@ -200,7 +220,10 @@ describe("adviseBed", () => {
 
   it("uses the on-phone backup only after both models fail", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: { code: "server_error" } }, 503)));
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(() => jsonResponse({ error: { code: "server_error" } }, 503)),
+    );
     const result = await adviseBed({
       ...bedOptions(),
       context: { ...emptyFarmerContext(), notes: "fruits are curled into loops" },
@@ -269,7 +292,7 @@ describe("adviseBed", () => {
       }),
     );
     const result = await adviseBed(bedOptions());
-    expect(models).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-spark-1.2-contributor"]);
+    expect(models).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.2-contributor"]);
     expect(result.triageSource).toBe("muse");
     expect(result.model).toBe("muse-spark-1.2-contributor");
     expect(result.likelyCauses.length).toBeGreaterThan(1);
@@ -279,42 +302,49 @@ describe("adviseBed", () => {
     expect(result.chemicals).toBeNull();
   });
 
-  it("uses the reserve list when the catalog cannot be read, and prefers a catalog wonder model over that list", async () => {
+  it("stops with muse_unavailable when the catalog has no chat model or every listed id is missing", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const reserveModels: string[] = [];
+    const chatCalls: string[] = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init: RequestInit) => {
-        if (String(url).endsWith("/models")) return jsonResponse({ error: { code: "server_error" } }, 500);
-        const body = JSON.parse(String(init.body)) as { model?: string };
-        reserveModels.push(body.model ?? "");
-        if (body.model === "muse-spark-1.2-contributor") {
-          return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
-        }
+        if (String(url).endsWith("/models")) return jsonResponse({ data: [{ id: "sam-3.1" }, { id: "muse-image-1.0" }] });
+        chatCalls.push(String(init.body));
         return jsonResponse({ error: { code: "model_not_found" } }, 404);
       }),
     );
-    const reserved = await adviseBed(bedOptions());
-    expect(reserveModels).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-spark-1.2-contributor"]);
-    expect(reserved.triageSource).toBe("muse");
-    expect(reserved.model).toBe("muse-spark-1.2-contributor");
-    expect(reserved.actions).not.toEqual([...copy.en.fallbackActions]);
+    await expect(adviseBed(bedOptions())).rejects.toBeInstanceOf(AnalyzeError);
+    await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "muse_unavailable" });
+    expect(chatCalls).toEqual([]);
 
+    const tried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      routeFetch((body) => {
+        tried.push(body.model ?? "");
+        return jsonResponse({ error: { code: "model_not_found" } }, 404);
+      }, ["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-spark-1.2-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-wonder-1.0"]),
+    );
+    await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "muse_unavailable" });
+    expect(tried).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.2-contributor", "muse-spark-1.3", "muse-wonder-1.0"]);
+    expect(tried.join(" ")).not.toMatch(/soil|finger/);
+
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: { code: "server_error" } }, 500)));
+    await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "upstream" });
+  });
+
+  it("uses a catalog wonder model and does not guess a spark id the catalog omitted", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const wonderModels: string[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string, init: RequestInit) => {
-        if (String(url).endsWith("/models")) return jsonResponse({ data: [{ id: "muse-wonder-1.0" }, { id: "sam-3.1" }] });
-        const body = JSON.parse(String(init.body)) as { model?: string };
+      routeFetch((body) => {
         wonderModels.push(body.model ?? "");
-        if (body.model === "muse-wonder-1.0") {
-          return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
-        }
-        return jsonResponse({ error: { code: "model_not_found" } }, 404);
-      }),
+        return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+      }, ["muse-wonder-1.0", "sam-3.1"]),
     );
     const wondered = await adviseBed(bedOptions());
-    expect(wonderModels).toEqual(["muse-spark-1.3-contributor", "muse-spark-1.3", "muse-wonder-1.0"]);
+    expect(wonderModels).toEqual(["muse-wonder-1.0"]);
     expect(wondered.model).toBe("muse-wonder-1.0");
     expect(wondered.likelyCauses.length).toBeGreaterThan(1);
     expect(wondered.actions).not.toEqual([...copy.en.fallbackActions]);
@@ -324,7 +354,7 @@ describe("adviseBed", () => {
     const partial = '{"detectedPlant":"chili","symptom":"curl","observations":["The chili fruits are curled into tight loops."],"likelyCauses":["Mites curl young chili fruit."]';
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => jsonResponse({ choices: [{ message: { content: partial } }] })),
+      routeFetch(() => jsonResponse({ choices: [{ message: { content: partial } }] })),
     );
     const result = await adviseBed(bedOptions());
     expect(result.triageSource).toBe("muse");

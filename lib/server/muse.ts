@@ -4,9 +4,9 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
-import { chatMuseModels, listMetaModels, MUSE_MODELS, MUSE_RESERVE_MODELS, MetaHttpError, postMeta } from "@/lib/server/meta";
+import { listMetaModels, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
-import type { ChemicalAdvice, ConceptCounts, CropId, FarmerContext, Locale } from "@/lib/types";
+import { AnalyzeError, type ChemicalAdvice, type ConceptCounts, type CropId, type FarmerContext, type Locale } from "@/lib/types";
 
 /** What Muse is told about SAM. An empty frame must not read as "no plants". */
 export function marksSummary(locale: Locale, counts: ConceptCounts): string {
@@ -61,43 +61,39 @@ export async function adviseBed(options: {
   deadline?: number;
 }): Promise<TriageDraft> {
   const deadline = options.deadline ?? Date.now() + 36_000;
-  let missing = 0;
-  let ran = 0;
-  for (let index = 0; index < MUSE_MODELS.length; index += 1) {
-    const model = MUSE_MODELS[index];
+  if (deadline - Date.now() < 8_000) {
+    return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.farmerPlant);
+  }
+  const models = await catalogModels(options.apiKey, deadline);
+  let sawLiveModel = false;
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
     if (!model) continue;
-    ran += 1;
     const attempt = await tryModel(options, model, deadline, index === 0 ? 12_000 : 1_000);
     if (attempt.draft) return attempt.draft;
-    if (attempt.missing) missing += 1;
+    if (!attempt.missing) sawLiveModel = true;
   }
-  // Production returned 404 model_not_found for both Spark 1.3 ids. The photo never reached a model,
-  // so an empty-context backup filled the generic checks. Ask the catalog, then a short reserve list.
-  if (ran > 0 && missing === ran) {
-    for (const model of await alternateMuseModels(options.apiKey, deadline)) {
-      const attempt = await tryModel(options, model, deadline, 1_000);
-      if (attempt.draft) return attempt.draft;
-    }
-  }
+  if (!sawLiveModel) throw new AnalyzeError("muse_unavailable");
   return localFallback(options.locale, options.counts, options.context, options.primaryCrop, options.farmerPlant);
 }
 
-async function alternateMuseModels(apiKey: string, deadline: number): Promise<string[]> {
-  let listed: string[] = [];
-  const budget = deadline - Date.now();
-  if (budget > 9_000) {
-    try {
-      listed = await listMetaModels(apiKey, Math.min(8_000, budget - 7_000));
-    } catch (error) {
-      const reason = error instanceof MetaHttpError ? `${error.status} ${error.reason}` : "error";
-      console.error(`muse catalog ${reason}`);
-      listed = [];
-    }
+async function catalogModels(apiKey: string, deadline: number): Promise<string[]> {
+  let listed: string[];
+  try {
+    const budget = Math.min(8_000, Math.max(1_000, deadline - Date.now() - 7_000));
+    listed = await listMetaModels(apiKey, budget);
+  } catch (error) {
+    const status = error instanceof MetaHttpError ? error.status : 0;
+    const reason = error instanceof MetaHttpError ? error.reason : "error";
+    console.error(`muse catalog ${status} ${reason}`);
+    if (status === 401 || status === 403) throw new AnalyzeError("muse_unavailable");
+    throw new AnalyzeError("upstream");
   }
-  const skipped = new Set<string>(MUSE_MODELS);
-  const fromCatalog = chatMuseModels(listed).filter((id) => !skipped.has(id));
-  const fromReserve = MUSE_RESERVE_MODELS.filter((id) => !skipped.has(id) && !fromCatalog.includes(id));
-  return [...fromCatalog, ...fromReserve].slice(0, 4);
+  const safe = listed.filter((id) => /^[a-z0-9._-]{1,80}$/i.test(id)).slice(0, 40);
+  console.error(`muse catalog ${safe.join(",") || "empty"}`);
+  const models = triageModelIds(listed);
+  if (models.length === 0) throw new AnalyzeError("muse_unavailable");
+  return models;
 }
 
 async function tryModel(

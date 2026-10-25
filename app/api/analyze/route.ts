@@ -12,6 +12,8 @@ const MESSAGES = {
   image_too_large: "That photo is too large. Try a closer shot or a smaller file.",
   missing_key: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
   missing_plant: "Name the plant in the photo.",
+  muse_unavailable:
+    "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
   upstream: "The model call did not finish. Try the photo again.",
 } as const;
 
@@ -41,7 +43,7 @@ function jsonError(code: AnalyzeError["code"]): Response {
         ? 415
         : code === "image_too_large"
           ? 413
-          : code === "missing_key"
+          : code === "missing_key" || code === "muse_unavailable"
             ? 503
             : 502;
   return Response.json({ error: code, message: MESSAGES[code] }, { status });

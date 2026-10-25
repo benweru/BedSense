@@ -61,6 +61,7 @@ export type Copy = {
   modeMock: string;
   modeLive: string;
   backupNote: string;
+  museUnavailable: string;
   footer: string;
   concepts: Record<ConceptId, string>;
   unknownPlant: string;
@@ -144,6 +145,8 @@ const en: Copy = {
   modeMock: "Demo mode",
   modeLive: "Live models",
   backupNote: "This advice came from the on-phone backup because Muse Spark did not answer.",
+  museUnavailable:
+    "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
   footer: "Triage, not a diagnosis. Spray rates follow the product label.",
   concepts: {
     onion: "Onion",
@@ -261,6 +264,8 @@ const sw: Copy = {
   modeMock: "Hali ya onyesho",
   modeLive: "Modeli hai",
   backupNote: "Ushauri huu umetoka kwenye chelezo ya ndani kwa sababu Muse Spark haijajibu.",
+  museUnavailable:
+    "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya mazungumzo ya Muse Spark au Muse Wonder, kisha fanya ukaguzi tena.",
   footer: "Mapitio si utambuzi. Vipimo vya dawa vinafuata kibandiko.",
   concepts: {
     onion: "Kitunguu",
