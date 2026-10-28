@@ -1,0 +1,141 @@
+import { readFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import jpeg from "jpeg-js";
+import { POST } from "@/app/api/analyze/route";
+import { copy } from "@/lib/copy";
+import { judgeFrame, measureJpeg } from "@/lib/photo-quality";
+import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("photo quality gate", () => {
+  it("keeps a close photo SAM missed, and holds a wide sky or a soft frame", () => {
+    expect(judgeFrame({ masks: [], sharpness: 0.4, skyFraction: 0.01 })).toBe("use");
+    expect(judgeFrame({ masks: [], sharpness: 0.32, skyFraction: 0.22 })).toBe("too_far");
+    expect(judgeFrame({ masks: [{ confidence: 0.2, areaFraction: 0.004 }], sharpness: 0.05, skyFraction: 0.01 })).toBe("unclear");
+    expect(judgeFrame({ masks: [{ confidence: 0.7, areaFraction: 0.04 }], sharpness: 0.05, skyFraction: 0.2 })).toBe("use");
+    expect(judgeFrame({ masks: [], sharpness: null, skyFraction: null })).toBe("use");
+  });
+
+  it("measures the distant chili bed as a wide sky and a blurred frame as soft", () => {
+    const distant = measureJpeg(readFileSync("fixtures/chili/IMG_8975.jpg"));
+    const close = measureJpeg(readFileSync("fixtures/chili/IMG_8968.jpg"));
+    expect(distant?.skyFraction ?? 0).toBeGreaterThan(0.08);
+    expect(close?.skyFraction ?? 1).toBeLessThan(0.08);
+    const soft = measureJpeg(smoothJpeg());
+    expect(soft?.sharpness ?? 1).toBeLessThan(0.12);
+  });
+
+  it("does not diagnose a distant bed when SAM finds nothing", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+    const chats: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
+      if (String(url).endsWith("/responses")) return Response.json({ output_text: "" });
+      chats.push(String(url));
+      return Response.json({ choices: [{ message: { content: "{}" } }] });
+    }));
+    const bytes = readFileSync("fixtures/chili/IMG_8975.jpg");
+    const response = await POST(jsonRequest({ image: dataUrl(bytes), plantName: "chili" }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.qualityHold).toBe("too_far");
+    expect(body.qualityMessage).toBe(copy.en.qualityTooFar);
+    expect(body.likelyCauses).toEqual([]);
+    expect(body.observations).toEqual([]);
+    expect(body.models.muse).toBeNull();
+    expect(body.models.triageSource).toBe("withheld");
+    expect(body.note).toBeNull();
+    expect(chats).toEqual([]);
+    expect(JSON.stringify(body.actions)).not.toContain(copy.en.fallbackActions[0]);
+  });
+
+  it("keeps the clear angles and names the one that was too far", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const near = pngDataUrl();
+    const far = dataUrl(readFileSync("fixtures/chili/IMG_8975.jpg"));
+    const museImages: string[][] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        input?: { content: { type: string; image_url?: string }[] }[];
+        messages?: { content?: { type?: string; image_url?: { url?: string } }[] }[];
+      };
+      if (String(url).endsWith("/responses")) {
+        const image = body.input?.[0]?.content.find((part) => part.type === "input_image")?.image_url ?? "";
+        const text = image === far ? "" : BUTTON_OUTPUT;
+        return Response.json({ output_text: text });
+      }
+      const content = body.messages?.[1]?.content ?? body.messages?.find((message) => Array.isArray(message.content))?.content ?? [];
+      museImages.push(content.filter((part) => part.type === "image_url").map((part) => part.image_url?.url ?? ""));
+      return Response.json({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              detectedPlant: "chili",
+              symptom: "spots",
+              observations: ["A few leaves on the near plant look pale."],
+              likelyCauses: ["Leaf spots can follow wet leaves.", "A nutrient gap can pale the same leaves."],
+              mitigations: ["Water the soil, not the leaves.", "Watch the pale leaves for three days."],
+              actions: ["Check the underside of a pale leaf.", "Compare it with a dark green leaf.", "Show both if the pale area spreads."],
+              confidence: "medium",
+              confidenceScore: 0.6,
+              contextAsk: "",
+              sprayIndicated: false,
+              diseaseIndicated: false,
+              suspect: "",
+              chemicals: [],
+            }),
+          },
+        }],
+      });
+    }));
+    const response = await POST(jsonRequest({ images: [near, near, far], plantName: "chili" }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.qualityHold).toBeNull();
+    expect(body.qualityNote).toBe(copy.en.qualityBatch(2, [3]));
+    expect(body.qualityNote).toContain("first two images");
+    expect(body.likelyCauses.length).toBeGreaterThan(1);
+    expect(body.models.triageSource).toBe("muse");
+    expect(museImages).toEqual([[near, near]]);
+    expect(JSON.stringify(museImages)).not.toContain("IMG_8975");
+  });
+});
+
+function jsonRequest(body: unknown): Request {
+  return new Request("http://localhost/api/analyze", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function dataUrl(bytes: Uint8Array): string {
+  return `data:image/jpeg;base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+function smoothJpeg(): Uint8Array {
+  const width = 48;
+  const height = 64;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      data[index] = 40 + y;
+      data[index + 1] = 90;
+      data[index + 2] = 40;
+      data[index + 3] = 255;
+    }
+  }
+  return jpeg.encode({ data, width, height }, 80).data;
+}

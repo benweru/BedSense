@@ -21,6 +21,10 @@ export type Copy = {
   addAngle: string;
   removePhoto: string;
   photoLimit: string;
+  qualityTooFar: string;
+  qualityUnclear: string;
+  qualityMixed: string;
+  qualityBatch: (kept: number, skipped: number[]) => string;
   hint: string;
   preparing: string;
   analyzing: string;
@@ -115,6 +119,23 @@ const en: Copy = {
   addAngle: "Add another angle",
   removePhoto: "Remove",
   photoLimit: "Three photos is the limit for one check.",
+  qualityTooFar: "Move closer to the bed. This photo is too far away for a reliable check.",
+  qualityUnclear: "This photo is not clearly in view. Hold the phone steady and fill the frame with the plant.",
+  qualityMixed: "Move closer and take a clearer photo. These ones are too far away or not clearly in view.",
+  qualityBatch: (kept, skipped) => {
+    const list = skipped.join(" and ");
+    const skippedClause =
+      skipped.length === 1
+        ? `Image ${list} was too far away or not clear enough.`
+        : `Images ${list} were too far away or not clear enough.`;
+    const keptClause =
+      kept === 2 && skipped.length === 1 && skipped[0] === 3
+        ? "Results were derived from the first two images."
+        : kept === 1
+          ? "Results were derived from the other image."
+          : `Results were derived from the other ${kept} images.`;
+    return `${keptClause} ${skippedClause}`;
+  },
   hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
   analyzing: "Reading the plant you named. Causes and next checks come next.",
@@ -246,6 +267,18 @@ const sw: Copy = {
   addAngle: "Ongeza pembe nyingine",
   removePhoto: "Ondoa",
   photoLimit: "Picha tatu ndio kikomo cha ukaguzi mmoja.",
+  qualityTooFar: "Sogea karibu na kitanda. Picha hii iko mbali sana kwa ukaguzi wa kuaminika.",
+  qualityUnclear: "Picha hii haionekani vizuri. Shika simu kwa utulivu na ujaze fremu na mmea.",
+  qualityMixed: "Sogea karibu na upige picha iliyo wazi zaidi. Hizi ziko mbali sana au hazionekani vizuri.",
+  qualityBatch: (kept, skipped) => {
+    const list = skipped.join(" na ");
+    const skippedClause =
+      skipped.length === 1
+        ? `Picha ${list} ilikuwa mbali sana au haikuonekana vizuri.`
+        : `Picha ${list} zilikuwa mbali sana au hazikuonekana vizuri.`;
+    const keptClause = kept === 1 ? "Matokeo yametoka kwenye picha nyingine." : `Matokeo yametoka kwenye picha ${kept} nyingine.`;
+    return `${keptClause} ${skippedClause}`;
+  },
   hint: "Jaza fremu na mmea mmoja au kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",
   analyzing: "Inasoma mmea ulioutaja. Sababu na ukaguzi vinafuata.",

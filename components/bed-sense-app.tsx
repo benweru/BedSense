@@ -493,6 +493,16 @@ function ResultCard({
   const score = Math.round(result.confidenceScore * 100);
   return (
     <section id="result" className="mt-6 space-y-4" aria-live="polite">
+      {result.qualityNote ? (
+        <p id="quality-note" className="rounded-2xl bg-[#f6b23a] px-3 py-3 text-sm font-semibold leading-5 text-ink" role="status">
+          {result.qualityNote}
+        </p>
+      ) : null}
+      {result.qualityHold ? (
+        <div id="quality-hold" className="rounded-[1.4rem] border-2 border-[#c56a00] bg-[#fff4dc] px-4 py-4" role="status">
+          <p className="font-serif text-2xl leading-tight text-soil">{result.qualityMessage}</p>
+        </div>
+      ) : (
       <div id="result-reading" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <div>
@@ -560,6 +570,7 @@ function ResultCard({
         </ol>
       </div>
       </div>
+      )}
 
       {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
 

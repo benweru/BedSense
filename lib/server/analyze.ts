@@ -1,14 +1,15 @@
 import { emptyConceptCounts } from "@/lib/concepts";
 import { contextIsEmpty, parseFarmerContext } from "@/lib/context";
-import { normalizeLocale } from "@/lib/copy";
+import { copy, normalizeLocale } from "@/lib/copy";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
+import { isSoftPhoto, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
 import { segmentBed } from "@/lib/server/sam";
-import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type MaskMark } from "@/lib/types";
+import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type Locale, type MaskMark } from "@/lib/types";
 
 export type AnalyzeInput = {
   image?: unknown;
@@ -66,32 +67,60 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
   const deadline = Date.now() + 50_000;
   const segmented = await Promise.all(
     decoded.map(async (photo, frame) => {
-      const pass = await segmentBed(photo.url, apiKey, (photo.size?.width ?? size.width) * (photo.size?.height ?? size.height), farmerPlant, 18_000);
+      const clarity = photo.mime === "image/jpeg" ? measureJpeg(photo.bytes) : null;
+      const blurry = isSoftPhoto(clarity?.sharpness ?? null);
+      const pass = blurry
+        ? { masks: [] as MaskMark[], sourceSize: null }
+        : await segmentBed(photo.url, apiKey, (photo.size?.width ?? size.width) * (photo.size?.height ?? size.height), farmerPlant, 18_000);
+      const masks = pass.masks.map((mask) => ({ ...mask, id: `${frame}-${mask.id}`, frame }));
+      const verdict = judgeFrame({
+        masks,
+        sharpness: clarity?.sharpness ?? null,
+        skyFraction: clarity?.skyFraction ?? null,
+      });
       return {
         frame,
         url: photo.url,
         size: pass.sourceSize ?? photo.size ?? size,
         mime: photo.mime,
-        masks: pass.masks.map((mask) => ({ ...mask, id: `${frame}-${mask.id}`, frame })),
+        masks: verdict === "use" ? masks : [],
+        verdict,
       };
     }),
   );
-  const masks = segmented.flatMap((photo) => photo.masks);
-  const image = segmented[0]?.size ?? size;
+  const usable = segmented.filter((photo) => photo.verdict === "use");
+  if (usable.length === 0) {
+    return withheldResult({
+      id,
+      createdAt,
+      locale,
+      farmerPlant,
+      size,
+      mime: first.mime,
+      frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
+      verdicts: segmented.map((photo) => photo.verdict),
+    });
+  }
+  const lead = usable[0] ?? segmented[0];
+  if (!lead) throw new AnalyzeError("bad_request");
+  const masks = usable.flatMap((photo) => photo.masks);
+  const image = lead.size;
   const counts = countMasks(masks);
   const focus = chooseCropFocus(areaByCrop(masks));
   const advice = await adviseBed({
-    imageUrl: first.url,
-    imageUrls: decoded.map((photo) => photo.url),
+    imageUrl: lead.url,
+    imageUrls: usable.map((photo) => photo.url),
     apiKey,
     locale,
     counts,
-    frameCounts: segmented.map((photo) => countMasks(photo.masks)),
+    frameCounts: usable.map((photo) => countMasks(photo.masks)),
     context,
     primaryCrop: focus.primaryCrop,
     farmerPlant,
     deadline,
   });
+  const skipped = segmented.filter((photo) => photo.verdict !== "use").map((photo) => photo.frame + 1);
+  const qualityNote = skipped.length > 0 ? copy[locale].qualityBatch(usable.length, skipped) : null;
 
   return {
     id,
@@ -103,7 +132,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       muse: advice.model,
       triageSource: advice.triageSource,
     },
-    image: { width: image.width, height: image.height, mime: first.mime },
+    image: { width: image.width, height: image.height, mime: lead.mime },
     frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
     cropFocus: focus.cropFocus,
     primaryCrop: focus.primaryCrop,
@@ -123,6 +152,59 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     disclaimer: advice.disclaimer,
     agronomistCallout: advice.agronomistCallout,
     note: advice.triageSource === "local-fallback" ? "local-fallback" : null,
+    qualityHold: null,
+    qualityMessage: null,
+    qualityNote,
+  };
+}
+
+function withheldResult(options: {
+  id: string;
+  createdAt: string;
+  locale: Locale;
+  farmerPlant: string;
+  size: ImageSize;
+  mime: string;
+  frames: { width: number; height: number; mime: string }[];
+  verdicts: PhotoVerdict[];
+}): AnalyzeResult {
+  const text = copy[options.locale];
+  const rejected = options.verdicts.filter((verdict) => verdict !== "use");
+  const hold = rejected.every((verdict) => verdict === "too_far")
+    ? "too_far"
+    : rejected.every((verdict) => verdict === "unclear")
+      ? "unclear"
+      : "mixed";
+  const qualityMessage = hold === "too_far" ? text.qualityTooFar : hold === "unclear" ? text.qualityUnclear : text.qualityMixed;
+  return {
+    id: options.id,
+    createdAt: options.createdAt,
+    locale: options.locale,
+    mode: "live",
+    models: { sam: "sam-3.1", muse: null, triageSource: "withheld" },
+    image: { width: options.size.width, height: options.size.height, mime: options.mime },
+    frames: options.frames,
+    cropFocus: "unknown",
+    primaryCrop: null,
+    detectedPlant: options.farmerPlant,
+    farmerPlant: options.farmerPlant,
+    contextAsk: null,
+    contextUsed: false,
+    chemicals: null,
+    counts: emptyConceptCounts(),
+    masks: [],
+    observations: [],
+    likelyCauses: [],
+    mitigations: [],
+    actions: ["", "", ""],
+    confidence: "low",
+    confidenceScore: 0,
+    disclaimer: text.disclaimer,
+    agronomistCallout: text.agronomistCallout,
+    note: null,
+    qualityHold: hold,
+    qualityMessage,
+    qualityNote: null,
   };
 }
 
