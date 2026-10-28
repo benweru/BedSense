@@ -77,6 +77,9 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
         masks,
         sharpness: clarity?.sharpness ?? null,
         skyFraction: clarity?.skyFraction ?? null,
+        contrastRange: clarity?.contrastRange ?? null,
+        shadowFraction: clarity?.shadowFraction ?? null,
+        highlightFraction: clarity?.highlightFraction ?? null,
       });
       return {
         frame,
@@ -186,8 +189,17 @@ function withheldResult(options: {
     ? "too_far"
     : rejected.every((verdict) => verdict === "unclear")
       ? "unclear"
-      : "mixed";
-  const qualityMessage = hold === "too_far" ? text.qualityTooFar : hold === "unclear" ? text.qualityUnclear : text.qualityMixed;
+      : rejected.every((verdict) => verdict === "harsh_light")
+        ? "harsh_light"
+        : "mixed";
+  const qualityMessage =
+    hold === "too_far"
+      ? text.qualityTooFar
+      : hold === "unclear"
+        ? text.qualityUnclear
+        : hold === "harsh_light"
+          ? text.qualityHarshLight
+          : text.qualityMixed;
   return {
     id: options.id,
     createdAt: options.createdAt,

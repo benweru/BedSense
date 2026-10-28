@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import jpeg from "jpeg-js";
 import { POST } from "@/app/api/analyze/route";
 import { copy } from "@/lib/copy";
-import { judgeFrame, measureJpeg } from "@/lib/photo-quality";
+import { isExtremeLight, judgeFrame, measureJpeg } from "@/lib/photo-quality";
 import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
 
 afterEach(() => {
@@ -110,6 +110,36 @@ describe("photo quality gate", () => {
     expect(museImages).toEqual([[near, near]]);
     expect(JSON.stringify(museImages)).not.toContain("IMG_8975");
   });
+
+  it("holds crushed light when marks are weak, and still checks hard sun when a mark is strong", () => {
+    const hardSun = measureJpeg(readFileSync("fixtures/chili/IMG_8965.jpg"));
+    expect(hardSun).not.toBeNull();
+    expect(isExtremeLight({ masks: [], ...hardSun!, sharpness: hardSun!.sharpness, skyFraction: hardSun!.skyFraction })).toBe(false);
+    expect(judgeFrame({ masks: [{ confidence: 0.72, areaFraction: 0.04 }], ...hardSun! })).toBe("use");
+    expect(judgeFrame({ masks: [], sharpness: 0.4, skyFraction: 0.01, contrastRange: 0.1, shadowFraction: 0.02, highlightFraction: 0.01 })).toBe("harsh_light");
+    expect(judgeFrame({ masks: [{ confidence: 0.15, areaFraction: 0.003 }], sharpness: 0.4, skyFraction: 0.01, contrastRange: 0.3, shadowFraction: 0.05, highlightFraction: 0.02 })).toBe("harsh_light");
+    expect(judgeFrame({ masks: [{ confidence: 0.8, areaFraction: 0.05 }], sharpness: 0.4, skyFraction: 0.01, contrastRange: 0.1, shadowFraction: 0.4, highlightFraction: 0.2 })).toBe("use");
+  });
+
+  it("does not call Muse for a crushed-contrast photo with no strong mark", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+    const chats: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
+      if (String(url).endsWith("/responses")) return Response.json({ output_text: "" });
+      chats.push(String(url));
+      return Response.json({ choices: [{ message: { content: "{}" } }] });
+    }));
+    const response = await POST(jsonRequest({ image: dataUrl(crushedJpeg()), plantName: "chili" }));
+    const body = await response.json();
+    expect(body.qualityHold).toBe("harsh_light");
+    expect(body.qualityMessage).toBe(copy.en.qualityHarshLight);
+    expect(body.likelyCauses).toEqual([]);
+    expect(body.models.muse).toBeNull();
+    expect(chats).toEqual([]);
+  });
 });
 
 function jsonRequest(body: unknown): Request {
@@ -122,6 +152,23 @@ function jsonRequest(body: unknown): Request {
 
 function dataUrl(bytes: Uint8Array): string {
   return `data:image/jpeg;base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+function crushedJpeg(): Uint8Array {
+  const width = 64;
+  const height = 80;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      const band = (x + y) % 2 === 0 ? 96 : 112;
+      data[index] = band;
+      data[index + 1] = band + 8;
+      data[index + 2] = band - 10;
+      data[index + 3] = 255;
+    }
+  }
+  return jpeg.encode({ data, width, height }, 90).data;
 }
 
 function smoothJpeg(): Uint8Array {

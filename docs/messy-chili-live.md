@@ -19,3 +19,5 @@ Photos: 6
 | occluded | IMG_8969.jpg | Glove over the crown | yes | 1 | chili | yes | 2 |
 
 The distant frame still received two causes even though SAM marked nothing. That is the case the quality gate is meant to hold back: a wide shot with no strong mark should ask the farmer to move closer instead of inventing a diagnosis.
+
+IMG_8965 is hard sun and still returned three chili and yellow-leaf marks plus a Muse diagnosis. That lighting is not extreme on the contrast score, and a strong mark keeps a hard-sun photo in the check. Only a crushed, deeply shadowed, or blown-out frame is held, and only when SAM did not lock the plant.

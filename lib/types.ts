@@ -121,7 +121,7 @@ export type AnalyzeResult = {
   agronomistCallout: string;
   note: string | null;
   /** Set when this photo, or every photo in the batch, is too far or not clear enough to diagnose. */
-  qualityHold?: "too_far" | "unclear" | "mixed" | null;
+  qualityHold?: "too_far" | "unclear" | "harsh_light" | "mixed" | null;
   qualityMessage?: string | null;
   /** Set when a multi-photo check kept the clear frames and skipped the rest. */
   qualityNote?: string | null;

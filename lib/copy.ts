@@ -25,6 +25,7 @@ export type Copy = {
   qualityTooFar: string;
   qualityUnclear: string;
   qualityMixed: string;
+  qualityHarshLight: string;
   qualityBatch: (kept: number, skipped: number[]) => string;
   hint: string;
   preparing: string;
@@ -130,6 +131,7 @@ const en: Copy = {
   qualityTooFar: "Move closer to the bed. This photo is too far away for a reliable check.",
   qualityUnclear: "This photo is not clearly in view. Hold the phone steady and fill the frame with the plant.",
   qualityMixed: "Move closer and take a clearer photo. These ones are too far away or not clearly in view.",
+  qualityHarshLight: "The light is too harsh to read this plant. Turn so the sun is at your back, and fill the frame with the plant in even light.",
   qualityBatch: (kept, skipped) => {
     const list = skipped.join(" and ");
     const skippedClause =
@@ -286,6 +288,7 @@ const sw: Copy = {
   qualityTooFar: "Sogea karibu na kitanda. Picha hii iko mbali sana kwa ukaguzi wa kuaminika.",
   qualityUnclear: "Picha hii haionekani vizuri. Shika simu kwa utulivu na ujaze fremu na mmea.",
   qualityMixed: "Sogea karibu na upige picha iliyo wazi zaidi. Hizi ziko mbali sana au hazionekani vizuri.",
+  qualityHarshLight: "Mwanga uko mkali sana kuona mmea huu. Geuza ili jua liwe nyuma yako, na ujaze fremu na mmea kwenye mwanga ulio sawa.",
   qualityBatch: (kept, skipped) => {
     const list = skipped.join(" na ");
     const skippedClause =
