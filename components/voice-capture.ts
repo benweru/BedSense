@@ -6,7 +6,7 @@ export function canRecordVoice(): boolean {
   return typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia) && typeof AudioContext !== "undefined";
 }
 
-/** Hold-to-talk capture. Call this from the pointer gesture so the AudioContext is allowed to start. */
+/** Start a voice note from a tap so the AudioContext is allowed to start. Call stop() on the next tap. */
 export function startVoiceRecorder(audio: AudioContext): { stop: () => void; result: Promise<Uint8Array> } {
   let endCapture = () => {};
   const result = capture(audio, (end) => {

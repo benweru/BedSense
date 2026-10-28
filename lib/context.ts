@@ -2,13 +2,16 @@ import { copy } from "@/lib/copy";
 import { containsDosage } from "@/lib/triage";
 import { CONTEXT_FIELDS, type ContextField, type CropId, type FarmerContext, type Locale } from "@/lib/types";
 
+/** One free-text context note. Other fields keep their own caps for older clients. */
+export const NOTES_LIMIT = 1500;
+
 const LIMITS: Record<ContextField, number> = {
   stage: 120,
   practices: 240,
   chemicals: 240,
   weather: 240,
   issues: 240,
-  notes: 600,
+  notes: NOTES_LIMIT,
 };
 
 const PROMPT_LABELS: Record<ContextField, string> = {

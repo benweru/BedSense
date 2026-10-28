@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/transcribe/route";
 import { appendToContext, emptyFarmerContext } from "@/lib/context";
+import { copy } from "@/lib/copy";
 import { transcribeContextAudio } from "@/lib/server/transcribe";
 import { inspectWav, languageBiasFor, pcm16Wav, VOICE_MODEL, wavBlob } from "@/lib/voice";
 
@@ -36,6 +37,19 @@ describe("voice notes", () => {
     expect(inspectWav(slow)).toEqual({ ok: false, reason: "unsupported_audio" });
     expect(languageBiasFor("en")).toEqual(["English"]);
     expect(languageBiasFor("sw")).toEqual(["Swahili", "English"]);
+  });
+
+  it("names tap to talk in both languages", () => {
+    expect(copy.en.voiceHold).toBe("Tap to talk");
+    expect(copy.en.voiceFinish).toBe("Tap to finish");
+    expect(copy.en.voiceListening).toBe("Listening… tap to finish");
+    expect(copy.en.voiceEmpty).toBe("Nothing was heard. Tap to talk, then speak, then tap to finish.");
+    expect(copy.en.voiceFailed.toLowerCase()).not.toContain("hold");
+    expect(copy.sw.voiceHold).toBe("Gonga uongee");
+    expect(copy.sw.voiceFinish).toBe("Gonga umalize");
+    expect(copy.sw.voiceEmpty).toContain("Gonga uongee");
+    expect(copy.en.contextGuide.toLowerCase()).toContain("fertilizer");
+    expect(copy.sw.contextGuide).toContain("mbolea");
   });
 
   it("appends a transcript into the context field Muse already reads", () => {

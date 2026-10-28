@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  NOTES_LIMIT,
+  appendToContext,
   cleanContextAsk,
   cleanPlantName,
   contextIsEmpty,
@@ -42,6 +44,15 @@ describe("farmer context", () => {
     expect(developerPrompt("en").toLowerCase()).toContain("agroveterinary");
     expect(developerPrompt("en")).toContain("diseaseIndicated");
     expect(contextPromptBlock(emptyFarmerContext())).toContain("none");
+  });
+
+  it("keeps one farmer note up to 1500 characters on notes", () => {
+    const note = "a".repeat(NOTES_LIMIT);
+    expect(parseFarmerContext(note).notes).toHaveLength(NOTES_LIMIT);
+    expect(parseFarmerContext({ notes: `${note} extra`, stage: "seedling" }).notes).toHaveLength(NOTES_LIMIT);
+    const appended = appendToContext({ ...emptyFarmerContext(), notes: "three weeks. " }, "notes", "watered yesterday");
+    expect(appended.notes).toBe("three weeks. watered yesterday");
+    expect(appendToContext(emptyFarmerContext(), "notes", `${note} more`).notes).toHaveLength(NOTES_LIMIT);
   });
 
   it("drops a plant name or a follow-up ask that contains a dose", () => {

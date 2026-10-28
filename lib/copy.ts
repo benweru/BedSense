@@ -75,6 +75,7 @@ export type Copy = {
   unknownPlant: string;
   contextTitle: string;
   contextHint: string;
+  contextGuide: string;
   contextAskLabel: string;
   contextUpdate: string;
   contextAskDefault: string;
@@ -88,6 +89,7 @@ export type Copy = {
     notes: string;
   };
   voiceHold: string;
+  voiceFinish: string;
   voiceListening: string;
   voiceWriting: string;
   voiceInto: string;
@@ -195,7 +197,9 @@ const en: Copy = {
   },
   unknownPlant: "Farm plant",
   contextTitle: "Add context (optional)",
-  contextHint: "Plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, or a note. This is not required.",
+  contextHint: "Age, practices, sprays, fertilizer, water, or anything else.",
+  contextGuide:
+    "Optional. Anything that would help the check: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.",
   contextAskLabel: "A clearer check would use this",
   contextUpdate: "Update the check",
   contextAskDefault: "If you know it, add the plant’s age and when you last watered.",
@@ -208,12 +212,13 @@ const en: Copy = {
     issues: "Known issues",
     notes: "Anything else",
   },
-  voiceHold: "Hold to talk",
-  voiceListening: "Listening…",
+  voiceHold: "Tap to talk",
+  voiceFinish: "Tap to finish",
+  voiceListening: "Listening… tap to finish",
   voiceWriting: "Writing what you said…",
   voiceInto: "Add the words to",
-  voiceFailed: "The voice note did not transcribe. Type the note, or hold the button and try again.",
-  voiceEmpty: "Nothing was heard. Hold the button and speak.",
+  voiceFailed: "The voice note did not transcribe. Type the note, or tap to talk and try again.",
+  voiceEmpty: "Nothing was heard. Tap to talk, then speak, then tap to finish.",
   voiceUnsupported: "This browser cannot record a voice note. Type the context instead.",
   voiceUnavailable: "Muse Voice is not available for this key. Type the note, or enable Muse Voice Transcribe in the Meta Model API dashboard.",
   fallbackActions: [
@@ -338,7 +343,9 @@ const sw: Copy = {
   },
   unknownPlant: "Mmea wa shamba",
   contextTitle: "Ongeza muktadha (si lazima)",
-  contextHint: "Umri au hatua ya mmea, mazoea, kemikali zilizotumika, hali ya hewa au umwagiliaji, matatizo unayoyajua, au maelezo. Haihitajiki.",
+  contextHint: "Umri, mazoea, dawa, mbolea, maji, au mengineyo.",
+  contextGuide:
+    "Si lazima. Ongeza chochote kinachosaidia ukaguzi: umri au hatua ya mmea, mazoea ya sasa, kemikali zilizotumika, mbolea ya hivi karibuni, umwagiliaji au hali ya hewa, matatizo unayoyajua, au mengineyo.",
   contextAskLabel: "Ukaguzi ulio wazi zaidi ungetumia hili",
   contextUpdate: "Sasisha ukaguzi",
   contextAskDefault: "Ikiwa unajua, ongeza umri wa mmea na lini ulimwagilia mara ya mwisho.",
@@ -351,12 +358,13 @@ const sw: Copy = {
     issues: "Matatizo unayoyajua",
     notes: "Mengineyo",
   },
-  voiceHold: "Shikilia uongee",
-  voiceListening: "Inasikiliza…",
+  voiceHold: "Gonga uongee",
+  voiceFinish: "Gonga umalize",
+  voiceListening: "Inasikiliza… gonga umalize",
   voiceWriting: "Inaandika ulichosema…",
   voiceInto: "Weka maneno kwenye",
-  voiceFailed: "Dondoo la sauti halijaandikwa. Andika maelezo, au shikilia kitufe ujaribu tena.",
-  voiceEmpty: "Hakuna kilichosikika. Shikilia kitufe na uongee.",
+  voiceFailed: "Dondoo la sauti halijaandikwa. Andika maelezo, au gonga uongee ujaribu tena.",
+  voiceEmpty: "Hakuna kilichosikika. Gonga uongee, sema, kisha gonga umalize.",
   voiceUnsupported: "Kivinjari hiki hakiwezi kurekodi sauti. Andika muktadha.",
   voiceUnavailable: "Muse Voice haipatikani kwa ufunguo huu. Andika maelezo, au washa Muse Voice Transcribe kwenye dashibodi ya Meta Model API.",
   fallbackActions: [
