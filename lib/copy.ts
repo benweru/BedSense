@@ -14,6 +14,7 @@ export type Copy = {
   plantNameHint: string;
   plantNamePlaceholder: string;
   plantNameMissing: string;
+  newCheck: string;
   capture: string;
   upload: string;
   checkPhoto: string;
@@ -56,7 +57,11 @@ export type Copy = {
   high: string;
   history: string;
   historyEmpty: string;
+  historyHold: string;
   clear: string;
+  deleteCheck: string;
+  deleteCheckAsk: string;
+  keepCheck: string;
   marks: string;
   noMasks: string;
   errorGeneric: string;
@@ -113,7 +118,8 @@ const en: Copy = {
   plantNameLabel: "What plant is in the photo?",
   plantNameHint: "Required. The name is sent with the photo so the check can follow that plant.",
   plantNamePlaceholder: "e.g. Onion",
-  plantNameMissing: "Name the plant in the photo before the check runs.",
+  plantNameMissing: "Please fill this in. Name the plant in the photo before the check runs.",
+  newCheck: "New check",
   capture: "Take a photo",
   upload: "Choose a photo",
   checkPhoto: "Check this photo",
@@ -171,7 +177,11 @@ const en: Copy = {
   high: "High",
   history: "Recent checks",
   historyEmpty: "Your last five checks stay on this phone.",
+  historyHold: "Hold a check to delete it, or choose Delete.",
   clear: "Clear",
+  deleteCheck: "Delete this check",
+  deleteCheckAsk: "Delete this recent check? It will be removed from this phone only.",
+  keepCheck: "Keep",
   marks: "Marks",
   noMasks: "Few marks landed in this frame. The named plant is still checked.",
   errorGeneric: "The check did not finish. Try another photo.",
@@ -264,7 +274,8 @@ const sw: Copy = {
   plantNameLabel: "Mmea gani uko kwenye picha?",
   plantNameHint: "Inahitajika. Jina linatumwa pamoja na picha ili ukaguzi ufuatilie mmea huo.",
   plantNamePlaceholder: "mf. Kitunguu",
-  plantNameMissing: "Taja mmea ulio kwenye picha kabla ya ukaguzi.",
+  plantNameMissing: "Tafadhali jaza hili. Taja mmea ulio kwenye picha kabla ya ukaguzi.",
+  newCheck: "Ukaguzi mpya",
   capture: "Piga picha",
   upload: "Chagua picha",
   checkPhoto: "Kagua picha hii",
@@ -317,7 +328,11 @@ const sw: Copy = {
   high: "Juu",
   history: "Ukaguzi wa hivi karibuni",
   historyEmpty: "Ukaguzi tano wa mwisho unabaki kwenye simu hii.",
+  historyHold: "Shikilia ukaguzi ili kuufuta, au chagua Futa.",
   clear: "Futa",
+  deleteCheck: "Futa ukaguzi huu",
+  deleteCheckAsk: "Ungependa kufuta ukaguzi huu? Utaondolewa kwenye simu hii tu.",
+  keepCheck: "Acha",
   marks: "Alama",
   noMasks: "Alama ni chache kwenye fremu hii. Mmea uliotajwa bado unakaguliwa.",
   errorGeneric: "Ukaguzi haujakamilika. Jaribu picha nyingine.",

@@ -6,7 +6,7 @@ import { VoiceContext } from "@/components/voice-context";
 import { CONCEPTS } from "@/lib/concepts";
 import { NOTES_LIMIT, contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
-import { HISTORY_LIMIT, rememberCheck } from "@/lib/history";
+import { HISTORY_LIMIT, forgetCheck, rememberCheck } from "@/lib/history";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { clearHistoryStore, useHistory, useLocale, writeHistory, writeLocale } from "@/lib/phone-store";
 import {
@@ -32,6 +32,7 @@ export function BedSenseApp() {
   const libraryRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
   const plantRef = useRef<HTMLInputElement>(null);
+  const runRef = useRef(0);
   const locale = useLocale();
   const history = useHistory();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -61,6 +62,15 @@ export function BedSenseApp() {
     writeLocale(next);
   }
 
+  function markPlantMissing() {
+    setPlantError(true);
+    setPhase("idle");
+    window.requestAnimationFrame(() => {
+      plantRef.current?.focus();
+      document.getElementById("home-plant-name")?.scrollIntoView({ block: "center" });
+    });
+  }
+
   async function onFiles(list: FileList | undefined, mode: "replace" | "append") {
     const incoming = [...(list ?? [])];
     if (incoming.length === 0) return;
@@ -71,6 +81,7 @@ export function BedSenseApp() {
     }
     const chosen = incoming.slice(0, room);
     const overflow = incoming.length > room;
+    const ticket = runRef.current;
     setProgressStep(0);
     setPhase("preparing");
     setError(overflow ? text.photoLimit : null);
@@ -78,21 +89,21 @@ export function BedSenseApp() {
     try {
       const made: PreparedPhoto[] = [];
       for (const file of chosen) made.push(await preparePhoto(file));
+      if (ticket !== runRef.current) return;
       const next = mode === "append" ? [...photos, ...made].slice(0, 3) : made;
       const shown = mode === "append" ? photos.length : 0;
       setPhotos(next);
       setFrame(shown);
       setPreview(next[shown]?.dataUrl ?? next[0]?.dataUrl ?? null);
       if (!parseFarmerPlant(plantName)) {
-        setPlantError(true);
-        setPhase("idle");
-        plantRef.current?.focus();
+        markPlantMissing();
         return;
       }
       setPlantError(false);
       if (mode === "replace" && next.length === 1) await runCheck(next);
       else setPhase("idle");
     } catch {
+      if (ticket !== runRef.current) return;
       setPhase("error");
       setError(text.errorFormat);
     }
@@ -101,8 +112,7 @@ export function BedSenseApp() {
   async function submitPrepared() {
     if (photos.length === 0) return;
     if (!parseFarmerPlant(plantName)) {
-      setPlantError(true);
-      plantRef.current?.focus();
+      markPlantMissing();
       return;
     }
     setPlantError(false);
@@ -112,11 +122,10 @@ export function BedSenseApp() {
   async function runCheck(batch: PreparedPhoto[]) {
     const named = parseFarmerPlant(plantName);
     if (!named) {
-      setPlantError(true);
-      setPhase("idle");
-      plantRef.current?.focus();
+      markPlantMissing();
       return;
     }
+    const ticket = runRef.current;
     setProgressStep(1);
     setPhase("analyzing");
     setResult(null);
@@ -136,12 +145,11 @@ export function BedSenseApp() {
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
+      if (ticket !== runRef.current) return;
       if (!response.ok) {
         if (body.error === "missing_plant") {
-          setPlantError(true);
-          setPhase("idle");
+          markPlantMissing();
           setError(text.plantNameMissing);
-          plantRef.current?.focus();
           return;
         }
         setPhase("error");
@@ -164,6 +172,7 @@ export function BedSenseApp() {
       setPreview(batch[frame]?.dataUrl ?? batch[0]?.dataUrl ?? null);
       setPhase("ready");
       const thumbnail = await makeThumbnail(batch[0]?.dataUrl ?? "");
+      if (ticket !== runRef.current) return;
       const entry: HistoryEntry = {
         id: body.id,
         createdAt: body.createdAt,
@@ -172,6 +181,7 @@ export function BedSenseApp() {
       };
       writeHistory(rememberCheck(history, entry));
     } catch {
+      if (ticket !== runRef.current) return;
       setPhase("error");
       setError(text.errorGeneric);
     }
@@ -192,6 +202,35 @@ export function BedSenseApp() {
     clearHistoryStore();
   }
 
+  function removeCheck(id: string) {
+    const next = forgetCheck(history, id);
+    writeHistory(next);
+    if (result?.id === id && photos.length === 0) {
+      setResult(null);
+      setPreview(null);
+      setPhase("idle");
+      setError(null);
+    }
+  }
+
+  function startFresh() {
+    runRef.current += 1;
+    setPhase("idle");
+    setPreview(null);
+    setPhotos([]);
+    setFrame(0);
+    setResult(null);
+    setError(null);
+    setContext(emptyFarmerContext());
+    setContextOpen(false);
+    setPlantName("");
+    setPlantError(false);
+    setProgressStep(0);
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (libraryRef.current) libraryRef.current.value = "";
+    if (addRef.current) addRef.current.value = "";
+  }
+
   function reset() {
     setPhase("idle");
     setPreview(null);
@@ -204,12 +243,16 @@ export function BedSenseApp() {
   }
 
   const busy = phase === "preparing" || phase === "analyzing";
+  const sessionLive = Boolean(plantName.trim() || context.notes.trim() || photos.length > 0 || preview || result || error);
 
   return (
-    <main className={`mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pt-5 sm:px-6 sm:pt-8 lg:max-w-6xl lg:px-8 ${photos.length > 0 && !busy ? "pb-32" : "pb-12"}`}>
+    <main className={`mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pt-5 sm:px-6 sm:pt-8 lg:max-w-6xl lg:px-8 ${photos.length > 0 && !busy ? "pb-36" : "pb-12"}`}>
       <header className="flex items-start justify-between gap-4">
-        <p className="max-w-[13rem] text-xs font-semibold uppercase leading-5 tracking-[0.14em] text-leaf sm:max-w-xl sm:text-[0.8rem]">{text.kicker}</p>
-        <div role="group" aria-label={text.language} className="flex shrink-0 rounded-full bg-sand p-1">
+        <p className="inline-flex max-w-[16rem] items-center gap-2 font-mono text-[11px] font-medium uppercase leading-5 tracking-[0.22em] text-mute sm:max-w-xl">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-leaf" aria-hidden="true" />
+          {text.kicker}
+        </p>
+        <div role="group" aria-label={text.language} className="flex shrink-0 rounded-full border border-white/10 bg-card p-1">
           {(["en", "sw"] as const).map((code) => (
             <button
               key={code}
@@ -217,7 +260,7 @@ export function BedSenseApp() {
               aria-pressed={locale === code}
               onClick={() => chooseLocale(code)}
               className={`min-h-11 min-w-11 rounded-full px-3.5 text-sm font-semibold ${
-                locale === code ? "bg-soil text-paper" : "text-ink"
+                locale === code ? "bg-soil text-paper" : "text-paper"
               }`}
             >
               {code === "en" ? "EN" : "SW"}
@@ -226,15 +269,24 @@ export function BedSenseApp() {
         </div>
       </header>
 
-      <div className="mt-5 sm:mt-6">
-        <h1 className="font-serif text-4xl leading-[0.95] tracking-tight sm:text-5xl lg:text-6xl">{text.title}</h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-ink/80 sm:text-lg">{text.lede}</p>
+      <div className="mt-6 sm:mt-8 lg:max-w-3xl">
+        <h1 className="font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.03em] text-paper">{text.title}</h1>
+        <p className="mt-3 max-w-2xl text-base leading-7 text-mute sm:text-lg lg:font-serif lg:text-2xl lg:leading-snug lg:text-paper/75">{text.lede}</p>
+        {sessionLive && !(photos.length > 0 && !busy) && !(result && !busy) ? (
+          <button
+            type="button"
+            onClick={startFresh}
+            className="mt-5 min-h-14 rounded-2xl border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper transition-[border-color,background-color,box-shadow] duration-500 ease-out-soft hover:border-leaf hover:shadow-[0_0_32px_-12px_rgba(31,157,85,0.8)]"
+          >
+            {text.newCheck}
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-start lg:gap-10">
-      <div className="min-w-0 space-y-5">
-      <div id="home-plant-name">
-        <label htmlFor="plant-name" className="block text-base font-semibold">
+      <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-stretch lg:gap-5">
+      <div className="min-w-0 space-y-4 lg:rounded-[26px] lg:border lg:border-white/10 lg:bg-card lg:p-5 lg:shadow-[0_24px_60px_-36px_rgba(0,0,0,0.85)]">
+      <div id="home-plant-name" className={plantError ? "rounded-[26px] border border-beet bg-beet/10 p-3 sm:p-4" : ""}>
+        <label htmlFor="plant-name" className={`block text-base font-semibold ${plantError ? "text-beet" : "text-paper"}`}>
           {text.plantNameLabel}
         </label>
         <input
@@ -246,18 +298,20 @@ export function BedSenseApp() {
           autoComplete="off"
           placeholder={text.plantNamePlaceholder}
           aria-invalid={plantError || undefined}
-          aria-describedby="plant-name-hint"
+          aria-describedby={plantError ? "plant-name-hint plant-name-error" : "plant-name-hint"}
           onChange={(event) => {
             setPlantName(event.target.value);
             if (parseFarmerPlant(event.target.value)) setPlantError(false);
           }}
-          className="mt-2 min-h-14 w-full rounded-2xl border border-ink/15 bg-white px-4 text-base"
+          className={`mt-2 min-h-14 w-full rounded-2xl border px-4 text-base text-paper placeholder:text-mute ${
+            plantError ? "border-beet bg-beet/15 ring-2 ring-beet" : "border-white/15 bg-field"
+          }`}
         />
-        <p id="plant-name-hint" className="mt-2 text-sm leading-6 text-ink/70 sm:text-base">
+        <p id="plant-name-hint" className={`mt-2 text-sm leading-6 sm:text-base ${plantError ? "text-paper" : "text-mute"}`}>
           {text.plantNameHint}
         </p>
         {plantError ? (
-          <p className="mt-2 text-base leading-6 text-beet" role="alert">
+          <p id="plant-name-error" className="mt-2 text-base font-semibold leading-6 text-beet" role="alert">
             {text.plantNameMissing}
           </p>
         ) : null}
@@ -278,7 +332,7 @@ export function BedSenseApp() {
         ask={result?.contextAsk ?? null}
       />
 
-      <section className="rounded-[1.6rem] border border-ink/10 bg-white/70 p-4 shadow-[0_10px_30px_rgba(36,48,36,0.05)] sm:p-5">
+      <section className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/60 lg:hover:shadow-[0_0_48px_-18px_rgba(31,157,85,0.55)]">
         {preview ? (
           <MaskCanvas
             src={photos[frame]?.dataUrl ?? preview}
@@ -289,9 +343,9 @@ export function BedSenseApp() {
             height={photos[frame]?.height}
           />
         ) : (
-          <div className="flex min-h-72 flex-col items-center justify-center rounded-[1.35rem] border border-dashed border-leaf/40 bg-sand/60 px-6 py-10 text-center">
-            <p className="font-serif text-3xl leading-tight">{text.capture}</p>
-            <p className="mt-3 max-w-xs text-base leading-6 text-ink/75">{text.hint}</p>
+          <div className="flex min-h-72 flex-col items-center justify-center rounded-[20px] border border-dashed border-leaf/50 bg-field px-6 py-10 text-center">
+            <p className="font-serif text-3xl leading-[1.04] tracking-[-0.03em]">{text.capture}</p>
+            <p className="mt-3 max-w-xs text-base leading-6 text-mute">{text.hint}</p>
           </div>
         )}
 
@@ -308,7 +362,7 @@ export function BedSenseApp() {
             type="button"
             disabled={busy}
             onClick={() => libraryRef.current?.click()}
-            className="min-h-14 rounded-2xl bg-sand px-3 text-base font-semibold leading-tight text-ink disabled:opacity-60"
+            className="min-h-14 rounded-2xl border border-white/10 bg-field px-3 text-base font-semibold leading-tight text-paper disabled:opacity-60"
           >
             {text.upload}
           </button>
@@ -387,7 +441,7 @@ export function BedSenseApp() {
           <button
             type="button"
             onClick={() => addRef.current?.click()}
-            className="mt-3 min-h-14 w-full rounded-2xl bg-sand px-4 text-base font-semibold text-ink"
+            className="mt-3 min-h-14 w-full rounded-2xl border border-white/10 bg-field px-4 text-base font-semibold text-paper"
           >
             {text.addAngle}
           </button>
@@ -407,7 +461,7 @@ export function BedSenseApp() {
               <button
                 type="button"
                 onClick={() => void runCheck(photos)}
-                className="min-h-12 rounded-xl px-3 text-base font-semibold text-soil"
+                className="min-h-12 rounded-xl px-3 text-base font-semibold text-leaf"
               >
                 {text.retry}
               </button>
@@ -417,36 +471,48 @@ export function BedSenseApp() {
       </section>
       </div>
 
-      <div className="mt-8 flex min-w-0 flex-col gap-6 lg:mt-0">
-      {result && !busy ? <ResultCard locale={locale} result={result} /> : null}
+      <div className="mt-8 flex min-w-0 flex-col gap-5 lg:mt-0 lg:h-full">
+      {result && !busy ? (
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={startFresh}
+            className="min-h-14 w-full rounded-2xl border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper lg:w-auto"
+          >
+            {text.newCheck}
+          </button>
+          <ResultCard locale={locale} result={result} />
+        </div>
+      ) : null}
 
-      <section>
+      <section className="rounded-[26px] border border-white/10 bg-card p-4 sm:p-5 lg:flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-serif text-2xl leading-tight sm:text-3xl">{text.history}</h2>
+          <h2 className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] sm:text-3xl">{text.history}</h2>
           {history.length > 0 ? (
             <button type="button" onClick={clearHistory} className="min-h-11 px-2 text-base font-semibold text-leaf">
               {text.clear}
             </button>
           ) : null}
         </div>
-        {history.length === 0 ? <p className="mt-2 text-base leading-6 text-ink/70">{text.historyEmpty}</p> : null}
+        {history.length === 0 ? <p className="mt-2 text-base leading-6 text-mute">{text.historyEmpty}</p> : null}
+        {history.length > 0 ? <p className="mt-2 text-sm leading-6 text-mute">{text.historyHold}</p> : null}
         <ul className="mt-4 flex gap-3 overflow-x-auto pb-1 lg:grid lg:grid-cols-2 lg:overflow-visible">
           {history.slice(0, HISTORY_LIMIT).map((entry) => (
             <li key={entry.id} className="shrink-0">
-              <button
-                type="button"
-                onClick={() => restore(entry)}
-                className="w-44 overflow-hidden rounded-2xl bg-white text-left shadow-sm lg:w-full"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={entry.thumbnail} alt="" className="h-28 w-full object-cover" />
-                <span className="block px-3 py-3 text-sm font-semibold leading-5">
-                  {entry.result.farmerPlant ||
-                    entry.result.detectedPlant ||
-                    (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks)}
-                  <span className="mt-1 block font-normal text-ink/60">{text.levelLabel(entry.result.confidence)}</span>
-                </span>
-              </button>
+              <RecentCheck
+                entry={entry}
+                label={
+                  entry.result.farmerPlant ||
+                  entry.result.detectedPlant ||
+                  (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks)
+                }
+                confidence={text.levelLabel(entry.result.confidence)}
+                deleteLabel={text.deleteCheck}
+                ask={text.deleteCheckAsk}
+                keepLabel={text.keepCheck}
+                onOpen={() => restore(entry)}
+                onDelete={() => removeCheck(entry.id)}
+              />
             </li>
           ))}
         </ul>
@@ -454,10 +520,17 @@ export function BedSenseApp() {
       </div>
       </div>
 
-      <footer className="mt-8 text-sm leading-6 text-ink/60">{text.footer}</footer>
+      <footer className="mt-8 text-sm leading-6 text-mute">{text.footer}</footer>
       {photos.length > 0 && !busy ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-paper/95 pt-3 shadow-[0_-10px_30px_rgba(36,48,36,0.12)] backdrop-blur-sm pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto w-full max-w-xl px-4 sm:px-6 lg:max-w-6xl lg:px-8">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto flex w-full max-w-xl gap-3 px-4 sm:px-6 lg:max-w-6xl lg:px-8">
+            <button
+              type="button"
+              onClick={startFresh}
+              className="min-h-14 shrink-0 rounded-2xl border border-leaf/50 bg-leaf/15 px-4 text-base font-semibold text-paper"
+            >
+              {text.newCheck}
+            </button>
             <button
               type="button"
               onClick={() => void submitPrepared()}
@@ -476,6 +549,11 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
   const text = copy[locale];
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
+  let step = 1;
+  const standsStep = String(step++).padStart(2, "0");
+  const causeStep = (result.likelyCauses?.length ?? 0) > 0 ? String(step++).padStart(2, "0") : undefined;
+  const mitigateStep = (result.mitigations?.length ?? 0) > 0 ? String(step++).padStart(2, "0") : undefined;
+  const checkStep = String(step).padStart(2, "0");
   return (
     <section id="result" className="space-y-4 lg:space-y-5" aria-live="polite">
       {result.qualityNote ? (
@@ -485,7 +563,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
       ) : null}
       {result.qualityHold ? (
         <div id="quality-hold" className="rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-5 py-5" role="status">
-          <p className="font-serif text-2xl leading-tight text-soil sm:text-3xl">{result.qualityMessage}</p>
+          <p className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-ink sm:text-3xl">{result.qualityMessage}</p>
         </div>
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
@@ -494,7 +572,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
           <p className="inline-flex min-h-8 items-center rounded-full bg-[#f6b23a] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink">
             {result.mode === "mock" ? text.modeMock : text.modeLive}
           </p>
-          <h2 className="mt-2 font-serif text-3xl leading-tight sm:text-4xl">
+          <h2 className="mt-3 font-serif text-3xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-4xl">
             {text.plantLine({
               detectedPlant: result.detectedPlant,
               cropFocus: result.cropFocus,
@@ -503,24 +581,25 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
           </h2>
         </div>
         <p className="shrink-0 sm:text-right">
-          <span className="block text-xs font-semibold uppercase tracking-wide text-ink/50">{text.confidence}</span>
+          <span className="block font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{text.confidence}</span>
           <span className="text-base font-semibold">{text.levelLabel(result.confidence)}</span>
-          <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-sand">
+          <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-white/15">
             <span className="block h-full bg-onion" style={{ width: `${score}%` }} />
           </span>
         </p>
       </div>
 
-      <section id="result-stands-out" className="overflow-hidden rounded-[1.5rem] border border-[#c8881a]/50 bg-white shadow-sm">
-        <div className="border-b border-[#c8881a]/30 bg-[#f8e7c4] px-4 py-4 sm:px-5">
-          <h3 className="font-serif text-2xl leading-tight text-soil sm:text-3xl">{text.observations}</h3>
+      <section id="result-stands-out" className="overflow-hidden rounded-[26px] border border-[#c8881a]/60 bg-card shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)]">
+        <div className="border-b border-[#c8881a]/40 bg-[#f8e7c4] px-4 py-4 text-ink sm:px-5">
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-ink/60">{standsStep}</p>
+          <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] sm:text-3xl">{text.observations}</h3>
         </div>
         <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
-          {result.masks.length === 0 ? <p className="text-base leading-6 text-ink/75">{text.noMasks}</p> : null}
+          {result.masks.length === 0 ? <p className="text-base leading-6 text-mute">{text.noMasks}</p> : null}
           {CONCEPTS.some((concept) => result.counts[concept.id] > 0) ? (
             <ul className="flex flex-wrap gap-2">
               {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
-                <li key={concept.id} className="flex min-h-10 items-center gap-2 rounded-full bg-sand px-3 py-2 text-sm font-semibold">
+                <li key={concept.id} className="flex min-h-10 items-center gap-2 rounded-full border border-[#f6b23a]/50 bg-[#f6b23a]/15 px-3 py-2 text-sm font-semibold text-paper">
                   <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: concept.swatch }} />
                   {text.concepts[concept.id]} {result.counts[concept.id]}
                 </li>
@@ -529,7 +608,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
           ) : null}
           <ul className="space-y-3">
             {result.observations.map((item) => (
-              <li key={item} className="border-l-4 border-[#e0941a] bg-paper px-4 py-3 text-base leading-7">
+              <li key={item} className="border-l-4 border-[#e0941a] bg-field px-4 py-3 text-base leading-7 text-paper">
                 {item}
               </li>
             ))}
@@ -539,23 +618,24 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
 
       {pair ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
-          <AdviceList id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
+          <AdviceList step={causeStep} id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
+          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
         </div>
       ) : (
         <>
-          <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
-          <AdviceList id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
+          <AdviceList step={causeStep} id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
+          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
         </>
       )}
 
-      <div id="result-checks" className="rounded-[1.5rem] bg-white/85 p-4 shadow-sm sm:p-5">
-        <h3 className="font-serif text-2xl leading-tight text-soil sm:text-3xl">{text.actions}</h3>
-        <p className="mt-2 text-base leading-6 text-ink/70">{text.actionsHint}</p>
+      <div id="result-checks" className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] sm:p-5">
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{checkStep}</p>
+        <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-3xl">{text.actions}</h3>
+        <p className="mt-2 text-base leading-6 text-mute">{text.actionsHint}</p>
         <ol className="mt-4 space-y-3">
           {result.actions.map((action, index) => (
-            <li key={action} className="flex items-start gap-3 rounded-2xl bg-paper px-3 py-3 ring-1 ring-ink/10 sm:px-4 sm:py-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-soil font-serif text-xl text-onion">
+            <li key={action} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-field px-3 py-3 sm:px-4 sm:py-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-soil font-serif text-xl text-paper">
                 {index + 1}
               </span>
               <span className="pt-1.5 text-base leading-7">{action}</span>
@@ -568,16 +648,16 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
 
       {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
 
-      <aside className="rounded-2xl border border-beet/30 bg-[#f8ebe7] px-4 py-4 sm:px-5">
-        <h3 className="font-serif text-2xl leading-tight text-beet">{text.askAgronomist}</h3>
-        <p className="mt-2 text-base leading-7">{result.agronomistCallout}</p>
+      <aside className="rounded-[26px] border border-beet/40 bg-beet/10 px-4 py-4 sm:px-5">
+        <h3 className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-beet">{text.askAgronomist}</h3>
+        <p className="mt-2 text-base leading-7 text-paper">{result.agronomistCallout}</p>
       </aside>
 
-      {result.note === "local-fallback" ? <p className="text-base leading-6 text-ink/70">{text.backupNote}</p> : null}
+      {result.note === "local-fallback" ? <p className="text-base leading-6 text-mute">{text.backupNote}</p> : null}
 
       <div>
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.beforeYouAct}</h3>
-        <p className="mt-2 text-base leading-7 text-ink/80">{result.disclaimer}</p>
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{text.beforeYouAct}</h3>
+        <p className="mt-2 text-base leading-7 text-paper/85">{result.disclaimer}</p>
       </div>
     </section>
   );
@@ -586,7 +666,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
 function CheckProgress({ text, step }: { text: Copy; step: number }) {
   const clamped = Math.min(2, Math.max(0, step));
   return (
-    <div id="check-progress" className="mt-4 rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-4 py-5 shadow-sm" role="status" aria-live="polite" aria-busy="true">
+    <div id="check-progress" className="mt-4 rounded-[26px] border-2 border-[#c56a00] bg-[#fff4dc] px-4 py-5 text-ink shadow-sm" role="status" aria-live="polite" aria-busy="true">
       <div className="flex items-center gap-3">
         <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
           <span className="absolute inset-0 animate-spin rounded-full border-2 border-[#f0d7a4] border-t-[#c56a00]" />
@@ -607,7 +687,7 @@ function CheckProgress({ text, step }: { text: Copy; step: number }) {
             <li key={label} className="flex min-h-11 items-center gap-3 text-base" aria-current={state === "active" ? "step" : undefined}>
               <span
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  state === "wait" ? "bg-sand text-ink/40" : "bg-soil text-onion"
+                  state === "wait" ? "bg-ink/10 text-ink/50" : "bg-soil text-paper"
                 } ${state === "active" ? "animate-pulse" : ""}`}
               >
                 {index + 1}
@@ -621,15 +701,28 @@ function CheckProgress({ text, step }: { text: Copy; step: number }) {
   );
 }
 
-function AdviceList({ id, title, hint, items }: { id: string; title: string; hint: string; items: readonly string[] }) {
+function AdviceList({
+  id,
+  step,
+  title,
+  hint,
+  items,
+}: {
+  id: string;
+  step?: string;
+  title: string;
+  hint: string;
+  items: readonly string[];
+}) {
   if (items.length === 0) return null;
   return (
-    <div id={id} className="rounded-[1.5rem] bg-white/85 p-4 shadow-sm sm:p-5">
-      <h3 className="font-serif text-2xl leading-tight text-soil sm:text-3xl">{title}</h3>
-      <p className="mt-2 text-base leading-6 text-ink/70">{hint}</p>
+    <div id={id} className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/50 lg:hover:shadow-[0_0_40px_-16px_rgba(31,157,85,0.45)]">
+      {step ? <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{step}</p> : null}
+      <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-3xl">{title}</h3>
+      <p className="mt-2 text-base leading-6 text-mute">{hint}</p>
       <ul className="mt-4 space-y-3">
         {items.map((item) => (
-          <li key={item} className="rounded-2xl bg-paper px-4 py-3 text-base leading-7 ring-1 ring-ink/10">
+          <li key={item} className="rounded-2xl border border-white/10 bg-field px-4 py-3 text-base leading-7">
             {item}
           </li>
         ))}
@@ -641,36 +734,36 @@ function AdviceList({ id, title, hint, items }: { id: string; title: string; hin
 function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) {
   return (
     <div className="space-y-4">
-      <div id="result-chemicals" className="rounded-[1.5rem] border border-leaf/25 bg-white/85 px-4 py-5 sm:px-5">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsTitle}</h3>
+      <div id="result-chemicals" className="rounded-[26px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{text.chemicalsTitle}</h3>
         <p className="mt-2 text-base leading-7">
           <span className="font-semibold">{text.chemicalsSuspect}. </span>
           {advice.suspect}
         </p>
-        <p className="mt-2 text-base leading-7 text-ink/80">{advice.verifyNote}</p>
+        <p className="mt-2 text-base leading-7 text-paper/85">{advice.verifyNote}</p>
         <ul className="mt-4 space-y-3">
           {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-4 py-3">
+            <li key={product.activeIngredient} className="rounded-2xl border border-white/10 bg-field px-4 py-3">
               <p className="text-base font-semibold">{product.activeIngredient}</p>
-              <p className="text-sm leading-6 text-ink/70">{product.productClass}</p>
+              <p className="text-sm leading-6 text-mute">{product.productClass}</p>
               <p className="mt-1 text-base leading-7">{product.useNote}</p>
             </li>
           ))}
         </ul>
       </div>
 
-      <div id="result-shops" className="rounded-[1.5rem] border border-leaf/25 bg-white/85 px-4 py-5 sm:px-5">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-ink/50">{text.chemicalsWhere}</h3>
+      <div id="result-shops" className="rounded-[26px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{text.chemicalsWhere}</h3>
         <ul className="mt-3 space-y-3">
           {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-2xl bg-sand/60 px-4 py-3">
+            <li key={product.activeIngredient} className="rounded-2xl border border-white/10 bg-field px-4 py-3">
               <p className="text-base font-semibold">{product.activeIngredient}</p>
               {product.offers.length === 0 ? <p className="mt-1 text-base leading-6">{text.chemicalsNoShop}</p> : null}
               <ul className="mt-2 space-y-2">
                 {orderedOffers(product.offers).map((offer) => (
-                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl bg-white px-3 py-3 text-base leading-6">
-                    <span className="font-semibold">{text.quality[offer.quality]}</span>
-                    <span className="text-ink/70"> · {offer.brand} · {offer.pack}</span>
+                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl border border-white/10 bg-card px-3 py-3 text-base leading-6">
+                    <span className="font-semibold text-[#f6b23a]">{text.quality[offer.quality]}</span>
+                    <span className="text-mute"> · {offer.brand} · {offer.pack}</span>
                     <span className="mt-0.5 block">
                       {offer.shopName} · {offer.shopKind} · {offer.place}
                     </span>
@@ -681,7 +774,7 @@ function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) 
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-base leading-6 text-ink/70">{advice.priceNote}</p>
+        <p className="mt-3 text-base leading-6 text-mute">{advice.priceNote}</p>
       </div>
     </div>
   );
@@ -723,7 +816,7 @@ function ContextForm({
   const filled = preview.length > 0;
   const previewText = preview.length > 90 ? `${preview.slice(0, 89).trimEnd()}…` : preview;
   return (
-    <section id="home-context" className="rounded-[1.5rem] border border-ink/10 bg-white/75 p-4 sm:p-5">
+    <section id="home-context" className="rounded-[26px] border border-white/10 bg-card p-4 transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/40">
       <button
         type="button"
         aria-expanded={open}
@@ -736,15 +829,15 @@ function ContextForm({
             {text.contextTitle}
           </span>
           {open ? null : (
-            <span className="mt-1 block text-base leading-6 text-ink/70">{filled ? previewText : text.contextHint}</span>
+            <span className="mt-1 block text-base leading-6 text-mute">{filled ? previewText : text.contextHint}</span>
           )}
         </span>
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sand text-lg font-semibold text-leaf">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-field text-lg font-semibold text-leaf">
           {open ? "–" : "+"}
         </span>
       </button>
       {ask ? (
-        <p className="mt-3 rounded-2xl bg-[#f8ebe7] px-4 py-3 text-base leading-6" role="status">
+        <p className="mt-3 rounded-2xl border border-beet/40 bg-beet/10 px-4 py-3 text-base leading-6 text-paper" role="status">
           <span className="block font-semibold text-beet">{text.contextAskLabel}</span>
           {ask}
         </p>
@@ -760,9 +853,9 @@ function ContextForm({
             aria-labelledby="context-title"
             aria-describedby="context-guide"
             onChange={(event) => onChange({ ...emptyFarmerContext(), notes: event.target.value })}
-            className="min-h-32 w-full rounded-2xl border border-ink/15 bg-paper px-4 py-3 text-base leading-7 font-normal"
+            className="min-h-32 w-full rounded-2xl border border-white/15 bg-field px-4 py-3 text-base leading-7 font-normal text-paper placeholder:text-mute"
           />
-          <p id="context-guide" className="text-base leading-7 text-ink/75">
+          <p id="context-guide" className="text-base leading-7 text-mute">
             {text.contextGuide}
           </p>
           <VoiceContext text={text} locale={locale} context={context} onChange={onChange} disabled={disabled} />
@@ -814,6 +907,103 @@ async function makeThumbnail(dataUrl: string): Promise<string> {
   if (!context) return dataUrl;
   context.drawImage(image, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", 0.72);
+}
+
+function RecentCheck({
+  entry,
+  label,
+  confidence,
+  deleteLabel,
+  ask,
+  keepLabel,
+  onOpen,
+  onDelete,
+}: {
+  entry: HistoryEntry;
+  label: string;
+  confidence: string;
+  deleteLabel: string;
+  ask: string;
+  keepLabel: string;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const timer = useRef<number | null>(null);
+  const held = useRef(false);
+  const [confirm, setConfirm] = useState(false);
+
+  function clearTimer() {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = null;
+  }
+
+  useEffect(() => clearTimer, []);
+
+  function press() {
+    held.current = false;
+    clearTimer();
+    timer.current = window.setTimeout(() => {
+      held.current = true;
+      setConfirm(true);
+    }, 600);
+  }
+
+  if (confirm) {
+    return (
+      <div role="alertdialog" aria-label={ask} className="flex w-44 flex-col justify-between gap-3 rounded-[26px] border border-beet/50 bg-card p-3 lg:w-full">
+        <p className="text-sm leading-5 text-paper">{ask}</p>
+        <div className="grid grid-cols-1 gap-2">
+          <button type="button" autoFocus onClick={() => setConfirm(false)} className="min-h-11 rounded-xl bg-soil px-3 text-sm font-semibold text-paper">
+            {keepLabel}
+          </button>
+          <button type="button" onClick={onDelete} className="min-h-11 rounded-xl border border-beet/60 px-3 text-sm font-semibold text-beet">
+            {deleteLabel}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="group relative w-44 lg:w-full"
+      onContextMenu={(event) => {
+        event.preventDefault();
+        held.current = true;
+        setConfirm(true);
+      }}
+    >
+      <button
+        type="button"
+        onPointerDown={press}
+        onPointerUp={clearTimer}
+        onPointerLeave={clearTimer}
+        onPointerCancel={clearTimer}
+        onClick={() => {
+          if (held.current) {
+            held.current = false;
+            return;
+          }
+          onOpen();
+        }}
+        className="w-full touch-manipulation overflow-hidden rounded-[26px] border border-white/10 bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft lg:group-hover:border-leaf/50"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={entry.thumbnail} alt="" className="h-28 w-full object-cover" />
+        <span className="block px-3 py-3 text-sm font-semibold leading-5 text-paper">
+          {label}
+          <span className="mt-1 block font-normal text-mute">{confidence}</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirm(true)}
+        className="absolute top-2 right-2 hidden min-h-11 rounded-xl bg-page/90 px-3 text-sm font-semibold text-paper lg:inline-flex lg:items-center lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100"
+      >
+        {deleteLabel}
+      </button>
+    </div>
+  );
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
