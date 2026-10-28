@@ -333,6 +333,55 @@ describe("adviseBed", () => {
     await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "upstream" });
   });
 
+  it("tries Spark 1.3 when the catalog body is empty, and stops if those ids are missing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    let catalogs = 0;
+    const tried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) {
+          catalogs += 1;
+          if (catalogs === 1) return jsonResponse({ data: [] });
+          return jsonResponse({ data: [{ id: "muse-spark-1.3" }] });
+        }
+        const body = JSON.parse(String(init.body)) as { model?: string };
+        tried.push(body.model ?? "");
+        return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+      }),
+    );
+    const recovered = await adviseBed(bedOptions());
+    expect(catalogs).toBe(2);
+    expect(tried).toEqual(["muse-spark-1.3"]);
+    expect(recovered.model).toBe("muse-spark-1.3");
+
+    const fallbackTried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) return jsonResponse({ data: [] });
+        const body = JSON.parse(String(init.body)) as { model?: string };
+        fallbackTried.push(body.model ?? "");
+        if (body.model === "muse-spark-1.3-contributor") {
+          return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+        }
+        return jsonResponse({ error: { code: "model_not_found" } }, 404);
+      }),
+    );
+    const fallback = await adviseBed(bedOptions());
+    expect(fallbackTried).toEqual(["muse-spark-1.3-contributor"]);
+    expect(fallback.model).toBe("muse-spark-1.3-contributor");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/models")) return jsonResponse({ data: [] });
+        return jsonResponse({ error: { code: "model_not_found" } }, 404);
+      }),
+    );
+    await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "muse_unavailable" });
+  });
+
   it("uses a catalog wonder model and does not guess a spark id the catalog omitted", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const wonderModels: string[] = [];

@@ -4,7 +4,7 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
-import { listMetaModels, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
+import { listMetaModels, MUSE_MODELS, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
 import { AnalyzeError, type ChemicalAdvice, type ConceptCounts, type CropId, type FarmerContext, type Locale } from "@/lib/types";
 
@@ -82,6 +82,23 @@ export async function adviseBed(options: {
 }
 
 async function catalogModels(apiKey: string, deadline: number): Promise<string[]> {
+  let listed = await readCatalog(apiKey, deadline);
+  let models = triageModelIds(listed);
+  // Production on 28 Oct returned a full catalog, then `data: []` on the same deploy.
+  // An empty body is a failed read, not proof this key has no chat model.
+  if (models.length === 0 && listed.length === 0) {
+    listed = await readCatalog(apiKey, deadline);
+    models = triageModelIds(listed);
+  }
+  if (models.length > 0) return models;
+  if (listed.length === 0) {
+    console.error(`muse catalog empty; fallback ${MUSE_MODELS.join(",")}`);
+    return [...MUSE_MODELS];
+  }
+  throw new AnalyzeError("muse_unavailable");
+}
+
+async function readCatalog(apiKey: string, deadline: number): Promise<string[]> {
   let listed: string[];
   try {
     const budget = Math.min(8_000, Math.max(1_000, deadline - Date.now() - 7_000));
@@ -94,10 +111,8 @@ async function catalogModels(apiKey: string, deadline: number): Promise<string[]
     throw new AnalyzeError("upstream");
   }
   const safe = listed.filter((id) => /^[a-z0-9._-]{1,80}$/i.test(id)).slice(0, 40);
-  console.error(`muse catalog ${safe.join(",") || "empty"}`);
-  const models = triageModelIds(listed);
-  if (models.length === 0) throw new AnalyzeError("muse_unavailable");
-  return models;
+  console.error(`muse catalog n=${listed.length} ${safe.join(",") || "empty"}`);
+  return listed;
 }
 
 function imageUrlsOf(options: { imageUrl: string; imageUrls?: readonly string[] }): string[] {
