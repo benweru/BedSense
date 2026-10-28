@@ -2,7 +2,7 @@
 
 Photograph any plant on your farm bed. Meta intelligence models read the photo and return diagnoses and practical things to look at or do next.
 
-You name the plant in the photo so the check can follow it. You can also add optional context: plant age or stage, current practices, chemicals already used, recent weather or irrigation, known issues, or a note.
+You name the plant in the photo so the check can follow it. You can also add one optional note: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.
 
 ## Who it is for
 

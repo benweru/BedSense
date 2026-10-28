@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { canRecordVoice, startVoiceRecorder } from "@/components/voice-capture";
-import { appendToContext } from "@/lib/context";
+import { appendToContext, emptyFarmerContext } from "@/lib/context";
 import { wavBlob } from "@/lib/voice";
 import type { Copy } from "@/lib/copy";
-import { CONTEXT_FIELDS, type ContextField, type FarmerContext, type Locale } from "@/lib/types";
+import type { FarmerContext, Locale } from "@/lib/types";
 
 export function VoiceContext({
   text,
@@ -20,26 +20,33 @@ export function VoiceContext({
   onChange: (next: FarmerContext) => void;
   disabled: boolean;
 }) {
-  const [field, setField] = useState<ContextField>("notes");
   const [phase, setPhase] = useState<"idle" | "listening" | "writing">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
+  const phaseRef = useRef(phase);
   const contextRef = useRef(context);
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
+  useEffect(() => {
+    if (disabled && phaseRef.current === "listening") stopRef.current?.();
+  }, [disabled]);
+  useEffect(() => () => stopRef.current?.(), []);
 
-  function begin(event: PointerEvent<HTMLButtonElement>) {
-    if (disabled || phase !== "idle") return;
-    event.preventDefault();
+  function setVoicePhase(next: "idle" | "listening" | "writing") {
+    phaseRef.current = next;
+    setPhase(next);
+  }
+
+  function toggle() {
+    if (disabled || phaseRef.current === "writing") return;
+    if (phaseRef.current === "listening") {
+      stopRef.current?.();
+      return;
+    }
     if (!canRecordVoice()) {
       setMessage(text.voiceUnsupported);
       return;
-    }
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // A synthetic pointer has nothing to capture. pointerup still ends the note.
     }
     const audio = new AudioContext();
     void audio.resume();
@@ -48,18 +55,18 @@ export function VoiceContext({
       recorder.stop();
       stopRef.current = null;
     };
-    setPhase("listening");
+    setVoicePhase("listening");
     setMessage(null);
-    const chosen = field;
     void recorder.result
       .then(async (wav) => {
-        setPhase("writing");
+        setVoicePhase("writing");
         const transcript = await sendTranscript(wav, locale);
         if (!transcript) {
           setMessage(text.voiceEmpty);
           return;
         }
-        onChange(appendToContext(contextRef.current, chosen, transcript));
+        const note = appendToContext({ ...emptyFarmerContext(), notes: contextRef.current.notes }, "notes", transcript);
+        onChange(note);
       })
       .catch((error: unknown) => {
         const code = error instanceof Error ? error.message : "";
@@ -69,49 +76,33 @@ export function VoiceContext({
       })
       .finally(() => {
         void audio.close();
-        setPhase("idle");
+        setVoicePhase("idle");
         stopRef.current = null;
       });
   }
 
-  function end() {
-    stopRef.current?.();
-  }
-
-  const label = phase === "listening" ? text.voiceListening : phase === "writing" ? text.voiceWriting : text.voiceHold;
+  const label = phase === "listening" ? text.voiceFinish : phase === "writing" ? text.voiceWriting : text.voiceHold;
+  const announcement = phase === "listening" ? text.voiceListening : phase === "writing" ? text.voiceWriting : "";
 
   return (
-    <div className="rounded-2xl bg-sand/70 p-3">
-      <p className="text-sm font-semibold">{text.voiceInto}</p>
-      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={text.voiceInto}>
-        {CONTEXT_FIELDS.map((item) => (
-          <button
-            key={item}
-            type="button"
-            aria-pressed={field === item}
-            disabled={disabled || phase !== "idle"}
-            onClick={() => setField(item)}
-            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${
-              field === item ? "bg-soil text-paper" : "bg-white text-ink"
-            }`}
-          >
-            {text.contextFields[item]}
-          </button>
-        ))}
-      </div>
+    <div>
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
       <button
         type="button"
         disabled={disabled || phase === "writing"}
-        onPointerDown={begin}
-        onPointerUp={end}
-        onPointerCancel={end}
+        aria-pressed={phase === "listening"}
+        onClick={toggle}
         onContextMenu={(event) => event.preventDefault()}
-        className="mt-3 min-h-12 w-full rounded-2xl bg-soil px-3 text-sm font-semibold text-paper disabled:opacity-60"
+        className={`min-h-14 w-full touch-manipulation rounded-2xl px-4 text-base font-semibold select-none disabled:opacity-60 ${
+          phase === "listening" ? "bg-[#f6b23a] text-ink shadow-[inset_0_0_0_2px_#c56a00]" : "bg-soil text-paper"
+        }`}
       >
         {label}
       </button>
       {message ? (
-        <p className="mt-2 text-sm leading-5 text-beet" role="alert">
+        <p className="mt-2 text-base leading-6 text-beet" role="alert">
           {message}
         </p>
       ) : null}

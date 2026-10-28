@@ -59,8 +59,12 @@ export function MaskCanvas({
     <div className="relative overflow-hidden rounded-[1.35rem] bg-soil shadow-[0_18px_40px_rgba(36,48,36,0.16)]">
       {/* Phone photos are local data URLs, so the browser draws them directly. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img ref={imgRef} src={src} alt={alt} className="block h-auto w-full" />
-      <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" />
+      <img ref={imgRef} src={src} alt={alt} className="block h-auto w-full lg:max-h-[min(32rem,70vh)] lg:object-contain" />
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 h-full w-full lg:object-contain"
+      />
     </div>
   );
 }
