@@ -12,12 +12,12 @@ type Plan = {
 };
 
 const PLANS: Plan[] = [
-  { id: "high-res", quality: "High resolution", sam: "crop", muse: "diagnosis" },
-  { id: "blurred", quality: "Blurred", sam: "none", muse: "diagnosis" },
-  { id: "low-res", quality: "Low resolution", sam: "none", muse: "fallback" },
-  { id: "bad-lighting", quality: "Bad lighting", sam: "crop", muse: "diagnosis" },
-  { id: "odd-angle", quality: "Odd angle", sam: "weed-only", muse: "diagnosis" },
-  { id: "occluded", quality: "Occluded", sam: "none", muse: "missing" },
+  { id: "high-res", quality: "Clear fruit and flowers (IMG_8968)", sam: "crop", muse: "diagnosis" },
+  { id: "distance", quality: "Distant bed (IMG_8975)", sam: "none", muse: "diagnosis" },
+  { id: "hidden", quality: "Fruit mostly hidden (IMG_8973)", sam: "none", muse: "fallback" },
+  { id: "hard-light", quality: "Hard sun and shadow (IMG_8965)", sam: "crop", muse: "diagnosis" },
+  { id: "canopy", quality: "Looking down into the canopy (IMG_8971)", sam: "weed-only", muse: "diagnosis" },
+  { id: "occluded", quality: "Glove over the crown (IMG_8969)", sam: "none", muse: "missing" },
 ];
 
 const DIAGNOSIS = {
@@ -59,10 +59,10 @@ describe("messy chili photos", () => {
 
     expect(grades.map((grade) => [grade.id, grade.samCrop, grade.samMarks > 0, grade.museDiagnosis, grade.failure])).toEqual([
       ["high-res", true, true, true, null],
-      ["blurred", false, false, true, null],
-      ["low-res", false, false, false, "local-fallback"],
-      ["bad-lighting", true, true, true, null],
-      ["odd-angle", false, true, true, null],
+      ["distance", false, false, true, null],
+      ["hidden", false, false, false, "local-fallback"],
+      ["hard-light", true, true, true, null],
+      ["canopy", false, true, true, null],
       ["occluded", false, false, false, "muse_unavailable"],
     ]);
 

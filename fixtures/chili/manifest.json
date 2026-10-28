@@ -1,8 +1,38 @@
 [
-  { "id": "high-res", "file": "high-res.jpg", "quality": "High resolution" },
-  { "id": "blurred", "file": "blurred.jpg", "quality": "Blurred" },
-  { "id": "low-res", "file": "low-res.jpg", "quality": "Low resolution" },
-  { "id": "bad-lighting", "file": "bad-lighting.jpg", "quality": "Bad lighting" },
-  { "id": "odd-angle", "file": "odd-angle.jpg", "quality": "Odd angle" },
-  { "id": "occluded", "file": "occluded.jpg", "quality": "Occluded" }
+  {
+    "id": "high-res",
+    "file": "IMG_8968.jpg",
+    "quality": "Clear fruit and flowers (IMG_8968)",
+    "source": "IMG_8968.jpg"
+  },
+  {
+    "id": "hard-light",
+    "file": "IMG_8965.jpg",
+    "quality": "Hard sun and shadow (IMG_8965)",
+    "source": "IMG_8965.jpg"
+  },
+  {
+    "id": "distance",
+    "file": "IMG_8975.jpg",
+    "quality": "Distant bed (IMG_8975)",
+    "source": "IMG_8975.jpg"
+  },
+  {
+    "id": "hidden",
+    "file": "IMG_8973.jpg",
+    "quality": "Fruit mostly hidden (IMG_8973)",
+    "source": "IMG_8973.jpg"
+  },
+  {
+    "id": "canopy",
+    "file": "IMG_8971.jpg",
+    "quality": "Looking down into the canopy (IMG_8971)",
+    "source": "IMG_8971.jpg"
+  },
+  {
+    "id": "occluded",
+    "file": "IMG_8969.jpg",
+    "quality": "Glove over the crown (IMG_8969)",
+    "source": "IMG_8969.jpg"
+  }
 ]

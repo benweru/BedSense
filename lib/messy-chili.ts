@@ -81,7 +81,7 @@ export function chiliFailureSummary(grades: readonly ChiliGrade[], source: "simu
       : "# Chili messy-photo summary (live)",
     "",
     source === "simulated"
-      ? "These rates come from the harness with scripted SAM and Muse replies, one per fixture. They are not a live Meta run. Grade the same files against SAM 3.1 and Muse with `MOCK_META=0 MESSY_CHILI_KEY=... npm run messy-chili`."
+      ? "These percentages are scripted SAM and Muse replies used to test the logger. They are not measurements of the farm photos in fixtures/chili. Those files are real bed JPEGs: IMG_8968, IMG_8965, IMG_8975, IMG_8973, IMG_8971, and IMG_8969. A live grade needs MOCK_META=0 and MESSY_CHILI_KEY set to the same key as MODEL_API_KEY, then npm run messy-chili."
       : "These rates are from SAM 3.1 and Muse on the fixture bytes, using the key in the environment.",
     "",
     `Photos: ${total}`,

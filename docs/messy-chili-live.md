@@ -1,22 +1,20 @@
-# Chili messy-photo summary (live production)
+# Chili messy-photo summary (live)
 
-Graded on 2026-10-25 against https://bedsense.vercel.app/api/analyze (deployed main, plant name Chili, empty context). Each fixture is a generated drawing of a curled chili at a controlled quality, not a field photo.
+Not run on these farm photos. The cloud agent had no `MESSY_CHILI_KEY` or `MODEL_API_KEY`, so SAM 3.1 and Muse were not called.
 
-One high-res request a minute before this table returned HTTP 200 in 11.3s: `muse-spark-1.3-contributor`, 0 SAM marks, 3 likely causes, no backup note. The six requests below then all returned `muse_unavailable` in about one second. Muse access on this key is intermittent. A `muse_unavailable` body is sent before masks are included, so those rows do not measure SAM. The only SAM observation is the successful high-res call: no crop mark on this drawing, and Muse still returned causes.
+The six fixtures are real bed JPEGs, listed in `fixtures/chili/manifest.json`:
 
-Photos: 6
+- IMG_8968 — clear green fruit and flowers
+- IMG_8965 — the same kind of plant in hard sun and shadow
+- IMG_8975 — the bed from far enough that single fruits are not resolved
+- IMG_8973 — fruit mostly hidden by leaves and plastic mulch
+- IMG_8971 — looking down into the canopy, one ripe fruit among leaves
+- IMG_8969 — a gloved hand over the crown
 
-- SAM named the chili crop: 0/6 (0%)
-- SAM returned any mark: 0/6 (0%)
-- Muse returned a real diagnosis (causes, not the local backup): 0/6 (0%)
-- Muse failed: 6/6 (100%)
-- No chili crop and no Muse diagnosis: 6/6 (100%)
+An October 25 pass used Pillow drawings and is not a rate for these files. Run:
 
-| id | quality | HTTP | ms | SAM | marks | Muse | failure | model |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| high-res | High resolution | 503 | 1724 | none | 0 | fail | muse_unavailable |  |
-| blurred | Blurred | 503 | 860 | none | 0 | fail | muse_unavailable |  |
-| low-res | Low resolution | 503 | 1002 | none | 0 | fail | muse_unavailable |  |
-| bad-lighting | Bad lighting | 503 | 1025 | none | 0 | fail | muse_unavailable |  |
-| odd-angle | Odd angle | 503 | 1451 | none | 0 | fail | muse_unavailable |  |
-| occluded | Occluded | 503 | 1455 | none | 0 | fail | muse_unavailable |  |
+```bash
+MOCK_META=0 MESSY_CHILI_KEY=... npm run messy-chili
+```
+
+`MESSY_CHILI_KEY` is the same key the server joins from `MODEL_API_KEY`, or from `MODEL_API_KEY_0` through `MODEL_API_KEY_5`.

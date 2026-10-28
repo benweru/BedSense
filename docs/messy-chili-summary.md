@@ -1,6 +1,6 @@
 # Chili messy-photo summary (simulated)
 
-These rates come from the harness with scripted SAM and Muse replies, one per fixture. They are not a live Meta run. Grade the same files against SAM 3.1 and Muse with `MOCK_META=0 MESSY_CHILI_KEY=... npm run messy-chili`.
+These percentages are scripted SAM and Muse replies used to test the logger. They are not measurements of the farm photos in fixtures/chili. Those files are real bed JPEGs: IMG_8968, IMG_8965, IMG_8975, IMG_8973, IMG_8971, and IMG_8969. A live grade needs MOCK_META=0 and MESSY_CHILI_KEY set to the same key as MODEL_API_KEY, then npm run messy-chili.
 
 Photos: 6
 
@@ -12,9 +12,9 @@ Photos: 6
 
 | id | quality | SAM | marks | Muse | failure | model |
 | --- | --- | --- | --- | --- | --- | --- |
-| high-res | High resolution | crop | 6 | diagnosis |  | muse-spark-1.3-contributor |
-| blurred | Blurred | none | 0 | diagnosis |  | muse-spark-1.3-contributor |
-| low-res | Low resolution | none | 0 | fail | local-fallback |  |
-| bad-lighting | Bad lighting | crop | 6 | diagnosis |  | muse-spark-1.3-contributor |
-| odd-angle | Odd angle | marks only | 2 | diagnosis |  | muse-spark-1.3-contributor |
-| occluded | Occluded | none | 0 | fail | muse_unavailable |  |
+| high-res | Clear fruit and flowers (IMG_8968) | crop | 6 | diagnosis |  | muse-spark-1.3-contributor |
+| distance | Distant bed (IMG_8975) | none | 0 | diagnosis |  | muse-spark-1.3-contributor |
+| hidden | Fruit mostly hidden (IMG_8973) | none | 0 | fail | local-fallback |  |
+| hard-light | Hard sun and shadow (IMG_8965) | crop | 6 | diagnosis |  | muse-spark-1.3-contributor |
+| canopy | Looking down into the canopy (IMG_8971) | marks only | 2 | diagnosis |  | muse-spark-1.3-contributor |
+| occluded | Glove over the crown (IMG_8969) | none | 0 | fail | muse_unavailable |  |
