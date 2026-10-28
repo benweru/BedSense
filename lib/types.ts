@@ -86,7 +86,7 @@ export type AnalyzeResult = {
   models: {
     sam: "sam-3.1";
     muse: string | null;
-    triageSource: "muse" | "mock" | "local-fallback";
+    triageSource: "muse" | "mock" | "local-fallback" | "withheld";
   };
   image: {
     width: number;
@@ -120,6 +120,11 @@ export type AnalyzeResult = {
   disclaimer: string;
   agronomistCallout: string;
   note: string | null;
+  /** Set when this photo, or every photo in the batch, is too far or not clear enough to diagnose. */
+  qualityHold?: "too_far" | "unclear" | "mixed" | null;
+  qualityMessage?: string | null;
+  /** Set when a multi-photo check kept the clear frames and skipped the rest. */
+  qualityNote?: string | null;
 };
 
 export type HistoryEntry = {

@@ -1,20 +1,21 @@
-# Chili messy-photo summary (live)
+# Chili messy-photo summary (live production)
 
-Not run on these farm photos. The cloud agent had no `MESSY_CHILI_KEY` or `MODEL_API_KEY`, so SAM 3.1 and Muse were not called.
+Graded on 28 Oct 2026, about 12:25–12:27 Africa/Nairobi, against https://bedsense.vercel.app/api/analyze. Plant name Chili, empty context. Models: SAM 3.1 and Muse Spark 1.3 (`muse-spark-1.3-contributor`). These are live production numbers, not the scripted 2/6 logger check in `docs/messy-chili-summary.md`.
 
-The six fixtures are real bed JPEGs, listed in `fixtures/chili/manifest.json`:
+Photos: 6
 
-- IMG_8968 — clear green fruit and flowers
-- IMG_8965 — the same kind of plant in hard sun and shadow
-- IMG_8975 — the bed from far enough that single fruits are not resolved
-- IMG_8973 — fruit mostly hidden by leaves and plastic mulch
-- IMG_8971 — looking down into the canopy, one ripe fruit among leaves
-- IMG_8969 — a gloved hand over the crown
+- SAM named the chili crop: 5/6 (83%). The miss is the distant bed, IMG_8975.
+- SAM returned any mark: 5/6 (83%)
+- Muse returned a real diagnosis (causes): 6/6 (100%)
+- Muse failed: 0/6 (0%)
 
-An October 25 pass used Pillow drawings and is not a rate for these files. Run:
+| id | file | quality | samChili | samMarks | concepts | museDiagnosis | causesN |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| high-res | IMG_8968.jpg | Clear fruit and flowers | yes | 1 | chili | yes | 2 |
+| hard-light | IMG_8965.jpg | Hard sun and shadow | yes | 3 | chili, yellow-leaf | yes | 3 |
+| distance | IMG_8975.jpg | Distant bed | no | 0 | (none) | yes | 2 |
+| hidden | IMG_8973.jpg | Fruit mostly hidden | yes | 1 | chili | yes | 2 |
+| canopy | IMG_8971.jpg | Looking down into the canopy | yes | 5 | chili, yellow-leaf | yes | 3 |
+| occluded | IMG_8969.jpg | Glove over the crown | yes | 1 | chili | yes | 2 |
 
-```bash
-MOCK_META=0 MESSY_CHILI_KEY=... npm run messy-chili
-```
-
-`MESSY_CHILI_KEY` is the same key the server joins from `MODEL_API_KEY`, or from `MODEL_API_KEY_0` through `MODEL_API_KEY_5`.
+The distant frame still received two causes even though SAM marked nothing. That is the case the quality gate is meant to hold back: a wide shot with no strong mark should ask the farmer to move closer instead of inventing a diagnosis.
