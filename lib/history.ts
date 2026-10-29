@@ -8,6 +8,10 @@ export function rememberCheck(existing: readonly HistoryEntry[], next: HistoryEn
   return [next, ...existing.filter((entry) => entry.id !== next.id)].slice(0, HISTORY_LIMIT);
 }
 
+export function forgetCheck(existing: readonly HistoryEntry[], id: string): HistoryEntry[] {
+  return existing.filter((entry) => entry.id !== id);
+}
+
 export function parseHistory(raw: string | null): HistoryEntry[] {
   if (!raw) return [];
   try {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HISTORY_LIMIT, parseHistory, rememberCheck, serializeHistory } from "@/lib/history";
+import { HISTORY_LIMIT, forgetCheck, parseHistory, rememberCheck, serializeHistory } from "@/lib/history";
 import type { AnalyzeResult, HistoryEntry } from "@/lib/types";
 
 function entry(id: string): HistoryEntry {
@@ -28,6 +28,12 @@ describe("recent checks", () => {
   it("moves a repeated id to the front", () => {
     const history = rememberCheck([entry("a"), entry("b")], entry("a"));
     expect(history.map((item) => item.id)).toEqual(["a", "b"]);
+  });
+
+  it("removes one check and leaves the rest", () => {
+    const history = rememberCheck([entry("a")], entry("b"));
+    expect(forgetCheck(history, "a").map((item) => item.id)).toEqual(["b"]);
+    expect(forgetCheck(history, "missing")).toHaveLength(2);
   });
 
   it("drops corrupt storage", () => {

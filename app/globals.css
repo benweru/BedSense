@@ -1,27 +1,96 @@
 @import "tailwindcss";
 
 @theme {
-  --color-paper: #f3efe4;
-  --color-ink: #1c2416;
-  --color-soil: #243024;
-  --color-leaf: #3f6b4a;
-  --color-sand: #e6dcc4;
-  --color-onion: #c8881a;
-  --color-beet: #8e2f4a;
-  --color-chili: #c44536;
-  --font-serif: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  --color-page: #07110c;
+  --color-card: #102117;
+  --color-field: #173024;
+  --color-paper: #f4f4f1;
+  --color-ink: #07110c;
+  --color-mute: #a3b0a6;
+  --color-soil: #006b3f;
+  --color-leaf: #1f9d55;
+  --color-sand: #1a3328;
+  --color-onion: #e0941a;
+  --color-beet: #ff8fa3;
+  --color-chili: #d4282f;
+  --color-clay: #d9774b;
+  --color-dusk: #7b9bd6;
+  --font-serif: var(--font-display), "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Eased stops (not a straight fade to transparent) keep each wash from showing a visible edge. */
 body {
+  position: relative;
+  isolation: isolate;
   min-height: 100dvh;
   background:
-    radial-gradient(920px 420px at -8% -12%, #f7e6bc 0%, transparent 58%),
-    radial-gradient(720px 380px at 112% -6%, #f3d4cf 0%, transparent 52%),
-    var(--color-paper);
-  color: var(--color-ink);
-  font-family: "Avenir Next", "Segoe UI", sans-serif;
+    radial-gradient(
+      ellipse 85vw 70vh at 0% 0%,
+      rgba(123, 155, 214, 0.13) 0%,
+      rgba(123, 155, 214, 0.08) 25%,
+      rgba(123, 155, 214, 0.03) 50%,
+      rgba(123, 155, 214, 0.01) 70%,
+      transparent 88%
+    ),
+    radial-gradient(
+      ellipse 70vw 60vh at 22% -10%,
+      rgba(52, 190, 112, 0.18) 0%,
+      rgba(52, 190, 112, 0.11) 25%,
+      rgba(52, 190, 112, 0.045) 50%,
+      rgba(52, 190, 112, 0.012) 72%,
+      transparent 90%
+    ),
+    radial-gradient(
+      ellipse 80vw 75vh at 100% 0%,
+      rgba(217, 119, 75, 0.3) 0%,
+      rgba(217, 119, 75, 0.18) 25%,
+      rgba(217, 119, 75, 0.075) 50%,
+      rgba(217, 119, 75, 0.02) 72%,
+      transparent 90%
+    ),
+    radial-gradient(
+      ellipse 70vw 80vh at 95% 60%,
+      rgba(0, 107, 63, 0.26) 0%,
+      rgba(0, 107, 63, 0.16) 28%,
+      rgba(0, 107, 63, 0.06) 55%,
+      rgba(0, 107, 63, 0.015) 75%,
+      transparent 92%
+    ),
+    radial-gradient(
+      ellipse 75vw 70vh at 100% 100%,
+      rgba(217, 119, 75, 0.2) 0%,
+      rgba(217, 119, 75, 0.12) 25%,
+      rgba(217, 119, 75, 0.05) 50%,
+      rgba(217, 119, 75, 0.012) 72%,
+      transparent 90%
+    ),
+    radial-gradient(
+      ellipse 75vw 70vh at 0% 100%,
+      rgba(40, 96, 100, 0.22) 0%,
+      rgba(40, 96, 100, 0.13) 25%,
+      rgba(40, 96, 100, 0.05) 50%,
+      rgba(40, 96, 100, 0.012) 72%,
+      transparent 90%
+    ),
+    linear-gradient(105deg, #091412 0%, #08120e 30%, #07110c 60%, #08100c 85%, #0a0f0b 100%);
+  background-attachment: fixed;
+  color: var(--color-paper);
+  font-family: var(--font-sans), Inter, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Fine grain over the page washes hides 8-bit banding on dark screens. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 :where(button, a, input, textarea):focus-visible {
@@ -29,9 +98,74 @@ body {
   outline-offset: 3px;
 }
 
+/* Base layer so shadow and hover utilities still win; only background-image is added. */
+@layer base {
+  .bg-card {
+    background-image:
+      radial-gradient(
+        120% 90% at 0% 0%,
+        rgba(123, 155, 214, 0.07) 0%,
+        rgba(123, 155, 214, 0.035) 35%,
+        rgba(123, 155, 214, 0.01) 60%,
+        transparent 80%
+      ),
+      radial-gradient(
+        80% 70% at 50% 0%,
+        rgba(52, 190, 112, 0.1) 0%,
+        rgba(52, 190, 112, 0.05) 35%,
+        rgba(52, 190, 112, 0.015) 60%,
+        transparent 82%
+      ),
+      radial-gradient(
+        110% 90% at 100% 100%,
+        rgba(217, 119, 75, 0.18) 0%,
+        rgba(217, 119, 75, 0.09) 35%,
+        rgba(217, 119, 75, 0.025) 62%,
+        transparent 84%
+      ),
+      linear-gradient(160deg, #14231f 0%, #11211b 35%, #10201a 60%, #131b14 85%, #141912 100%);
+  }
+
+  @media (min-width: 64rem) {
+    .lg\:bg-card {
+      background-image:
+        radial-gradient(
+          130% 70% at 0% 0%,
+          rgba(123, 155, 214, 0.08) 0%,
+          rgba(123, 155, 214, 0.04) 35%,
+          rgba(123, 155, 214, 0.01) 60%,
+          transparent 82%
+        ),
+        radial-gradient(
+          110% 60% at 100% 100%,
+          rgba(217, 119, 75, 0.18) 0%,
+          rgba(217, 119, 75, 0.09) 35%,
+          rgba(217, 119, 75, 0.025) 62%,
+          transparent 84%
+        ),
+        linear-gradient(170deg, #13221e 0%, #101e19 40%, #0f1c17 65%, #0c1611 100%);
+    }
+  }
+
+  .bg-field {
+    background-image:
+      radial-gradient(80% 90% at 0% 0%, rgba(123, 155, 214, 0.04) 0%, transparent 65%),
+      radial-gradient(80% 90% at 100% 100%, rgba(217, 119, 75, 0.08) 0%, transparent 65%),
+      linear-gradient(165deg, #1c3329 0%, #162b23 60%, #12261d 100%);
+  }
+
+  .bg-soil {
+    background-image: linear-gradient(135deg, #22a65c 0%, #0b7a47 55%, #005c37 100%);
+  }
+
+  .bg-page\/95 {
+    background-image: linear-gradient(180deg, rgba(11, 26, 18, 0.92) 0%, rgba(5, 12, 9, 0.97) 100%);
+  }
+}
+
 ::selection {
-  background: #e7c56a;
-  color: #1c2416;
+  background: #1f9d55;
+  color: #f4f4f1;
 }
 
 @keyframes bedsense-indeterminate {
@@ -45,4 +179,15 @@ body {
 
 .bedsense-indeterminate {
   animation: bedsense-indeterminate 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
