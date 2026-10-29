@@ -249,7 +249,7 @@ export function BedSenseApp() {
     <main className={`mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pt-5 sm:px-6 sm:pt-8 lg:max-w-6xl lg:px-8 ${photos.length > 0 && !busy ? "pb-36" : "pb-12"}`}>
       <header className="flex items-start justify-between gap-4">
         <p className="inline-flex max-w-[16rem] items-center gap-2 font-mono text-[11px] font-medium uppercase leading-5 tracking-[0.22em] text-mute sm:max-w-xl">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-leaf" aria-hidden="true" />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay" aria-hidden="true" />
           {text.kicker}
         </p>
         <div role="group" aria-label={text.language} className="flex shrink-0 rounded-full border border-white/10 bg-card p-1">
@@ -581,7 +581,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
           </h2>
         </div>
         <p className="shrink-0 sm:text-right">
-          <span className="block font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{text.confidence}</span>
+          <span className="block font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-dusk">{text.confidence}</span>
           <span className="text-base font-semibold">{text.levelLabel(result.confidence)}</span>
           <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-white/15">
             <span className="block h-full bg-onion" style={{ width: `${score}%` }} />
@@ -629,7 +629,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
       )}
 
       <div id="result-checks" className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] sm:p-5">
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{checkStep}</p>
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-clay">{checkStep}</p>
         <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-3xl">{text.actions}</h3>
         <p className="mt-2 text-base leading-6 text-mute">{text.actionsHint}</p>
         <ol className="mt-4 space-y-3">
@@ -656,7 +656,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
       {result.note === "local-fallback" ? <p className="text-base leading-6 text-mute">{text.backupNote}</p> : null}
 
       <div>
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{text.beforeYouAct}</h3>
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-dusk">{text.beforeYouAct}</h3>
         <p className="mt-2 text-base leading-7 text-paper/85">{result.disclaimer}</p>
       </div>
     </section>
@@ -717,7 +717,7 @@ function AdviceList({
   if (items.length === 0) return null;
   return (
     <div id={id} className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/50 lg:hover:shadow-[0_0_40px_-16px_rgba(31,157,85,0.45)]">
-      {step ? <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{step}</p> : null}
+      {step ? <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-clay">{step}</p> : null}
       <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-3xl">{title}</h3>
       <p className="mt-2 text-base leading-6 text-mute">{hint}</p>
       <ul className="mt-4 space-y-3">
@@ -832,7 +832,7 @@ function ContextForm({
             <span className="mt-1 block text-base leading-6 text-mute">{filled ? previewText : text.contextHint}</span>
           )}
         </span>
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-field text-lg font-semibold text-leaf">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-clay/40 bg-clay/15 text-lg font-semibold text-clay">
           {open ? "–" : "+"}
         </span>
       </button>
