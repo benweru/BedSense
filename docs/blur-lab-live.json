@@ -1,0 +1,488 @@
+[
+  {
+    "photo": "high-res",
+    "level": "clean",
+    "sharpness": 0.4972560382244276,
+    "gate": "use",
+    "samConcepts": [
+      "chili"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers",
+      "yellowLeaf"
+    ],
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.85,
+    "failure": null
+  },
+  {
+    "photo": "high-res",
+    "level": "soft",
+    "sharpness": 0.3282959943359357,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.6,
+    "failure": null
+  },
+  {
+    "photo": "high-res",
+    "level": "blurry",
+    "sharpness": 0.15946410683011594,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "high-res",
+    "level": "very-blurry",
+    "sharpness": 0.056311966659295186,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "high-res",
+    "level": "shake",
+    "sharpness": 0.2847825520744865,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers",
+      "yellowLeaf"
+    ],
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "hard-light",
+    "level": "clean",
+    "sharpness": 0.6203263616371762,
+    "gate": "use",
+    "samConcepts": [
+      "chili",
+      "yellow-leaf"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "yellowLeaf"
+    ],
+    "symptom": "Natural senescence of older lower leaves on a fruiting plant",
+    "confidence": 0.65,
+    "failure": null
+  },
+  {
+    "photo": "hard-light",
+    "level": "soft",
+    "sharpness": 0.37720049823599994,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.55,
+    "failure": null
+  },
+  {
+    "photo": "hard-light",
+    "level": "blurry",
+    "sharpness": 0.1752788882545938,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": false,
+    "museSaw": [],
+    "symptom": "",
+    "confidence": 0.4,
+    "failure": "muse"
+  },
+  {
+    "photo": "hard-light",
+    "level": "very-blurry",
+    "sharpness": 0.05715157164792929,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "hard-light",
+    "level": "shake",
+    "sharpness": 0.32540459743022815,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [],
+    "symptom": "Yellowing on Chili is often water, nitrogen, or older leaves finishing, and sometimes a pest or a root problem.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "distance",
+    "level": "clean",
+    "sharpness": 0.33401880778392673,
+    "gate": "too_far",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "yellowLeaf"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "distance",
+    "level": "soft",
+    "sharpness": 0.1548611437354649,
+    "gate": "too_far",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "distance",
+    "level": "blurry",
+    "sharpness": 0.07271655851949332,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "distance",
+    "level": "very-blurry",
+    "sharpness": 0.029019496619834433,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers",
+      "yellowLeaf"
+    ],
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.3,
+    "failure": null
+  },
+  {
+    "photo": "distance",
+    "level": "shake",
+    "sharpness": 0.1504261683187692,
+    "gate": "too_far",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [],
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "hidden",
+    "level": "clean",
+    "sharpness": 0.5240963348604616,
+    "gate": "use",
+    "samConcepts": [
+      "chili"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers"
+    ],
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.8,
+    "failure": null
+  },
+  {
+    "photo": "hidden",
+    "level": "soft",
+    "sharpness": 0.33194930716455284,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.55,
+    "failure": null
+  },
+  {
+    "photo": "hidden",
+    "level": "blurry",
+    "sharpness": 0.15957361825286895,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "hidden",
+    "level": "very-blurry",
+    "sharpness": 0.055639129132032394,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.3,
+    "failure": null
+  },
+  {
+    "photo": "hidden",
+    "level": "shake",
+    "sharpness": 0.2766329226993917,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "canopy",
+    "level": "clean",
+    "sharpness": 0.4172739649356733,
+    "gate": "use",
+    "samConcepts": [
+      "chili",
+      "yellow-leaf"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe",
+      "yellowLeaf"
+    ],
+    "symptom": "Natural senescence of older lower leaves under heavy fruit load",
+    "confidence": 0.65,
+    "failure": null
+  },
+  {
+    "photo": "canopy",
+    "level": "soft",
+    "sharpness": 0.28057319640765643,
+    "gate": "use",
+    "samConcepts": [
+      "chili",
+      "yellow-leaf"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe",
+      "yellowLeaf"
+    ],
+    "symptom": "Natural senescence and shading of older lower leaves under dense canopy",
+    "confidence": 0.6,
+    "failure": null
+  },
+  {
+    "photo": "canopy",
+    "level": "blurry",
+    "sharpness": 0.14419514659152705,
+    "gate": "use",
+    "samConcepts": [
+      "yellow-leaf"
+    ],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe",
+      "yellowLeaf"
+    ],
+    "symptom": "Natural aging of older lower leaves during heavy fruiting",
+    "confidence": 0.55,
+    "failure": null
+  },
+  {
+    "photo": "canopy",
+    "level": "very-blurry",
+    "sharpness": 0.05334163067244371,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "canopy",
+    "level": "shake",
+    "sharpness": 0.24190907866247685,
+    "gate": "use",
+    "samConcepts": [
+      "chili",
+      "yellow-leaf"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "ripe",
+      "yellowLeaf"
+    ],
+    "symptom": "Natural senescence of older lower leaves with possible nutrient deficiency",
+    "confidence": 0.6,
+    "failure": null
+  },
+  {
+    "photo": "occluded",
+    "level": "clean",
+    "sharpness": 0.45957740000140646,
+    "gate": "use",
+    "samConcepts": [
+      "chili"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers"
+    ],
+    "symptom": "Thrips or mite feeding damage during flower and early fruit set",
+    "confidence": 0.65,
+    "failure": null
+  },
+  {
+    "photo": "occluded",
+    "level": "soft",
+    "sharpness": 0.29509322151427975,
+    "gate": "use",
+    "samConcepts": [
+      "chili"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers"
+    ],
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.6,
+    "failure": null
+  },
+  {
+    "photo": "occluded",
+    "level": "blurry",
+    "sharpness": 0.14725752446096613,
+    "gate": "use",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "yellowLeaf"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.4,
+    "failure": null
+  },
+  {
+    "photo": "occluded",
+    "level": "very-blurry",
+    "sharpness": 0.05277570676914747,
+    "gate": "unclear",
+    "samConcepts": [],
+    "samChili": false,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods"
+    ],
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
+    "confidence": 0.35,
+    "failure": null
+  },
+  {
+    "photo": "occluded",
+    "level": "shake",
+    "sharpness": 0.2556474669487752,
+    "gate": "use",
+    "samConcepts": [
+      "chili"
+    ],
+    "samChili": true,
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods",
+      "flowers"
+    ],
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.6,
+    "failure": null
+  }
+]
