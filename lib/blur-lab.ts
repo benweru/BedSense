@@ -147,9 +147,6 @@ export async function gradeBlurFrame(options: {
     masks: segmented.masks,
     sharpness: clarity?.sharpness ?? null,
     skyFraction: clarity?.skyFraction ?? null,
-    contrastRange: clarity?.contrastRange ?? null,
-    shadowFraction: clarity?.shadowFraction ?? null,
-    highlightFraction: clarity?.highlightFraction ?? null,
   });
   const samConcepts = [...new Set(segmented.masks.map((mask) => mask.conceptId))].sort();
   const samChili = samConcepts.includes("chili");
