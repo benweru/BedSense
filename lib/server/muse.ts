@@ -44,6 +44,8 @@ export type TriageDraft = {
   agronomistCallout: string;
   model: string | null;
   triageSource: "muse" | "local-fallback";
+  /** False when Muse gave no score and the app filled one in. */
+  confidenceStated: boolean;
   detectedPlant: string;
   contextAsk: string | null;
   chemicals: ChemicalAdvice | null;
@@ -219,7 +221,7 @@ async function completeModel(
     likelyCauses: parsed.likelyCauses,
     mitigations: parsed.mitigations,
     confidence: parsed.confidence,
-    confidenceScore: parsed.confidenceScore,
+    confidenceScore: parsed.confidenceScore ?? 0.45,
     counts: options.counts,
     plantName: options.farmerPlant,
     context: options.context,
@@ -230,6 +232,7 @@ async function completeModel(
     ...finalized,
     model,
     triageSource: "muse",
+    confidenceStated: typeof parsed.confidenceScore === "number",
     detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
     contextAsk: cleanContextAsk(parsed.contextAsk),
     chemicals: chemicalsFromReading({
@@ -268,6 +271,7 @@ export function localFallback(
     ...finalized,
     model: null,
     triageSource: "local-fallback",
+    confidenceStated: false,
     detectedPlant: namedPlant(locale, null, farmerPlant, primaryCrop),
     contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
     chemicals: chemicalsFromReading({
@@ -536,7 +540,7 @@ function emptyDraft(partial: Partial<ModelDraft>): ModelDraft {
     observations: partial.observations ?? [],
     actions: partial.actions ?? [],
     confidence: partial.confidence ?? "low",
-    confidenceScore: partial.confidenceScore ?? 0.45,
+    confidenceScore: partial.confidenceScore,
     detectedPlant: partial.detectedPlant ?? "",
     contextAsk: partial.contextAsk ?? "",
     diseaseIndicated: partial.diseaseIndicated ?? null,

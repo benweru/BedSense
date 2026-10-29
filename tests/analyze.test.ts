@@ -421,6 +421,25 @@ describe("analyze pipeline", () => {
     expect(result.detectedPlant).toBe("Chili");
   });
 
+  it("holds the reading when SAM marked nothing and Muse says it is unsure", async () => {
+    const reading = {
+      detectedPlant: "chili",
+      symptom: "curl",
+      observations: ["The leaves are hard to make out.", "Some fruit may be curled."],
+      likelyCauses: ["Sucking pests can curl fruit."],
+      mitigations: ["Check under the leaves."],
+      actions: ["Look under a leaf.", "Compare two fruits.", "Retake the photo."],
+      confidence: "low",
+      chemicals: [],
+    };
+    const unsure = await liveReading({ plantName: "chili", muse: { ...reading, confidenceScore: 0.35 } });
+    expect(unsure.models.triageSource).toBe("withheld");
+    expect(unsure.qualityHold).toBe("unclear");
+    expect(unsure.likelyCauses).toEqual([]);
+    const sure = await liveReading({ plantName: "chili", muse: { ...reading, confidence: "medium", confidenceScore: 0.7 } });
+    expect(sure.models.triageSource).toBe("muse");
+  });
+
   it("uses symptom notes when both Muse models fail, and does not invent a spray for curl alone", async () => {
     vi.stubEnv("MOCK_META", "0");
     const liveKey = "k".repeat(40);

@@ -10,7 +10,13 @@ export type FrameEvidence = {
   skyFraction: number | null;
 };
 
-const BLUR_LIMIT = 0.12;
+const BLUR_LIMIT = 0.2;
+const UNSURE_CONFIDENCE = 0.5;
+
+/** SAM marked nothing and Muse is unsure: the photo is not readable enough to show a diagnosis. */
+export function isUnsureRead(markCount: number, confidenceScore: number | null | undefined): boolean {
+  return markCount === 0 && typeof confidenceScore === "number" && confidenceScore < UNSURE_CONFIDENCE;
+}
 const SKY_LIMIT = 0.08;
 
 export function isSoftPhoto(sharpness: number | null): boolean {

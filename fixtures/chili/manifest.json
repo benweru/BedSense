@@ -3,36 +3,42 @@
     "id": "high-res",
     "file": "IMG_8968.jpg",
     "quality": "Clear fruit and flowers (IMG_8968)",
-    "source": "IMG_8968.jpg"
+    "source": "IMG_8968.jpg",
+    "key": { "pods": true, "ripe": false, "flowers": true, "yellowLeaf": false }
   },
   {
     "id": "hard-light",
     "file": "IMG_8965.jpg",
     "quality": "Hard sun and shadow (IMG_8965)",
-    "source": "IMG_8965.jpg"
+    "source": "IMG_8965.jpg",
+    "key": { "pods": true, "ripe": false, "flowers": true, "yellowLeaf": true }
   },
   {
     "id": "distance",
     "file": "IMG_8975.jpg",
     "quality": "Distant bed (IMG_8975)",
-    "source": "IMG_8975.jpg"
+    "source": "IMG_8975.jpg",
+    "key": { "pods": false, "ripe": false, "flowers": false, "yellowLeaf": false }
   },
   {
     "id": "hidden",
     "file": "IMG_8973.jpg",
     "quality": "Fruit mostly hidden (IMG_8973)",
-    "source": "IMG_8973.jpg"
+    "source": "IMG_8973.jpg",
+    "key": { "pods": true, "ripe": true, "flowers": true, "yellowLeaf": false }
   },
   {
     "id": "canopy",
     "file": "IMG_8971.jpg",
     "quality": "Looking down into the canopy (IMG_8971)",
-    "source": "IMG_8971.jpg"
+    "source": "IMG_8971.jpg",
+    "key": { "pods": true, "ripe": true, "flowers": false, "yellowLeaf": true }
   },
   {
     "id": "occluded",
     "file": "IMG_8969.jpg",
     "quality": "Glove over the crown (IMG_8969)",
-    "source": "IMG_8969.jpg"
+    "source": "IMG_8969.jpg",
+    "key": { "pods": true, "ripe": false, "flowers": true, "yellowLeaf": false }
   }
 ]

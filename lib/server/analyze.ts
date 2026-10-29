@@ -7,7 +7,7 @@ import { parseFarmerPlant } from "@/lib/plant-name";
 import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
-import { isSoftPhoto, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
+import { isSoftPhoto, isUnsureRead, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
 import { segmentBed } from "@/lib/server/sam";
 import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type Locale, type MaskMark } from "@/lib/types";
 
@@ -119,6 +119,18 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     farmerPlant,
     deadline,
   });
+  if (advice.confidenceStated && isUnsureRead(masks.length, advice.confidenceScore)) {
+    return withheldResult({
+      id,
+      createdAt,
+      locale,
+      farmerPlant,
+      size,
+      mime: first.mime,
+      frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
+      verdicts: segmented.map((photo) => (photo.verdict === "use" ? "unclear" : photo.verdict)),
+    });
+  }
   const skipped = segmented.filter((photo) => photo.verdict !== "use").map((photo) => photo.frame + 1);
   const qualityNote = skipped.length > 0 ? copy[locale].qualityBatch(usable.length, skipped) : null;
 
