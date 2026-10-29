@@ -25,8 +25,8 @@ export type Copy = {
   qualityTooFar: string;
   qualityUnclear: string;
   qualityMixed: string;
-  qualityHarshLight: string;
-  qualityBatch: (kept: number, skipped: number[]) => string;
+  qualityHarshLight: (frames: number[], total: number) => string;
+  qualityBatch: (kept: number[], skipped: { frame: number; lighting: boolean }[]) => string;
   hint: string;
   preparing: string;
   analyzing: string;
@@ -131,20 +131,36 @@ const en: Copy = {
   qualityTooFar: "Move closer to the bed. This photo is too far away for a reliable check.",
   qualityUnclear: "This photo is not clearly in view. Hold the phone steady and fill the frame with the plant.",
   qualityMixed: "Move closer and take a clearer photo. These ones are too far away or not clearly in view.",
-  qualityHarshLight: "The light is too harsh to read this plant. Turn so the sun is at your back, and fill the frame with the plant in even light.",
+  qualityHarshLight: (frames, total) => {
+    const subject =
+      total === 1 ? "the image" : frames.length === 1 ? `image ${frames[0]}` : `images ${frames.join(" and ")}`;
+    return `Lighting in ${subject} is not good enough. Please upload ${frames.length === 1 ? "an image" : "images"} with better lighting.`;
+  },
   qualityBatch: (kept, skipped) => {
-    const list = skipped.join(" and ");
-    const skippedClause =
-      skipped.length === 1
-        ? `Image ${list} was too far away or not clear enough.`
-        : `Images ${list} were too far away or not clear enough.`;
+    const lit = skipped.filter((item) => item.lighting).map((item) => item.frame);
+    const other = skipped.filter((item) => !item.lighting).map((item) => item.frame);
     const keptClause =
-      kept === 2 && skipped.length === 1 && skipped[0] === 3
-        ? "Results were derived from the first two images."
-        : kept === 1
-          ? "Results were derived from the other image."
-          : `Results were derived from the other ${kept} images.`;
-    return `${keptClause} ${skippedClause}`;
+      kept.length === 1
+        ? `This check only used image ${kept[0]}.`
+        : `This check only used the ${kept.length} good images (${kept.join(" and ")}).`;
+    const clauses = [keptClause];
+    if (lit.length > 0) {
+      const list = lit.join(" and ");
+      clauses.push(
+        lit.length === 1
+          ? `Image ${list} was left out because the lighting is not good enough. Please upload it again with better lighting.`
+          : `Images ${list} were left out because the lighting is not good enough. Please upload them again with better lighting.`,
+      );
+    }
+    if (other.length > 0) {
+      const list = other.join(" and ");
+      clauses.push(
+        other.length === 1
+          ? `Image ${list} was left out because it was too far away or not clear enough.`
+          : `Images ${list} were left out because they were too far away or not clear enough.`,
+      );
+    }
+    return clauses.join(" ");
   },
   hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
@@ -288,15 +304,31 @@ const sw: Copy = {
   qualityTooFar: "Sogea karibu na kitanda. Picha hii iko mbali sana kwa ukaguzi wa kuaminika.",
   qualityUnclear: "Picha hii haionekani vizuri. Shika simu kwa utulivu na ujaze fremu na mmea.",
   qualityMixed: "Sogea karibu na upige picha iliyo wazi zaidi. Hizi ziko mbali sana au hazionekani vizuri.",
-  qualityHarshLight: "Mwanga uko mkali sana kuona mmea huu. Geuza ili jua liwe nyuma yako, na ujaze fremu na mmea kwenye mwanga ulio sawa.",
+  qualityHarshLight: (frames, total) => {
+    const subject = total === 1 ? "picha hii" : `picha ${frames.join(" na ")}`;
+    return `Mwanga kwenye ${subject} hautoshi. Tafadhali pakia picha yenye mwanga bora zaidi.`;
+  },
   qualityBatch: (kept, skipped) => {
-    const list = skipped.join(" na ");
-    const skippedClause =
-      skipped.length === 1
-        ? `Picha ${list} ilikuwa mbali sana au haikuonekana vizuri.`
-        : `Picha ${list} zilikuwa mbali sana au hazikuonekana vizuri.`;
-    const keptClause = kept === 1 ? "Matokeo yametoka kwenye picha nyingine." : `Matokeo yametoka kwenye picha ${kept} nyingine.`;
-    return `${keptClause} ${skippedClause}`;
+    const lit = skipped.filter((item) => item.lighting).map((item) => item.frame);
+    const other = skipped.filter((item) => !item.lighting).map((item) => item.frame);
+    const clauses = [
+      kept.length === 1
+        ? `Ukaguzi huu ulitumia picha ${kept[0]} pekee.`
+        : `Ukaguzi huu ulitumia picha ${kept.length} nzuri pekee (${kept.join(" na ")}).`,
+    ];
+    if (lit.length > 0) {
+      clauses.push(
+        `Picha ${lit.join(" na ")} ${lit.length === 1 ? "iliachwa" : "ziliachwa"} kwa sababu mwanga hautoshi. Tafadhali pakia tena yenye mwanga bora zaidi.`,
+      );
+    }
+    if (other.length > 0) {
+      clauses.push(
+        other.length === 1
+          ? `Picha ${other[0]} iliachwa kwa sababu ilikuwa mbali sana au haikuonekana vizuri.`
+          : `Picha ${other.join(" na ")} ziliachwa kwa sababu zilikuwa mbali sana au hazikuonekana vizuri.`,
+      );
+    }
+    return clauses.join(" ");
   },
   hint: "Jaza fremu na mmea mmoja au kitanda kimoja. Mwanga wa asubuhi na simu tulivu husaidia.",
   preparing: "Inatayarisha picha…",

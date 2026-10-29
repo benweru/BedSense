@@ -63,6 +63,68 @@ describe("photo quality gate", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const near = pngDataUrl();
     const far = dataUrl(readFileSync("fixtures/chili/IMG_8975.jpg"));
+    const { body, museImages } = await runBatch([near, near, far], [far]);
+    expect(body.qualityHold).toBeNull();
+    expect(body.qualityNote).toBe(copy.en.qualityBatch([1, 2], [{ frame: 3, lighting: false }]));
+    expect(body.qualityNote).toContain("only used the 2 good images (1 and 2)");
+    expect(body.likelyCauses.length).toBeGreaterThan(1);
+    expect(body.models.triageSource).toBe("muse");
+    expect(museImages).toEqual([[near, near]]);
+    expect(JSON.stringify(museImages)).not.toContain("IMG_8975");
+  });
+
+  it("runs on the two good photos and names the photo dropped for lighting", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const near = pngDataUrl();
+    const dark = dataUrl(crushedJpeg());
+    const { body, museImages } = await runBatch([near, dark, near], [dark]);
+    expect(body.qualityHold).toBeNull();
+    expect(body.qualityNote).toBe(
+      "This check only used the 2 good images (1 and 3). Image 2 was left out because the lighting is not good enough. Please upload it again with better lighting.",
+    );
+    expect(museImages).toEqual([[near, near]]);
+  });
+
+  it("does not call Muse for a crushed-contrast photo with no strong mark", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+    const chats: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
+      if (String(url).endsWith("/responses")) return Response.json({ output_text: "" });
+      chats.push(String(url));
+      return Response.json({ choices: [{ message: { content: "{}" } }] });
+    }));
+    const response = await POST(jsonRequest({ image: dataUrl(crushedJpeg()), plantName: "chili" }));
+    const body = await response.json();
+    expect(body.qualityHold).toBe("harsh_light");
+    expect(body.qualityMessage).toBe("Lighting in the image is not good enough. Please upload an image with better lighting.");
+    expect(body.likelyCauses).toEqual([]);
+    expect(body.models.muse).toBeNull();
+    expect(chats).toEqual([]);
+  });
+
+  it("names which photos have poor lighting when none can be used", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
+      return Response.json({ output_text: "" });
+    }));
+    const dark = dataUrl(crushedJpeg());
+    const response = await POST(jsonRequest({ images: [dark, dark], plantName: "chili" }));
+    const body = await response.json();
+    expect(body.qualityHold).toBe("harsh_light");
+    expect(body.qualityMessage).toBe("Lighting in images 1 and 2 is not good enough. Please upload images with better lighting.");
+  });
+});
+
+async function runBatch(images: string[], blank: string[]) {
     const museImages: string[][] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
       if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
@@ -72,7 +134,7 @@ describe("photo quality gate", () => {
       };
       if (String(url).endsWith("/responses")) {
         const image = body.input?.[0]?.content.find((part) => part.type === "input_image")?.image_url ?? "";
-        const text = image === far ? "" : BUTTON_OUTPUT;
+        const text = blank.includes(image) ? "" : BUTTON_OUTPUT;
         return Response.json({ output_text: text });
       }
       const content = body.messages?.[1]?.content ?? body.messages?.find((message) => Array.isArray(message.content))?.content ?? [];
@@ -99,18 +161,12 @@ describe("photo quality gate", () => {
         }],
       });
     }));
-    const response = await POST(jsonRequest({ images: [near, near, far], plantName: "chili" }));
+    const response = await POST(jsonRequest({ images, plantName: "chili" }));
     expect(response.status).toBe(200);
-    const body = await response.json();
-    expect(body.qualityHold).toBeNull();
-    expect(body.qualityNote).toBe(copy.en.qualityBatch(2, [3]));
-    expect(body.qualityNote).toContain("first two images");
-    expect(body.likelyCauses.length).toBeGreaterThan(1);
-    expect(body.models.triageSource).toBe("muse");
-    expect(museImages).toEqual([[near, near]]);
-    expect(JSON.stringify(museImages)).not.toContain("IMG_8975");
-  });
+    return { body: await response.json(), museImages };
+}
 
+describe("photo light gate", () => {
   it("holds crushed light when marks are weak, and still checks hard sun when a mark is strong", () => {
     const hardSun = measureJpeg(readFileSync("fixtures/chili/IMG_8965.jpg"));
     expect(hardSun).not.toBeNull();
@@ -119,26 +175,6 @@ describe("photo quality gate", () => {
     expect(judgeFrame({ masks: [], sharpness: 0.4, skyFraction: 0.01, contrastRange: 0.1, shadowFraction: 0.02, highlightFraction: 0.01 })).toBe("harsh_light");
     expect(judgeFrame({ masks: [{ confidence: 0.15, areaFraction: 0.003 }], sharpness: 0.4, skyFraction: 0.01, contrastRange: 0.3, shadowFraction: 0.05, highlightFraction: 0.02 })).toBe("harsh_light");
     expect(judgeFrame({ masks: [{ confidence: 0.8, areaFraction: 0.05 }], sharpness: 0.4, skyFraction: 0.01, contrastRange: 0.1, shadowFraction: 0.4, highlightFraction: 0.2 })).toBe("use");
-  });
-
-  it("does not call Muse for a crushed-contrast photo with no strong mark", async () => {
-    vi.stubEnv("MOCK_META", "0");
-    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
-    for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
-    const chats: string[] = [];
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
-      if (String(url).endsWith("/models")) return Response.json({ data: [{ id: "muse-spark-1.3-contributor" }] });
-      if (String(url).endsWith("/responses")) return Response.json({ output_text: "" });
-      chats.push(String(url));
-      return Response.json({ choices: [{ message: { content: "{}" } }] });
-    }));
-    const response = await POST(jsonRequest({ image: dataUrl(crushedJpeg()), plantName: "chili" }));
-    const body = await response.json();
-    expect(body.qualityHold).toBe("harsh_light");
-    expect(body.qualityMessage).toBe(copy.en.qualityHarshLight);
-    expect(body.likelyCauses).toEqual([]);
-    expect(body.models.muse).toBeNull();
-    expect(chats).toEqual([]);
   });
 });
 
