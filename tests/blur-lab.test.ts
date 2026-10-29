@@ -47,7 +47,7 @@ describe("blur lab", () => {
     const doc = [
       "# Blur gate on the chili photos (offline)",
       "",
-      "Each farm photo is shrunk to the 1280 px upload size, then blurred. The number is the sharpness score the server computes; below 0.12 the photo is held as unclear when SAM has no strong mark.",
+      "Each farm photo is shrunk to the 1280 px upload size, then blurred. The number is the sharpness score the server computes; below 0.2 the photo is held as unclear when SAM has no strong mark.",
       "",
       `| photo | ${BLUR_LEVELS.map((level) => level.label).join(" | ")} |`,
       `| --- | ${BLUR_LEVELS.map(() => "---").join(" | ")} |`,

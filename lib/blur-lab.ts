@@ -1,7 +1,7 @@
 import jpeg from "jpeg-js";
 import { emptyConceptCounts } from "@/lib/concepts";
 import { emptyFarmerContext } from "@/lib/context";
-import { judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
+import { isUnsureRead, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
 import { adviseBed } from "@/lib/server/muse";
 import { segmentBed } from "@/lib/server/sam";
 import { AnalyzeError, type ConceptId } from "@/lib/types";
@@ -212,7 +212,9 @@ export function blurLabReport(grades: readonly BlurGrade[], keys: Record<string,
       if (clean(grade.photo)?.samConcepts.join(",") === grade.samConcepts.join(",")) sameConcepts += 1;
     }
     const held = rows.filter((grade) => grade.gate !== "use").length;
-    const diagnosedPastGate = rows.filter((grade) => grade.gate === "use" && grade.museDiagnosis).length;
+    const diagnosedPastGate = rows.filter(
+      (grade) => grade.gate === "use" && grade.museDiagnosis && !isUnsureRead(grade.samConcepts.length, grade.confidence),
+    ).length;
     return `| ${level.label} | ${pct(rows.filter((grade) => grade.samChili).length, rows.length)} | ${pct(sameConcepts, rows.length)} | ${pct(hits, total)} | ${invented} | ${pct(held, rows.length)} | ${pct(diagnosedPastGate, rows.length)} |`;
   });
   const detail = grades.map(
@@ -224,7 +226,7 @@ export function blurLabReport(grades: readonly BlurGrade[], keys: Record<string,
     "",
     "Each farm photo is shrunk to the 1280 px upload size and blurred at four levels, then sent to SAM 3.1 and Muse with plant name Chili and no notes. Features Muse named are read from its observations and compared with a hand-made answer key (green pods, red or ripe pods, flowers, yellow leaves) in fixtures/chili/manifest.json.",
     "",
-    "| blur | SAM found chili | SAM labels same as clean | Muse named real features | Muse named absent features | gate held | gate passed and Muse diagnosed |",
+    "| blur | SAM found chili | SAM labels same as clean | Muse named real features | Muse named absent features | gate held | farmer shown a diagnosis |",
     "| --- | --- | --- | --- | --- | --- | --- |",
     ...levelRows,
     "",
