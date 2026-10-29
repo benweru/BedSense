@@ -11,10 +11,9 @@
     "museDiagnosis": true,
     "museSaw": [
       "pods",
-      "flowers",
-      "yellowLeaf"
+      "flowers"
     ],
-    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
     "confidence": 0.85,
     "failure": null
   },
@@ -31,7 +30,7 @@
       "flowers"
     ],
     "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.6,
+    "confidence": 0.4,
     "failure": null
   },
   {
@@ -58,8 +57,8 @@
     "samChili": false,
     "museDiagnosis": true,
     "museSaw": [],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.35,
+    "symptom": "Wilting on Chili is often dry soil, damaged roots, or a stem infection. Some wilts are not helped by a spray.",
+    "confidence": 0.3,
     "failure": null
   },
   {
@@ -72,10 +71,9 @@
     "museDiagnosis": true,
     "museSaw": [
       "pods",
-      "flowers",
-      "yellowLeaf"
+      "flowers"
     ],
-    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
     "confidence": 0.4,
     "failure": null
   },
@@ -94,8 +92,8 @@
       "pods",
       "yellowLeaf"
     ],
-    "symptom": "Natural senescence of older lower leaves on a fruiting plant",
-    "confidence": 0.65,
+    "symptom": "Natural senescence of older lower leaves",
+    "confidence": 0.62,
     "failure": null
   },
   {
@@ -107,10 +105,11 @@
     "samChili": false,
     "museDiagnosis": true,
     "museSaw": [
-      "pods"
+      "pods",
+      "yellowLeaf"
     ],
     "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.55,
+    "confidence": 0.4,
     "failure": null
   },
   {
@@ -120,11 +119,13 @@
     "gate": "use",
     "samConcepts": [],
     "samChili": false,
-    "museDiagnosis": false,
-    "museSaw": [],
-    "symptom": "",
-    "confidence": 0.4,
-    "failure": "muse"
+    "museDiagnosis": true,
+    "museSaw": [
+      "pods"
+    ],
+    "symptom": "Yellowing on Chili is often water, nitrogen, or older leaves finishing, and sometimes a pest or a root problem.",
+    "confidence": 0.35,
+    "failure": null
   },
   {
     "photo": "hard-light",
@@ -135,7 +136,7 @@
     "samChili": false,
     "museDiagnosis": true,
     "museSaw": [],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "symptom": "Yellowing on Chili is often water, nitrogen, or older leaves finishing, and sometimes a pest or a root problem.",
     "confidence": 0.35,
     "failure": null
   },
@@ -148,7 +149,7 @@
     "samChili": false,
     "museDiagnosis": true,
     "museSaw": [],
-    "symptom": "Yellowing on Chili is often water, nitrogen, or older leaves finishing, and sometimes a pest or a root problem.",
+    "symptom": "Sucking insects feeding on young growth causing leaf narrowing and curl",
     "confidence": 0.4,
     "failure": null
   },
@@ -160,11 +161,9 @@
     "samConcepts": [],
     "samChili": false,
     "museDiagnosis": true,
-    "museSaw": [
-      "yellowLeaf"
-    ],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.4,
+    "museSaw": [],
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.6,
     "failure": null
   },
   {
@@ -176,7 +175,7 @@
     "samChili": false,
     "museDiagnosis": true,
     "museSaw": [],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
     "confidence": 0.4,
     "failure": null
   },
@@ -190,7 +189,7 @@
     "museDiagnosis": true,
     "museSaw": [],
     "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.35,
+    "confidence": 0.3,
     "failure": null
   },
   {
@@ -203,7 +202,6 @@
     "museDiagnosis": true,
     "museSaw": [
       "pods",
-      "flowers",
       "yellowLeaf"
     ],
     "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
@@ -220,7 +218,7 @@
     "museDiagnosis": true,
     "museSaw": [],
     "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
-    "confidence": 0.35,
+    "confidence": 0.3,
     "failure": null
   },
   {
@@ -237,8 +235,8 @@
       "pods",
       "flowers"
     ],
-    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
-    "confidence": 0.8,
+    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
+    "confidence": 0.85,
     "failure": null
   },
   {
@@ -254,7 +252,7 @@
       "ripe"
     ],
     "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.55,
+    "confidence": 0.6,
     "failure": null
   },
   {
@@ -285,8 +283,8 @@
       "pods",
       "ripe"
     ],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.3,
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
+    "confidence": 0.35,
     "failure": null
   },
   {
@@ -302,7 +300,7 @@
       "ripe"
     ],
     "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.4,
+    "confidence": 0.5,
     "failure": null
   },
   {
@@ -322,7 +320,7 @@
       "yellowLeaf"
     ],
     "symptom": "Natural senescence of older lower leaves under heavy fruit load",
-    "confidence": 0.65,
+    "confidence": 0.6,
     "failure": null
   },
   {
@@ -341,7 +339,7 @@
       "ripe",
       "yellowLeaf"
     ],
-    "symptom": "Natural senescence and shading of older lower leaves under dense canopy",
+    "symptom": "Natural aging of lower shaded leaves",
     "confidence": 0.6,
     "failure": null
   },
@@ -360,8 +358,8 @@
       "ripe",
       "yellowLeaf"
     ],
-    "symptom": "Natural aging of older lower leaves during heavy fruiting",
-    "confidence": 0.55,
+    "symptom": "Natural lower-leaf senescence or nitrogen mobilization to developing fruits",
+    "confidence": 0.45,
     "failure": null
   },
   {
@@ -376,8 +374,8 @@
       "pods",
       "ripe"
     ],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.35,
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
+    "confidence": 0.3,
     "failure": null
   },
   {
@@ -396,8 +394,8 @@
       "ripe",
       "yellowLeaf"
     ],
-    "symptom": "Natural senescence of older lower leaves with possible nutrient deficiency",
-    "confidence": 0.6,
+    "symptom": "Natural aging of older lower leaves with possible nutrient stress",
+    "confidence": 0.55,
     "failure": null
   },
   {
@@ -414,8 +412,8 @@
       "pods",
       "flowers"
     ],
-    "symptom": "Thrips or mite feeding damage during flower and early fruit set",
-    "confidence": 0.65,
+    "symptom": "Early sucking pest feeding distorting young fruit growth",
+    "confidence": 0.6,
     "failure": null
   },
   {
@@ -430,9 +428,10 @@
     "museDiagnosis": true,
     "museSaw": [
       "pods",
-      "flowers"
+      "flowers",
+      "yellowLeaf"
     ],
-    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
     "confidence": 0.6,
     "failure": null
   },
@@ -460,11 +459,9 @@
     "samConcepts": [],
     "samChili": false,
     "museDiagnosis": true,
-    "museSaw": [
-      "pods"
-    ],
+    "museSaw": [],
     "symptom": "Curling on Chili is often sucking pests (mites, thrips, or whitefly), a virus they spread, or a sharp change in water.",
-    "confidence": 0.35,
+    "confidence": 0.3,
     "failure": null
   },
   {
@@ -481,8 +478,8 @@
       "pods",
       "flowers"
     ],
-    "symptom": "Spots on Chili are often a fungus or a bacterium, especially after wet leaves or crowded plants.",
-    "confidence": 0.6,
+    "symptom": "Insects on Chili should be named before a product is chosen. Mites, caterpillars, aphids, and whitefly need different products.",
+    "confidence": 0.55,
     "failure": null
   }
 ]
