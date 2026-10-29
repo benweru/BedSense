@@ -77,6 +77,9 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
         masks,
         sharpness: clarity?.sharpness ?? null,
         skyFraction: clarity?.skyFraction ?? null,
+        contrastRange: clarity?.contrastRange ?? null,
+        shadowFraction: clarity?.shadowFraction ?? null,
+        highlightFraction: clarity?.highlightFraction ?? null,
       });
       return {
         frame,
@@ -131,8 +134,16 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       verdicts: segmented.map((photo) => (photo.verdict === "use" ? "unclear" : photo.verdict)),
     });
   }
-  const skipped = segmented.filter((photo) => photo.verdict !== "use").map((photo) => photo.frame + 1);
-  const qualityNote = skipped.length > 0 ? copy[locale].qualityBatch(usable.length, skipped) : null;
+  const skipped = segmented
+    .filter((photo) => photo.verdict !== "use")
+    .map((photo) => ({ frame: photo.frame + 1, lighting: photo.verdict === "harsh_light" }));
+  const qualityNote =
+    skipped.length > 0
+      ? copy[locale].qualityBatch(
+          usable.map((photo) => photo.frame + 1),
+          skipped,
+        )
+      : null;
 
   return {
     id,
@@ -186,8 +197,19 @@ function withheldResult(options: {
     ? "too_far"
     : rejected.every((verdict) => verdict === "unclear")
       ? "unclear"
-      : "mixed";
-  const qualityMessage = hold === "too_far" ? text.qualityTooFar : hold === "unclear" ? text.qualityUnclear : text.qualityMixed;
+      : rejected.every((verdict) => verdict === "harsh_light")
+        ? "harsh_light"
+        : "mixed";
+  const dark = options.verdicts.flatMap((verdict, index) => (verdict === "harsh_light" ? [index + 1] : []));
+  const lighting = dark.length > 0 ? text.qualityHarshLight(dark, options.verdicts.length) : "";
+  const qualityMessage =
+    hold === "too_far"
+      ? text.qualityTooFar
+      : hold === "unclear"
+        ? text.qualityUnclear
+        : hold === "harsh_light"
+          ? lighting
+          : [text.qualityMixed, lighting].filter(Boolean).join(" ");
   return {
     id: options.id,
     createdAt: options.createdAt,
