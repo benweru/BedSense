@@ -6,6 +6,7 @@ import { contextText, inferIssue, issueActives, issueTriage, sprayIsUsual, type 
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
 import { displayPlantName, matchPlant, type KnownPlant } from "@/lib/plants";
+import { researchFertilizers, researchFor } from "@/lib/research";
 import { finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
@@ -159,6 +160,8 @@ function issueResult(options: {
     context: options.context,
     issue: options.issue,
   });
+  const research = researchFor("", options.issue);
+  const fertilizers = researchFertilizers(research);
   const chemicals = sprayIsUsual(options.issue, contextText(options.context), null)
     ? adviseChemicals({
         locale: options.locale,
@@ -166,7 +169,14 @@ function issueResult(options: {
         suspect: story.hypotheses[0],
         chemicals: issueActives(options.issue),
       })
-    : null;
+    : fertilizers.length > 0
+      ? adviseChemicals({
+          locale: options.locale,
+          diseaseIndicated: true,
+          suspect: story.hypotheses[0],
+          chemicals: fertilizers,
+        })
+      : null;
 
   return {
     id: options.id,

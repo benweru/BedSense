@@ -2,6 +2,8 @@ import { copy } from "@/lib/copy";
 import { emptyFarmerContext } from "@/lib/context";
 import { contextText, inferIssue, issueTriage, parseIssue, type IssueId } from "@/lib/issues";
 import { displayPlantName, foldPlantSpelling, matchPlant } from "@/lib/plants";
+import { researchFor, researchPractices } from "@/lib/research";
+import { repairSentences } from "@/lib/translate";
 import type { ConceptCounts, ConceptId, ConfidenceLevel, CropId, FarmerContext, Locale } from "@/lib/types";
 import { CROPS } from "@/lib/types";
 
@@ -170,6 +172,8 @@ export function finalizeTriage(options: {
     : (parseIssue(options.issue) ?? parseIssue(options.symptom) ?? inferIssue(findingText) ?? inferIssue(textList(rawActions)));
   const plantLabel = displayPlantName(options.locale, plantName) || text.unknownPlant;
   const story = issue ? issueTriage(options.locale, plantLabel, issue) : null;
+  const suspectText = typeof options.suspect === "string" ? options.suspect : "";
+  const research = researchFor(suspectText, issue);
   const line = (values: readonly unknown[], max: number) => cleanLines(values, max, allowed, options.counts, plantName, options.locale);
 
   let notes = line(rawObservations, 280);
@@ -180,6 +184,11 @@ export function finalizeTriage(options: {
 
   let likelyCauses = line(Array.isArray(options.likelyCauses) ? options.likelyCauses : [], 320);
   let mitigations = line(Array.isArray(options.mitigations) ? options.mitigations : [], 320);
+  // The model's own steps first, then researched practices for the named
+  // suspect, then the generic issue story. Each pass keeps its cap.
+  if (research) {
+    mitigations = topUp(mitigations, line(researchPractices(research, options.locale, plantLabel), 320), 3);
+  }
   if (story) {
     likelyCauses = topUp(likelyCauses, line(story.hypotheses, 320), 3);
     mitigations = topUp(mitigations, line(story.mitigations, 320), 3);
@@ -205,11 +214,18 @@ export function finalizeTriage(options: {
     confidenceScore = Math.min(confidenceScore, 0.4);
   }
 
+  const checks: [string, string, string] = [
+    actions[0] ?? text.fallbackActions[0],
+    actions[1] ?? text.fallbackActions[1],
+    actions[2] ?? text.fallbackActions[2],
+  ];
+  // A `sw` reading repairs English drift in place. Proper Swahili passes through untouched.
+  const repaired = repairSentences(options.locale, checks);
   return {
-    observations,
-    actions: [actions[0] ?? text.fallbackActions[0], actions[1] ?? text.fallbackActions[1], actions[2] ?? text.fallbackActions[2]],
-    likelyCauses,
-    mitigations,
+    observations: repairSentences(options.locale, observations),
+    actions: [repaired[0] ?? checks[0], repaired[1] ?? checks[1], repaired[2] ?? checks[2]],
+    likelyCauses: repairSentences(options.locale, likelyCauses),
+    mitigations: repairSentences(options.locale, mitigations),
     issue,
     sprayEvidence: findingText,
     confidence,

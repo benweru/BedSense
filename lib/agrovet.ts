@@ -1,6 +1,7 @@
 import { AGROVET_CATALOG, type CatalogEntry } from "@/lib/agrovet-catalog";
 import { copy } from "@/lib/copy";
 import { containsDosage } from "@/lib/triage";
+import { repairSentence, repairSuspect } from "@/lib/translate";
 import type { ChemicalAdvice, ChemicalProduct, Locale, ShopOffer } from "@/lib/types";
 
 /**
@@ -23,11 +24,13 @@ export function adviseChemicals(options: {
   const flagged = isIndicated(options.diseaseIndicated);
   if (!flagged && parsed.products.length === 0) return null;
   const text = copy[options.locale];
-  const suspect = cleanProse(options.suspect, 140) ?? text.chemicalsSuspectFallback;
+  const suspect = repairSuspect(options.locale, cleanProse(options.suspect, 140) ?? text.chemicalsSuspectFallback);
+  const fertilizerOnly =
+    parsed.products.length > 0 && parsed.products.every((product) => matchCatalog(product.activeIngredient)?.kind === "fertilizer");
   return {
     suspect,
     products: parsed.products,
-    verifyNote: text.verifyNote,
+    verifyNote: fertilizerOnly ? text.fertilizerVerifyNote : text.verifyNote,
     priceNote: text.priceNote,
     lookup: parsed.usedLive ? "live" : "catalog",
   };
@@ -54,13 +57,14 @@ function parseProducts(value: unknown, locale: Locale): { products: ChemicalProd
     if (seen.has(key)) continue;
     seen.add(key);
     const modelNote = cleanProse(record.useNote, 280);
+    const repairedNote = modelNote ? repairSentence(locale, modelNote) : "";
     const modelClass = cleanLabel(record.productClass, 60);
     const live = entry ? liveKenyaShopOffers(entry.name) : liveKenyaShopOffers(rawActive);
     if (live && live.length > 0) usedLive = true;
     products.push({
       activeIngredient: entry?.name ?? rawActive,
       productClass: entry?.productClass[locale] ?? modelClass ?? text.chemicalClassFallback,
-      useNote: modelNote ?? entry?.useNote[locale] ?? text.chemicalUseFallback,
+      useNote: repairedNote || entry?.useNote[locale] || text.chemicalUseFallback,
       offers: live && live.length > 0 ? live : entry ? catalogOffers(entry, locale) : [],
     });
   }

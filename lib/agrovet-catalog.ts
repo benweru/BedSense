@@ -1,10 +1,10 @@
 import type { Locale, QualityBand } from "@/lib/types";
 
 /**
- * Curated example catalog of fungicides and insecticides commonly sold
- * through Kenyan agrovets. KES figures are wide demo bands, not a live
- * quote and not a spray rate. There is no free public price API on this
- * path; `liveKenyaShopOffers` is the swap point.
+ * Curated example catalog of fungicides, insecticides, and fertilizers
+ * commonly sold through Kenyan agrovets. KES figures are wide demo bands,
+ * not a live quote and not a spray rate. There is no free public price API
+ * on this path; `liveKenyaShopOffers` is the swap point.
  */
 export type CatalogOffer = {
   quality: QualityBand;
@@ -17,9 +17,12 @@ export type CatalogOffer = {
   priceMaxKes: number;
 };
 
+export type CatalogKind = "chemical" | "fertilizer";
+
 export type CatalogEntry = {
   id: string;
   name: string;
+  kind: CatalogKind;
   aliases: string[];
   productClass: Record<Locale, string>;
   useNote: Record<Locale, string>;
@@ -34,6 +37,7 @@ export const AGROVET_CATALOG: readonly CatalogEntry[] = [
   {
     id: "mancozeb",
     name: "Mancozeb",
+    kind: "chemical",
     aliases: ["mancozeb", "dithane", "oshothane"],
     productClass: { en: "fungicide", sw: "dawa ya ukungu" },
     useNote: {
@@ -76,6 +80,7 @@ export const AGROVET_CATALOG: readonly CatalogEntry[] = [
   {
     id: "metalaxyl-mancozeb",
     name: "Metalaxyl-M + mancozeb",
+    kind: "chemical",
     aliases: ["metalaxyl-m + mancozeb", "metalaxyl", "mefenoxam", "ridomil"],
     productClass: { en: "fungicide", sw: "dawa ya ukungu" },
     useNote: {
@@ -118,6 +123,7 @@ export const AGROVET_CATALOG: readonly CatalogEntry[] = [
   {
     id: "copper-oxychloride",
     name: "Copper oxychloride",
+    kind: "chemical",
     aliases: ["copper oxychloride", "cupravit", "coprox", "copper"],
     productClass: { en: "fungicide", sw: "dawa ya ukungu" },
     useNote: {
@@ -160,6 +166,7 @@ export const AGROVET_CATALOG: readonly CatalogEntry[] = [
   {
     id: "lambda-cyhalothrin",
     name: "Lambda-cyhalothrin",
+    kind: "chemical",
     aliases: ["lambda-cyhalothrin", "lambda cyhalothrin", "karate"],
     productClass: { en: "insecticide", sw: "dawa ya wadudu" },
     useNote: {
@@ -202,6 +209,7 @@ export const AGROVET_CATALOG: readonly CatalogEntry[] = [
   {
     id: "abamectin",
     name: "Abamectin",
+    kind: "chemical",
     aliases: ["abamectin", "dynamec"],
     productClass: { en: "insecticide", sw: "dawa ya wadudu" },
     useNote: {
@@ -238,6 +246,135 @@ export const AGROVET_CATALOG: readonly CatalogEntry[] = [
         place: "Nairobi",
         priceMinKes: 1800,
         priceMaxKes: 3200,
+      },
+    ],
+  },
+  {
+    id: "can",
+    name: "Calcium ammonium nitrate (CAN)",
+    kind: "fertilizer",
+    aliases: ["calcium ammonium nitrate (can)", "calcium ammonium nitrate", "can 26", "calcium ammonium nitrate 26", "can"],
+    productClass: { en: "fertilizer", sw: "mbolea" },
+    useNote: {
+      en: "Nitrogen top-dress for leafy vegetables that are short of nitrogen. The rate must follow the product label.",
+      sw: "Mbolea ya juu yenye nitrojeni kwa mboga za majani zinazokosa nitrojeni. Kipimo kifuate kibandiko cha bidhaa.",
+    },
+    offers: [
+      {
+        quality: "economy",
+        brand: "CAN 26% top-dress",
+        pack: "5 kg",
+        shopName: "Independent agrovet",
+        shopKind: agrovet,
+        place: "Nakuru",
+        priceMinKes: 550,
+        priceMaxKes: 950,
+      },
+      {
+        quality: "mid",
+        brand: "CAN 26%",
+        pack: "25 kg",
+        shopName: "Elgon Kenya",
+        shopKind: distributor,
+        place: "Nairobi, Nakuru",
+        priceMinKes: 2600,
+        priceMaxKes: 3900,
+      },
+      {
+        quality: "premium",
+        brand: "Yara CAN",
+        pack: "50 kg",
+        shopName: "Amiran Kenya",
+        shopKind: stockist,
+        place: "Nairobi",
+        priceMinKes: 5400,
+        priceMaxKes: 7900,
+      },
+    ],
+  },
+  {
+    id: "npk-17",
+    name: "NPK 17-17-17",
+    kind: "fertilizer",
+    aliases: ["npk 17-17-17", "npk fertilizer", "17-17-17", "npk"],
+    productClass: { en: "fertilizer", sw: "mbolea" },
+    useNote: {
+      en: "Balanced fertilizer for vegetables with pale, slow growth. The rate must follow the product label.",
+      sw: "Mbolea yenye mchanganyiko sawa kwa mboga zenye ukuaji hafifu na rangi iliyopauka. Kipimo kifuate kibandiko cha bidhaa.",
+    },
+    offers: [
+      {
+        quality: "economy",
+        brand: "NPK 17-17-17",
+        pack: "5 kg",
+        shopName: "Independent agrovet",
+        shopKind: agrovet,
+        place: "Eldoret",
+        priceMinKes: 750,
+        priceMaxKes: 1250,
+      },
+      {
+        quality: "mid",
+        brand: "NPK 17-17-17",
+        pack: "25 kg",
+        shopName: "Twiga stockist",
+        shopKind: stockist,
+        place: "Nairobi",
+        priceMinKes: 3400,
+        priceMaxKes: 5100,
+      },
+      {
+        quality: "premium",
+        brand: "NPK 17-17-17",
+        pack: "50 kg",
+        shopName: "Amiran Kenya",
+        shopKind: stockist,
+        place: "Nairobi",
+        priceMinKes: 6400,
+        priceMaxKes: 9500,
+      },
+    ],
+  },
+  {
+    id: "urea",
+    name: "Urea 46%",
+    kind: "fertilizer",
+    aliases: ["urea 46%", "urea 46", "urea"],
+    productClass: { en: "fertilizer", sw: "mbolea" },
+    useNote: {
+      en: "Strong nitrogen fertilizer for nitrogen-hungry vegetables. Too much burns the leaves, so the rate must follow the product label.",
+      sw: "Mbolea kali yenye nitrojeni kwa mboga zinazohitaji nitrojeni nyingi. Ziada huunguza majani, kwa hiyo kipimo kifuate kibandiko cha bidhaa.",
+    },
+    offers: [
+      {
+        quality: "economy",
+        brand: "Urea 46%",
+        pack: "5 kg",
+        shopName: "Independent agrovet",
+        shopKind: agrovet,
+        place: "Kisumu",
+        priceMinKes: 600,
+        priceMaxKes: 1000,
+      },
+      {
+        quality: "mid",
+        brand: "Urea 46%",
+        pack: "25 kg",
+        shopName: "Elgon Kenya",
+        shopKind: distributor,
+        place: "Nairobi, Eldoret",
+        priceMinKes: 2900,
+        priceMaxKes: 4400,
+      },
+      {
+        quality: "premium",
+        brand: "Urea 46%",
+        pack: "50 kg",
+        shopName: "Amiran Kenya",
+        shopKind: stockist,
+        place: "Nairobi",
+        priceMinKes: 5600,
+        priceMaxKes: 8400,
       },
     ],
   },
