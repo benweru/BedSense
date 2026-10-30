@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MaskCanvas } from "@/components/mask-canvas";
+import { PlantMemory, PlantsHomeCard, ProgressNote, type SavedPlant } from "@/components/plant-memory";
+import { SiteChrome } from "@/components/site-chrome";
 import { VoiceContext } from "@/components/voice-context";
 import { CONCEPTS } from "@/lib/concepts";
 import { NOTES_LIMIT, contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, forgetCheck, rememberCheck } from "@/lib/history";
 import { parseFarmerPlant } from "@/lib/plant-name";
-import { clearHistoryStore, useHistory, useLocale, writeHistory, writeLocale } from "@/lib/phone-store";
+import { clearHistoryStore, useHistory, useLocale, writeHistory } from "@/lib/phone-store";
 import {
   QUALITY_BANDS,
   type AnalyzeResult,
@@ -27,7 +29,7 @@ type PreparedPhoto = {
 
 type Phase = "idle" | "preparing" | "analyzing" | "ready" | "error";
 
-export function BedSenseApp() {
+export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
@@ -46,7 +48,18 @@ export function BedSenseApp() {
   const [plantName, setPlantName] = useState("");
   const [plantError, setPlantError] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [savedPlant, setSavedPlant] = useState<SavedPlant | null>(null);
+  const [memoryRefresh, setMemoryRefresh] = useState(0);
   const text = copy[locale];
+
+  const choosePlant = useCallback((plant: SavedPlant | null) => {
+    setSavedPlant(plant);
+    if (plant) {
+      setPlantName(plant.name);
+      setPlantError(false);
+    }
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale === "sw" ? "sw" : "en";
@@ -57,10 +70,6 @@ export function BedSenseApp() {
     const timer = window.setTimeout(() => setProgressStep(2), 4000);
     return () => window.clearTimeout(timer);
   }, [phase]);
-
-  function chooseLocale(next: Locale) {
-    writeLocale(next);
-  }
 
   function markPlantMissing() {
     setPlantError(true);
@@ -100,8 +109,7 @@ export function BedSenseApp() {
         return;
       }
       setPlantError(false);
-      if (mode === "replace" && next.length === 1) await runCheck(next);
-      else setPhase("idle");
+      setPhase("idle");
     } catch {
       if (ticket !== runRef.current) return;
       setPhase("error");
@@ -142,6 +150,7 @@ export function BedSenseApp() {
           height: batch[0]?.height,
           context: { ...emptyFarmerContext(), notes: context.notes },
           plantName: named,
+          plantId: savedPlant?.id,
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
@@ -163,6 +172,7 @@ export function BedSenseApp() {
         return;
       }
       setResult(body);
+      if (body.plantId) setMemoryRefresh((count) => count + 1);
       if (body.contextAsk) {
         setContextOpen(true);
         window.requestAnimationFrame(() => {
@@ -203,6 +213,9 @@ export function BedSenseApp() {
   }
 
   function removeCheck(id: string) {
+    const entry = history.find((item) => item.id === id);
+    const plantId = entry?.result.plantId;
+    if (plantId) void fetch(`/api/plants/${plantId}/checks/${id}`, { method: "DELETE" });
     const next = forgetCheck(history, id);
     writeHistory(next);
     if (result?.id === id && photos.length === 0) {
@@ -223,7 +236,7 @@ export function BedSenseApp() {
     setError(null);
     setContext(emptyFarmerContext());
     setContextOpen(false);
-    setPlantName("");
+    setPlantName(savedPlant?.name ?? "");
     setPlantError(false);
     setProgressStep(0);
     if (cameraRef.current) cameraRef.current.value = "";
@@ -246,32 +259,13 @@ export function BedSenseApp() {
   const sessionLive = Boolean(plantName.trim() || context.notes.trim() || photos.length > 0 || preview || result || error);
 
   return (
-    <main className={`mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pt-5 sm:px-6 sm:pt-8 lg:max-w-6xl lg:px-8 ${photos.length > 0 && !busy ? "pb-36" : "pb-12"}`}>
-      <header className="flex items-start justify-between gap-4">
-        <p className="inline-flex max-w-[16rem] items-center gap-2 font-mono text-[11px] font-medium uppercase leading-5 tracking-[0.22em] text-mute sm:max-w-xl">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-clay" aria-hidden="true" />
-          {text.kicker}
-        </p>
-        <div role="group" aria-label={text.language} className="flex shrink-0 rounded-full border border-white/10 bg-card p-1">
-          {(["en", "sw"] as const).map((code) => (
-            <button
-              key={code}
-              type="button"
-              aria-pressed={locale === code}
-              onClick={() => chooseLocale(code)}
-              className={`min-h-11 min-w-11 rounded-full px-3.5 text-sm font-semibold ${
-                locale === code ? "bg-soil text-paper" : "text-paper"
-              }`}
-            >
-              {code === "en" ? "EN" : "SW"}
-            </button>
-          ))}
-        </div>
-      </header>
-
+    <SiteChrome pad={photos.length > 0 && !busy ? "pb-36" : "pb-12"}>
       <div className="mt-6 sm:mt-8 lg:max-w-3xl">
-        <h1 className="font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.03em] text-paper">{text.title}</h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-mute sm:text-lg lg:font-serif lg:text-2xl lg:leading-snug lg:text-paper/75">{text.lede}</p>
+        {plants ? (
+          <h1 className="font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.03em] text-paper">{locale === "sw" ? "Mimea yangu" : "My plants"}</h1>
+        ) : (
+          <p className="max-w-2xl font-serif text-2xl leading-snug text-paper/80 sm:text-3xl">{text.lede}</p>
+        )}
         {sessionLive && !(photos.length > 0 && !busy) && !(result && !busy) ? (
           <button
             type="button"
@@ -284,8 +278,26 @@ export function BedSenseApp() {
       </div>
 
       <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-stretch lg:gap-5">
-      <div className="min-w-0 space-y-4 lg:rounded-[26px] lg:border lg:border-white/10 lg:bg-card lg:p-5 lg:shadow-[0_24px_60px_-36px_rgba(0,0,0,0.85)]">
-      <div id="home-plant-name" className={plantError ? "rounded-[26px] border border-beet bg-beet/10 p-3 sm:p-4" : ""}>
+      <div className="min-w-0 space-y-8 lg:rounded-[26px] lg:border lg:border-white/10 lg:bg-card lg:p-6 lg:shadow-[0_24px_60px_-36px_rgba(0,0,0,0.85)]">
+      {plants ? (
+        <PlantMemory
+          locale={locale}
+          selected={savedPlant}
+          onSelect={choosePlant}
+          history={history}
+          refreshKey={memoryRefresh}
+          disabled={busy}
+        />
+      ) : (
+        <PlantsHomeCard locale={locale} />
+      )}
+
+      {!plants || savedPlant ? (
+      <>
+      <section id="new-check" className="rounded-[26px] border border-leaf/40 bg-card p-5 sm:p-6">
+        <h2 className="font-serif text-2xl leading-tight text-paper">{text.newCheck}</h2>
+        {savedPlant ? <p className="mt-1 text-sm leading-6 text-mute">{savedPlant.name}</p> : null}
+      <div id="home-plant-name" className={`mt-4 ${plantError ? "rounded-[26px] border border-beet bg-beet/10 p-3 sm:p-4" : ""}`}>
         <label htmlFor="plant-name" className={`block text-base font-semibold ${plantError ? "text-beet" : "text-paper"}`}>
           {text.plantNameLabel}
         </label>
@@ -316,6 +328,7 @@ export function BedSenseApp() {
           </p>
         ) : null}
       </div>
+      </section>
 
       <ContextForm
         text={text}
@@ -332,7 +345,19 @@ export function BedSenseApp() {
         ask={result?.contextAsk ?? null}
       />
 
-      <section className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/60 lg:hover:shadow-[0_0_48px_-18px_rgba(31,157,85,0.55)]">
+      <section
+        className={`rounded-[26px] border bg-card p-5 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 ${dragging ? "border-leaf bg-leaf/10" : "border-white/10 lg:hover:border-leaf/60"}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!busy) setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          if (!busy) void onFiles(event.dataTransfer.files, photos.length > 0 ? "append" : "replace");
+        }}
+      >
         {preview ? (
           <MaskCanvas
             src={photos[frame]?.dataUrl ?? preview}
@@ -346,6 +371,7 @@ export function BedSenseApp() {
           <div className="flex min-h-72 flex-col items-center justify-center rounded-[20px] border border-dashed border-leaf/50 bg-field px-6 py-10 text-center">
             <p className="font-serif text-3xl leading-[1.04] tracking-[-0.03em]">{text.capture}</p>
             <p className="mt-3 max-w-xs text-base leading-6 text-mute">{text.hint}</p>
+            <p className="mt-2 hidden text-sm font-semibold text-leaf lg:block">{text.dropPhoto}</p>
           </div>
         )}
 
@@ -354,7 +380,7 @@ export function BedSenseApp() {
             type="button"
             disabled={busy}
             onClick={() => cameraRef.current?.click()}
-            className="min-h-14 rounded-2xl bg-soil px-3 text-base font-semibold leading-tight text-paper disabled:opacity-60"
+            className="min-h-14 rounded-2xl bg-soil px-3 text-base font-semibold leading-tight text-paper transition-colors hover:bg-leaf disabled:opacity-60"
           >
             {text.capture}
           </button>
@@ -362,7 +388,7 @@ export function BedSenseApp() {
             type="button"
             disabled={busy}
             onClick={() => libraryRef.current?.click()}
-            className="min-h-14 rounded-2xl border border-white/10 bg-field px-3 text-base font-semibold leading-tight text-paper disabled:opacity-60"
+            className="min-h-14 rounded-2xl border border-white/10 bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-clay hover:text-clay disabled:opacity-60"
           >
             {text.upload}
           </button>
@@ -469,6 +495,8 @@ export function BedSenseApp() {
           </div>
         ) : null}
       </section>
+      </>
+      ) : null}
       </div>
 
       <div className="mt-8 flex min-w-0 flex-col gap-5 lg:mt-0 lg:h-full">
@@ -485,7 +513,8 @@ export function BedSenseApp() {
         </div>
       ) : null}
 
-      <section className="rounded-[26px] border border-white/10 bg-card p-4 sm:p-5 lg:flex-1">
+      {plants ? null : (
+      <section className="rounded-[26px] border border-onion/30 bg-card p-5 sm:p-6 lg:flex-1">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] sm:text-3xl">{text.history}</h2>
           {history.length > 0 ? (
@@ -511,16 +540,18 @@ export function BedSenseApp() {
                 ask={text.deleteCheckAsk}
                 keepLabel={text.keepCheck}
                 onOpen={() => restore(entry)}
+                current={entry.id === result?.id}
+                currentLabel={text.currentCheck}
                 onDelete={() => removeCheck(entry.id)}
               />
             </li>
           ))}
         </ul>
       </section>
+      )}
       </div>
       </div>
 
-      <footer className="mt-8 text-sm leading-6 text-mute">{text.footer}</footer>
       {photos.length > 0 && !busy ? (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex w-full max-w-xl gap-3 px-4 sm:px-6 lg:max-w-6xl lg:px-8">
@@ -534,14 +565,14 @@ export function BedSenseApp() {
             <button
               type="button"
               onClick={() => void submitPrepared()}
-              className="min-h-14 w-full rounded-2xl bg-soil px-4 text-base font-semibold text-paper lg:max-w-[28rem]"
+              className="min-h-14 w-full rounded-2xl bg-leaf px-4 text-base font-semibold tracking-tight text-paper shadow-[0_12px_30px_-16px_rgba(31,157,85,0.9)] lg:max-w-[28rem]"
             >
               {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
             </button>
           </div>
         </div>
       ) : null}
-    </main>
+    </SiteChrome>
   );
 }
 
@@ -567,6 +598,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
         </div>
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
+      {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="inline-flex min-h-8 items-center rounded-full bg-[#f6b23a] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink">
@@ -816,7 +848,7 @@ function ContextForm({
   const filled = preview.length > 0;
   const previewText = preview.length > 90 ? `${preview.slice(0, 89).trimEnd()}…` : preview;
   return (
-    <section id="home-context" className="rounded-[26px] border border-white/10 bg-card p-4 transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/40">
+    <section id="home-context" className="rounded-[26px] border border-clay/40 bg-card p-5 transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 lg:hover:border-clay">
       <button
         type="button"
         aria-expanded={open}
@@ -850,6 +882,7 @@ function ContextForm({
             disabled={disabled}
             rows={4}
             maxLength={NOTES_LIMIT}
+            placeholder={text.contextHint}
             aria-labelledby="context-title"
             aria-describedby="context-guide"
             onChange={(event) => onChange({ ...emptyFarmerContext(), notes: event.target.value })}
@@ -916,6 +949,8 @@ function RecentCheck({
   deleteLabel,
   ask,
   keepLabel,
+  current,
+  currentLabel,
   onOpen,
   onDelete,
 }: {
@@ -925,6 +960,8 @@ function RecentCheck({
   deleteLabel: string;
   ask: string;
   keepLabel: string;
+  current: boolean;
+  currentLabel: string;
   onOpen: () => void;
   onDelete: () => void;
 }) {
@@ -986,13 +1023,14 @@ function RecentCheck({
           }
           onOpen();
         }}
-        className="w-full touch-manipulation overflow-hidden rounded-[26px] border border-white/10 bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft lg:group-hover:border-leaf/50"
+        className={`w-full touch-manipulation overflow-hidden rounded-[26px] border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-onion lg:group-hover:border-clay" : "border-white/10 lg:group-hover:border-leaf/50"}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={entry.thumbnail} alt="" className="h-28 w-full object-cover" />
         <span className="block px-3 py-3 text-sm font-semibold leading-5 text-paper">
           {label}
           <span className="mt-1 block font-normal text-mute">{confidence}</span>
+          {current ? <span className="mt-1 hidden font-serif text-sm text-onion lg:group-hover:block">{currentLabel}</span> : null}
         </span>
       </button>
       <button

@@ -23,6 +23,7 @@ export type Copy = {
   removePhoto: string;
   photoLimit: string;
   qualityTooFar: string;
+  qualityNotPlant: string;
   qualityUnclear: string;
   qualityMixed: string;
   qualityHarshLight: (frames: number[], total: number) => string;
@@ -78,8 +79,15 @@ export type Copy = {
   backupNote: string;
   museUnavailable: string;
   footer: string;
+  back: string;
+  profile: string;
+  account: string;
+  signedOut: string;
+  signOut: string;
   concepts: Record<ConceptId, string>;
   unknownPlant: string;
+  dropPhoto: string;
+  currentCheck: string;
   contextTitle: string;
   contextHint: string;
   contextGuide: string;
@@ -124,12 +132,13 @@ const en: Copy = {
   newCheck: "New check",
   capture: "Take a photo",
   upload: "Choose a photo",
-  checkPhoto: "Check this photo",
+  checkPhoto: "Check this plant",
   checkPhotos: "Check these photos",
   addAngle: "Add another angle",
   removePhoto: "Remove",
   photoLimit: "Three photos is the limit for one check.",
   qualityTooFar: "Move closer to the bed. This photo is too far away for a reliable check.",
+  qualityNotPlant: "Please use a photo of a plant.",
   qualityUnclear: "This photo is not clearly in view. Hold the phone steady and fill the frame with the plant.",
   qualityMixed: "Move closer and take a clearer photo. These ones are too far away or not clearly in view.",
   qualityHarshLight: (frames, total) => {
@@ -218,6 +227,11 @@ const en: Copy = {
   museUnavailable:
     "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
   footer: "Triage, not a diagnosis. Spray rates follow the product label.",
+  back: "Back",
+  profile: "Profile",
+  account: "Account",
+  signedOut: "You are not signed in.",
+  signOut: "Sign out",
   concepts: {
     onion: "Onion",
     beetroot: "Beetroot",
@@ -227,10 +241,12 @@ const en: Copy = {
     weed: "Weed",
   },
   unknownPlant: "Farm plant",
-  contextTitle: "Add context (optional)",
-  contextHint: "Age, practices, sprays, fertilizer, water, or anything else.",
+  dropPhoto: "Or drop a photo here",
+  currentCheck: "This is the open check",
+  contextTitle: "Context or a question",
+  contextHint: "Add what you know, or ask a question about this plant.",
   contextGuide:
-    "Optional. Anything that would help the check: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.",
+    "Optional. Add plant age, practices, sprays, fertilizer, water, weather, or known issues. You can also ask a question, such as whether to water today.",
   contextAskLabel: "A clearer check would use this",
   contextUpdate: "Update the check",
   contextAskDefault: "If you know it, add the plant’s age and when you last watered.",
@@ -299,12 +315,13 @@ const sw: Copy = {
   newCheck: "Ukaguzi mpya",
   capture: "Piga picha",
   upload: "Chagua picha",
-  checkPhoto: "Kagua picha hii",
+  checkPhoto: "Kagua mmea huu",
   checkPhotos: "Kagua picha hizi",
   addAngle: "Ongeza pembe nyingine",
   removePhoto: "Ondoa",
   photoLimit: "Picha tatu ndio kikomo cha ukaguzi mmoja.",
   qualityTooFar: "Sogea karibu na kitanda. Picha hii iko mbali sana kwa ukaguzi wa kuaminika.",
+  qualityNotPlant: "Tafadhali tumia picha ya mmea.",
   qualityUnclear: "Picha hii haionekani vizuri. Shika simu kwa utulivu na ujaze fremu na mmea.",
   qualityMixed: "Sogea karibu na upige picha iliyo wazi zaidi. Hizi ziko mbali sana au hazionekani vizuri.",
   qualityHarshLight: (frames, total) => {
@@ -388,6 +405,11 @@ const sw: Copy = {
   museUnavailable:
     "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya mazungumzo ya Muse Spark au Muse Wonder, kisha fanya ukaguzi tena.",
   footer: "Mapitio si utambuzi. Vipimo vya dawa vinafuata kibandiko.",
+  back: "Rudi",
+  profile: "Wasifu",
+  account: "Akaunti",
+  signedOut: "Hujaingia.",
+  signOut: "Toka",
   concepts: {
     onion: "Kitunguu",
     beetroot: "Beetroot",
@@ -397,10 +419,12 @@ const sw: Copy = {
     weed: "Magugu",
   },
   unknownPlant: "Mmea wa shamba",
-  contextTitle: "Ongeza muktadha (si lazima)",
-  contextHint: "Umri, mazoea, dawa, mbolea, maji, au mengineyo.",
+  dropPhoto: "Au dondosha picha hapa",
+  currentCheck: "Huu ndio ukaguzi ulio wazi",
+  contextTitle: "Muktadha au swali",
+  contextHint: "Ongeza unachojua, au uliza swali kuhusu mmea huu.",
   contextGuide:
-    "Si lazima. Ongeza chochote kinachosaidia ukaguzi: umri au hatua ya mmea, mazoea ya sasa, kemikali zilizotumika, mbolea ya hivi karibuni, umwagiliaji au hali ya hewa, matatizo unayoyajua, au mengineyo.",
+    "Si lazima. Ongeza umri, mazoea, dawa, mbolea, maji, hali ya hewa, au matatizo. Unaweza pia kuuliza swali, kama vile kama umwagilie leo.",
   contextAskLabel: "Ukaguzi ulio wazi zaidi ungetumia hili",
   contextUpdate: "Sasisha ukaguzi",
   contextAskDefault: "Ikiwa unajua, ongeza umri wa mmea na lini ulimwagilia mara ya mwisho.",
