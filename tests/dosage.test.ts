@@ -21,6 +21,7 @@ describe("dosage guard", () => {
       expect(containsDosage(text.disclaimer)).toBe(false);
       expect(containsDosage(text.agronomistCallout)).toBe(false);
       expect(containsDosage(text.verifyNote)).toBe(false);
+      expect(containsDosage(text.fertilizerVerifyNote)).toBe(false);
       expect(containsDosage(text.priceNote)).toBe(false);
       expect(containsDosage(text.chemicalUseFallback)).toBe(false);
       for (const action of text.fallbackActions) expect(containsDosage(action)).toBe(false);

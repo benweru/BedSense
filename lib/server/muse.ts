@@ -4,8 +4,10 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
+import { researchActives, researchFertilizers, researchFor } from "@/lib/research";
 import { listMetaModels, MUSE_MODELS, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
 import { finalizeTriage } from "@/lib/triage";
+import { repairSentence } from "@/lib/translate";
 import { AnalyzeError, type ChemicalAdvice, type ConceptCounts, type CropId, type FarmerContext, type Locale } from "@/lib/types";
 
 /** What Muse is told about SAM. An empty frame must not read as "no plants". */
@@ -234,7 +236,7 @@ async function completeModel(
     triageSource: "muse",
     confidenceStated: typeof parsed.confidenceScore === "number",
     detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
-    contextAsk: cleanContextAsk(parsed.contextAsk),
+    contextAsk: repairAsk(options.locale, cleanContextAsk(parsed.contextAsk)),
     chemicals: chemicalsFromReading({
       locale: options.locale,
       issue: finalized.issue,
@@ -302,6 +304,16 @@ function parseFlag(value: unknown): boolean | null {
   return null;
 }
 
+function repairAsk(locale: Locale, ask: string | null): string | null {
+  if (!ask) return null;
+  return repairSentence(locale, ask) || null;
+}
+
+function researchText(suspect: unknown, fallback: string): string {
+  const named = typeof suspect === "string" ? suspect : "";
+  return `${named}\n${fallback}`;
+}
+
 function chemicalsFromReading(options: {
   locale: Locale;
   issue: IssueId | null;
@@ -317,15 +329,28 @@ function chemicalsFromReading(options: {
   const diseaseFlag = parseFlag(options.diseaseIndicated);
   const usual = sprayIsUsual(options.issue, options.sprayEvidence, sprayFlag);
   const suspect = options.suspect || options.fallbackSuspect;
+  const research = researchFor(researchText(options.suspect, options.fallbackSuspect), options.issue);
+  // The model's own chemicals first; researched actives fill the gaps only when a spray is plausible.
+  const fill = sprayFlag === true || usual ? researchActives(research) : [];
   const fromModel = adviseChemicals({
     locale: options.locale,
     diseaseIndicated: true,
     suspect,
-    chemicals: options.chemicals,
+    chemicals: Array.isArray(options.chemicals) ? [...options.chemicals, ...fill] : fill,
   });
   const hasModel = (fromModel?.products.length ?? 0) > 0;
   const acceptModel = hasModel && (sprayFlag === true || diseaseFlag !== false || usual);
   if (acceptModel) return fromModel;
+  // A deficiency takes fertilizer, not a spray, so it answers even when no spray is usual — unless the model ruled disease out.
+  const fertilizers = researchFertilizers(research);
+  if (fertilizers.length > 0 && diseaseFlag !== false) {
+    return adviseChemicals({
+      locale: options.locale,
+      diseaseIndicated: true,
+      suspect: options.fallbackSuspect || suspect,
+      chemicals: fertilizers,
+    });
+  }
   if (!usual || !options.issue) return null;
   const actives = issueActives(options.issue);
   if (actives.length === 0) return null;
@@ -361,10 +386,12 @@ export function developerPrompt(locale: Locale): string {
     "Set sprayIndicated to true only when a labeled spray is the usual next step, such as spreading spots or insects already seen on the plant.",
     "Set sprayIndicated to false when the next step is to look, change water, or remove damaged growth. Curl or twisted fruit alone is not a spray.",
     "If sprayIndicated is true, set diseaseIndicated to true, name the problem briefly in suspect, and recommend one or two chemicals.",
+    "If you suspect a disease, pest, or nutrient deficiency but are unsure which product fits, still name the problem in suspect; the server looks up matching chemicals, fertilizer, and practices for what you named.",
     "Each chemical has activeIngredient (the common name, such as mancozeb), productClass (such as fungicide or insecticide), and useNote (typical use, with no numeric rate).",
     "Do not invent an exact spray rate, mixing rate, millilitres, grams, or litres per area or per tank. Say the rate must follow the product label.",
     "This chemical advice is for the farmer to verify with a local agroveterinary officer before buying or spraying.",
-    "If sprayIndicated is false, set diseaseIndicated to false, suspect to an empty string, and chemicals to an empty array. Still return likelyCauses and mitigations when a symptom is visible.",
+    "If sprayIndicated is false and the problem is not a nutrient deficiency, set diseaseIndicated to false, suspect to an empty string, and chemicals to an empty array. Still return likelyCauses and mitigations when a symptom is visible.",
+    "When yellowing points to feeding instead of a spray, name the deficiency in suspect and set diseaseIndicated to true; the server answers with fertilizer and practices.",
     "If the farmer mentions products already used, treat that as history. Do not turn that history into a new numeric dose.",
     "If one extra fact would make the checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
     "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",

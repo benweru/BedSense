@@ -50,6 +50,7 @@ export type Copy = {
   chemicalClassFallback: string;
   chemicalUseFallback: string;
   verifyNote: string;
+  fertilizerVerifyNote: string;
   priceNote: string;
   quality: Record<QualityBand, string>;
   confidence: string;
@@ -177,7 +178,7 @@ const en: Copy = {
   progressTitle: "Checking this photo",
   progressHint: "The bed is being read. Keep this screen open.",
   progressSteps: ["Preparing the photo", "Reading the bed", "Writing causes and next steps"],
-  chemicalsTitle: "Chemicals to consider",
+  chemicalsTitle: "Chemicals and fertilizer to consider",
   chemicalsSuspect: "Suspected problem",
   chemicalsWhere: "Where to buy in Kenya",
   chemicalsNoShop: "This active ingredient is not in the Kenya catalog yet. Ask an agrovet to match the name.",
@@ -186,6 +187,8 @@ const en: Copy = {
   chemicalUseFallback: "Typical use for this active ingredient. The rate must follow the product label.",
   verifyNote:
     "Check this with a local agroveterinary officer before you buy or spray. The rate must follow the product label.",
+  fertilizerVerifyNote:
+    "Check this with a local agroveterinary officer before you buy or apply fertilizer. The rate must follow the product label.",
   priceNote:
     "Example Kenyan shops and KES price bands by quality, from the BedSense catalog. Not a live quote. Ask the shop for today’s price.",
   quality: { economy: "Economy", mid: "Mid", premium: "Premium" },
@@ -255,7 +258,7 @@ const en: Copy = {
     "Photograph the same plants again in two days and show both photos to an agronomist if the marks spread.",
   ],
   disclaimer:
-    "BedSense offers field triage, not a diagnosis. When a symptom is visible, it names likely causes and practical steps on the bed. A spray, with example Kenyan shops and KES price bands, appears only when a spray is the usual next step. It does not set a spray rate. Follow the product label, and confirm with a local agroveterinary officer before you buy or spray.",
+    "BedSense offers field triage, not a diagnosis. When a symptom is visible, it names likely causes and practical steps on the bed. A spray or a fertilizer, with example Kenyan shops and KES price bands, appears only when it is the usual next step. It does not set a rate. Follow the product label, and confirm with a local agroveterinary officer before you buy or spray.",
   agronomistCallout:
     "Ask a local agroveterinary officer. Show them this photo, the plant name, and these three next checks before you buy or mix any spray.",
   countLine: (counts) =>
@@ -345,7 +348,7 @@ const sw: Copy = {
   progressTitle: "Inakagua picha hii",
   progressHint: "Kitanda kinasomwa. Acha skrini hii wazi.",
   progressSteps: ["Inatayarisha picha", "Inasoma kitanda", "Inaandika sababu na hatua"],
-  chemicalsTitle: "Kemikali za kuzingatia",
+  chemicalsTitle: "Kemikali na mbolea za kuzingatia",
   chemicalsSuspect: "Tatizo linaloshukiwa",
   chemicalsWhere: "Mahali pa kununua Kenya",
   chemicalsNoShop: "Kemikali hii tendaji bado haiko kwenye orodha ya Kenya. Muulize muuzaji wa agrovet ailinganishe jina.",
@@ -354,6 +357,8 @@ const sw: Copy = {
   chemicalUseFallback: "Matumizi ya kawaida ya kemikali hii tendaji. Kipimo kifuate kibandiko cha bidhaa.",
   verifyNote:
     "Thibitisha na afisa wa agroveterinary wa eneo lako kabla ya kununua au kunyunyizia. Kipimo kifuate kibandiko cha bidhaa.",
+  fertilizerVerifyNote:
+    "Thibitisha na afisa wa agroveterinary wa eneo lako kabla ya kununua au kutumia mbolea. Kipimo kifuate kibandiko cha bidhaa.",
   priceNote:
     "Mifano ya maduka ya Kenya na viwango vya bei kwa KES kulingana na ubora, kutoka kwenye orodha ya BedSense. Si bei ya sasa. Uliza dukani bei ya leo.",
   quality: { economy: "Bei nafuu", mid: "Kati", premium: "Ya juu" },
@@ -423,7 +428,7 @@ const sw: Copy = {
     "Piga picha tena baada ya siku mbili, na peleka picha zote kwa mtaalamu wa kilimo ikiwa dalili zinaenea.",
   ],
   disclaimer:
-    "BedSense hutoa mapitio ya shambani, si utambuzi. Dalili inapoonekana, inataja sababu zinazowezekana na hatua za kivitendo kwenye kitanda. Dawa, pamoja na mifano ya maduka ya Kenya na viwango vya bei kwa KES, inaonekana tu ikiwa dawa ndiyo hatua ya kawaida inayofuata. Haitoi kipimo cha dawa. Fuata kibandiko cha bidhaa, na thibitisha na afisa wa agroveterinary wa eneo lako kabla ya kununua au kunyunyizia.",
+    "BedSense hutoa mapitio ya shambani, si utambuzi. Dalili inapoonekana, inataja sababu zinazowezekana na hatua za kivitendo kwenye kitanda. Dawa au mbolea, pamoja na mifano ya maduka ya Kenya na viwango vya bei kwa KES, inaonekana tu ikiwa ndiyo hatua ya kawaida inayofuata. Haitoi kipimo. Fuata kibandiko cha bidhaa, na thibitisha na afisa wa agroveterinary wa eneo lako kabla ya kununua, kunyunyizia, au kuweka mbolea.",
   agronomistCallout:
     "Muulize afisa wa agroveterinary wa eneo lako. Mwonyeshe picha hii, jina la mmea, na ukaguzi tatu kabla ya kununua au kuchanganya dawa yoyote.",
   countLine: (counts) =>

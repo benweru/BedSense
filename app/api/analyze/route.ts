@@ -1,41 +1,63 @@
+import { normalizeLocale } from "@/lib/copy";
 import { analyzeBedPhoto } from "@/lib/server/analyze";
-import { AnalyzeError } from "@/lib/types";
+import { AnalyzeError, type Locale } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Hobby stops the function at 60s. SAM is capped and Muse keeps a deadline inside that clock.
 export const maxDuration = 60;
 
-const MESSAGES = {
-  bad_request: "Send a photo as a data URL.",
-  unsupported_image: "Use a JPEG, PNG, or WebP photo.",
-  image_too_large: "That photo is too large. Try a closer shot or a smaller file.",
-  missing_key: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
-  missing_plant: "Name the plant in the photo.",
-  muse_unavailable:
-    "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
-  upstream: "The model call did not finish. Try the photo again.",
-} as const;
+const MESSAGES: Record<AnalyzeError["code"], Record<Locale, string>> = {
+  bad_request: {
+    en: "Send a photo as a data URL.",
+    sw: "Tuma picha kama data URL.",
+  },
+  unsupported_image: {
+    en: "Use a JPEG, PNG, or WebP photo.",
+    sw: "Tumia picha ya JPEG, PNG, au WebP.",
+  },
+  image_too_large: {
+    en: "That photo is too large. Try a closer shot or a smaller file.",
+    sw: "Picha hiyo ni kubwa sana. Jaribu picha ya karibu au faili ndogo.",
+  },
+  missing_key: {
+    en: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
+    sw: "Weka MODEL_API_KEY kwenye seva, au weka MOCK_META=1 ili kuendesha onyesho.",
+  },
+  missing_plant: {
+    en: "Name the plant in the photo.",
+    sw: "Taja mmea ulio kwenye picha.",
+  },
+  muse_unavailable: {
+    en: "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
+    sw: "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya mazungumzo ya Muse Spark au Muse Wonder, kisha fanya ukaguzi tena.",
+  },
+  upstream: {
+    en: "The model call did not finish. Try the photo again.",
+    sw: "Wito wa modeli haukukamilika. Jaribu picha tena.",
+  },
+};
 
 export async function POST(request: Request): Promise<Response> {
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return jsonError("bad_request");
+    return jsonError("bad_request", "en");
   }
-  if (!body || typeof body !== "object") return jsonError("bad_request");
+  if (!body || typeof body !== "object") return jsonError("bad_request", "en");
+  const locale = normalizeLocale((body as { locale?: unknown }).locale);
 
   try {
     const result = await analyzeBedPhoto(body);
     return Response.json(result);
   } catch (error) {
-    if (error instanceof AnalyzeError) return jsonError(error.code);
-    return jsonError("upstream");
+    if (error instanceof AnalyzeError) return jsonError(error.code, locale);
+    return jsonError("upstream", locale);
   }
 }
 
-function jsonError(code: AnalyzeError["code"]): Response {
+function jsonError(code: AnalyzeError["code"], locale: Locale): Response {
   const status =
     code === "bad_request" || code === "missing_plant"
       ? 400
@@ -46,5 +68,5 @@ function jsonError(code: AnalyzeError["code"]): Response {
           : code === "missing_key" || code === "muse_unavailable"
             ? 503
             : 502;
-  return Response.json({ error: code, message: MESSAGES[code] }, { status });
+  return Response.json({ error: code, message: MESSAGES[code][locale] }, { status });
 }
