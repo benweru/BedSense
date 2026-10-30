@@ -8,8 +8,10 @@ import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
 import { isSoftPhoto, isUnsureRead, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
+import { memoryPromptBlock } from "@/lib/memory";
+import { isUuid, supabasePlantStore, type PlantMemoryStore } from "@/lib/server/plant-store";
 import { segmentBed } from "@/lib/server/sam";
-import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type Locale, type MaskMark } from "@/lib/types";
+import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type Locale, type MaskMark, type PlantProgress } from "@/lib/types";
 
 export type AnalyzeInput = {
   image?: unknown;
@@ -20,11 +22,38 @@ export type AnalyzeInput = {
   height?: unknown;
   context?: unknown;
   plantName?: unknown;
+  /** Saved plant to read memory from and file this check under. Ignored when signed out. */
+  plantId?: unknown;
 };
 
 const MAX_PHOTOS = 3;
 
-export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResult> {
+type MemoryInput = { block: string; hasHistory: boolean } | null;
+
+export async function analyzeBedPhoto(input: AnalyzeInput, store: PlantMemoryStore = supabasePlantStore): Promise<AnalyzeResult> {
+  const plantId = isUuid(input.plantId) ? input.plantId : null;
+  const memory = plantId ? await store.load(plantId).catch(() => null) : null;
+  const memoryInput: MemoryInput = memory
+    ? {
+        block: memoryPromptBlock(memory.plant, memory.checks, memory.practices, new Date()),
+        hasHistory: memory.checks.some((check) => !check.result.qualityHold),
+      }
+    : null;
+  const { result, photo } = await runAnalysis(input, memoryInput);
+  if (!memory || !plantId) return result;
+  const filed: AnalyzeResult = { ...result, plantId };
+  if (!filed.qualityHold) {
+    await store.save(plantId, filed, photo).catch((error: unknown) => {
+      console.error(`plant check save ${error instanceof Error ? error.message : "error"}`);
+    });
+  }
+  return filed;
+}
+
+async function runAnalysis(
+  input: AnalyzeInput,
+  memory: MemoryInput,
+): Promise<{ result: AnalyzeResult; photo: { bytes: Uint8Array; mime: string } }> {
   const urls = photoUrls(input);
   const decoded = urls.map((url) => {
     try {
@@ -46,8 +75,11 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
   const createdAt = new Date().toISOString();
   const id = crypto.randomUUID();
 
+  const photo = { bytes: first.bytes, mime: first.mime };
+  const done = (result: AnalyzeResult) => ({ result, photo });
+
   if (isMockMode()) {
-    return buildMockResult({
+    const mock = buildMockResult({
       scenario: scenarioForPlant(farmerPlant, first.bytes),
       locale,
       width: size.width,
@@ -58,6 +90,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       context,
       farmerPlant,
     });
+    return done(memory?.hasHistory ? { ...mock, progress: mockProgress(locale) } : mock);
   }
 
   const apiKey = readApiKey();
@@ -93,7 +126,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
   );
   const usable = segmented.filter((photo) => photo.verdict === "use");
   if (usable.length === 0) {
-    return withheldResult({
+    return done(withheldResult({
       id,
       createdAt,
       locale,
@@ -102,7 +135,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       mime: first.mime,
       frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
       verdicts: segmented.map((photo) => photo.verdict),
-    });
+    }));
   }
   const lead = usable[0] ?? segmented[0];
   if (!lead) throw new AnalyzeError("bad_request");
@@ -121,9 +154,25 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     primaryCrop: focus.primaryCrop,
     farmerPlant,
     deadline,
+    memory: memory?.block ?? null,
+    wantProgress: memory?.hasHistory ?? false,
   });
+  const genericOnly = advice.actions.every((action, index) => action === copy[locale].fallbackActions[index]);
+  if (advice.plantInFrame === false || (masks.length === 0 && advice.plantInFrame !== true && (advice.triageSource === "local-fallback" || genericOnly))) {
+    return done(withheldResult({
+      id,
+      createdAt,
+      locale,
+      farmerPlant,
+      size,
+      mime: first.mime,
+      frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
+      verdicts: segmented.map(() => "unclear" as const),
+      hold: "not_plant",
+    }));
+  }
   if (advice.confidenceStated && isUnsureRead(masks.length, advice.confidenceScore)) {
-    return withheldResult({
+    return done(withheldResult({
       id,
       createdAt,
       locale,
@@ -132,7 +181,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
       mime: first.mime,
       frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
       verdicts: segmented.map((photo) => (photo.verdict === "use" ? "unclear" : photo.verdict)),
-    });
+    }));
   }
   const skipped = segmented
     .filter((photo) => photo.verdict !== "use")
@@ -145,7 +194,7 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
         )
       : null;
 
-  return {
+  return done({
     id,
     createdAt,
     locale,
@@ -178,6 +227,15 @@ export async function analyzeBedPhoto(input: AnalyzeInput): Promise<AnalyzeResul
     qualityHold: null,
     qualityMessage: null,
     qualityNote,
+    progress: memory?.hasHistory ? advice.progress : null,
+  });
+}
+
+function mockProgress(locale: Locale): PlantProgress {
+  return {
+    growthTrend: "stable",
+    flowering: null,
+    sinceLastCheck: locale === "sw" ? "Onyesho: mmea unaonekana sawa na ukaguzi uliopita." : "Demo: the plant looks about the same as the last check.",
   };
 }
 
@@ -190,6 +248,7 @@ function withheldResult(options: {
   mime: string;
   frames: { width: number; height: number; mime: string }[];
   verdicts: PhotoVerdict[];
+  hold?: "too_far" | "unclear" | "mixed" | "not_plant";
 }): AnalyzeResult {
   const text = copy[options.locale];
   const rejected = options.verdicts.filter((verdict) => verdict !== "use");
@@ -202,14 +261,17 @@ function withheldResult(options: {
         : "mixed";
   const dark = options.verdicts.flatMap((verdict, index) => (verdict === "harsh_light" ? [index + 1] : []));
   const lighting = dark.length > 0 ? text.qualityHarshLight(dark, options.verdicts.length) : "";
+  const qualityHold = options.hold ?? hold;
   const qualityMessage =
-    hold === "too_far"
-      ? text.qualityTooFar
-      : hold === "unclear"
-        ? text.qualityUnclear
-        : hold === "harsh_light"
-          ? lighting
-          : [text.qualityMixed, lighting].filter(Boolean).join(" ");
+    qualityHold === "not_plant"
+      ? text.qualityNotPlant
+      : qualityHold === "too_far"
+        ? text.qualityTooFar
+        : qualityHold === "unclear"
+          ? text.qualityUnclear
+          : qualityHold === "harsh_light"
+            ? lighting
+            : [text.qualityMixed, lighting].filter(Boolean).join(" ");
   return {
     id: options.id,
     createdAt: options.createdAt,
@@ -236,7 +298,7 @@ function withheldResult(options: {
     disclaimer: text.disclaimer,
     agronomistCallout: text.agronomistCallout,
     note: null,
-    qualityHold: hold,
+    qualityHold,
     qualityMessage,
     qualityNote: null,
   };

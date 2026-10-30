@@ -121,10 +121,55 @@ export type AnalyzeResult = {
   agronomistCallout: string;
   note: string | null;
   /** Set when this photo, or every photo in the batch, is too far or not clear enough to diagnose. */
-  qualityHold?: "too_far" | "unclear" | "harsh_light" | "mixed" | null;
+  qualityHold?: "too_far" | "unclear" | "harsh_light" | "mixed" | "not_plant" | null;
   qualityMessage?: string | null;
   /** Set when a multi-photo check kept the clear frames and skipped the rest. */
   qualityNote?: string | null;
+  /** Set when the check belongs to a saved plant that already has earlier checks. */
+  progress?: PlantProgress | null;
+  /** Saved plant this check was filed under. */
+  plantId?: string | null;
+};
+
+export const GROWTH_TRENDS = ["improving", "stable", "declining"] as const;
+export type GrowthTrend = (typeof GROWTH_TRENDS)[number];
+
+export type PlantProgress = {
+  growthTrend: GrowthTrend | null;
+  flowering: boolean | null;
+  sinceLastCheck: string | null;
+};
+
+export const PRACTICE_KINDS = ["watering", "fertilizer", "spray", "pruning", "other"] as const;
+export type PracticeKind = (typeof PRACTICE_KINDS)[number];
+
+export type PlantRecord = {
+  id: string;
+  name: string;
+  crop: string | null;
+  bedLabel: string | null;
+  plantedOn: string | null;
+  location: string | null;
+  createdAt: string;
+};
+
+export type PlantCheck = {
+  id: string;
+  plantId: string;
+  createdAt: string;
+  photoUrl: string | null;
+  summary: string | null;
+  growthStage: string | null;
+  flowering: boolean | null;
+  result: AnalyzeResult;
+};
+
+export type PracticeLog = {
+  id: string;
+  plantId: string;
+  loggedAt: string;
+  kind: PracticeKind;
+  note: string;
 };
 
 export type HistoryEntry = {

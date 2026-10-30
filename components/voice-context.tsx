@@ -110,6 +110,80 @@ export function VoiceContext({
   );
 }
 
+/** Tap to talk, then append the transcript to a single note. */
+export function VoiceNote({
+  locale,
+  disabled,
+  label,
+  listeningLabel,
+  onTranscript,
+}: {
+  locale: Locale;
+  disabled: boolean;
+  label: string;
+  listeningLabel: string;
+  onTranscript: (text: string) => void;
+}) {
+  const [phase, setPhase] = useState<"idle" | "listening" | "writing">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => stopRef.current?.(), []);
+
+  function toggle() {
+    if (disabled || phase === "writing") return;
+    if (phase === "listening") {
+      stopRef.current?.();
+      return;
+    }
+    if (!canRecordVoice()) {
+      setMessage(locale === "sw" ? "Kipaza sauti hakipatikani." : "This browser cannot use the microphone.");
+      return;
+    }
+    const audio = new AudioContext();
+    void audio.resume();
+    const recorder = startVoiceRecorder(audio);
+    stopRef.current = () => {
+      recorder.stop();
+      stopRef.current = null;
+    };
+    setPhase("listening");
+    setMessage(null);
+    void recorder.result
+      .then(async (wav) => {
+        setPhase("writing");
+        const transcript = await sendTranscript(wav, locale);
+        if (transcript) onTranscript(transcript);
+        else setMessage(locale === "sw" ? "Hakuna maneno yaliyosikika." : "No words came through.");
+      })
+      .catch(() => setMessage(locale === "sw" ? "Sauti haikufika." : "The voice note did not come through."))
+      .finally(() => {
+        void audio.close();
+        setPhase("idle");
+        stopRef.current = null;
+      });
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={disabled || phase === "writing"}
+        aria-pressed={phase === "listening"}
+        onClick={toggle}
+        className={`min-h-12 rounded-2xl px-4 text-sm font-semibold disabled:opacity-60 ${phase === "listening" ? "bg-[#f6b23a] text-ink" : "bg-soil text-paper"}`}
+      >
+        {phase === "listening" ? listeningLabel : phase === "writing" ? "…" : label}
+      </button>
+      {message ? (
+        <p className="mt-2 text-sm text-beet" role="alert">
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 async function sendTranscript(wav: Uint8Array, locale: Locale): Promise<string> {
   const form = new FormData();
   form.set("locale", locale);

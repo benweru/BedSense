@@ -6,9 +6,10 @@ import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { researchActives, researchFertilizers, researchFor } from "@/lib/research";
 import { listMetaModels, MUSE_MODELS, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
+import { parseProgress } from "@/lib/memory";
 import { finalizeTriage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
-import { AnalyzeError, type ChemicalAdvice, type ConceptCounts, type CropId, type FarmerContext, type Locale } from "@/lib/types";
+import { AnalyzeError, type ChemicalAdvice, type ConceptCounts, type CropId, type FarmerContext, type Locale, type PlantProgress } from "@/lib/types";
 
 /** What Muse is told about SAM. An empty frame must not read as "no plants". */
 export function marksSummary(locale: Locale, counts: ConceptCounts): string {
@@ -33,6 +34,16 @@ export type ModelDraft = {
   symptom: unknown;
   likelyCauses: unknown;
   mitigations: unknown;
+  growthTrend?: unknown;
+  flowering?: unknown;
+  sinceLastCheck?: unknown;
+  plantInFrame?: unknown;
+};
+
+/** Saved-plant history for the prompt, and whether to ask for growth progress. */
+type MemoryOptions = {
+  memory?: string | null;
+  wantProgress?: boolean;
 };
 
 export type TriageDraft = {
@@ -51,9 +62,12 @@ export type TriageDraft = {
   detectedPlant: string;
   contextAsk: string | null;
   chemicals: ChemicalAdvice | null;
+  progress: PlantProgress | null;
+  /** False when the photo is not a real plant. Missing means the model did not say. */
+  plantInFrame: boolean | null;
 };
 
-export async function adviseBed(options: {
+export async function adviseBed(options: MemoryOptions & {
   imageUrl: string;
   /** Every angle of this bed. Defaults to the single `imageUrl`. */
   imageUrls?: readonly string[];
@@ -125,7 +139,7 @@ function imageUrlsOf(options: { imageUrl: string; imageUrls?: readonly string[] 
 }
 
 async function tryModel(
-  options: {
+  options: MemoryOptions & {
     apiKey: string;
     locale: Locale;
     counts: ConceptCounts;
@@ -177,7 +191,7 @@ function delay(ms: number): Promise<void> {
 }
 
 async function completeModel(
-  options: {
+  options: MemoryOptions & {
     apiKey: string;
     locale: Locale;
     counts: ConceptCounts;
@@ -204,7 +218,7 @@ async function completeModel(
         {
           role: "user",
           content: [
-            { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant, imageUrls.length) },
+            { type: "text", text: userPrompt(options.locale, summary, options.context, options.farmerPlant, imageUrls.length, options.memory) },
             ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
           ],
         },
@@ -247,6 +261,8 @@ async function completeModel(
       chemicals: parsed.chemicals,
       fallbackSuspect: finalized.likelyCauses[0] ?? "",
     }),
+    progress: options.wantProgress ? parseProgress(parsed) : null,
+    plantInFrame: parseFlag(parsed.plantInFrame),
   };
 }
 
@@ -286,6 +302,8 @@ export function localFallback(
       chemicals: [],
       fallbackSuspect: finalized.likelyCauses[0] ?? "",
     }),
+    progress: null,
+    plantInFrame: null,
   };
 }
 
@@ -396,8 +414,10 @@ export function developerPrompt(locale: Locale): string {
     "If one extra fact would make the checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
     "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
     `Reply in ${language}.`,
+    "Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
+    "When plantInFrame is false, leave observations, likelyCauses, mitigations, actions, and chemicals empty.",
     "Return one JSON object only, with this shape:",
-    '{"detectedPlant":"plant name","symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
+    '{"plantInFrame":true,"detectedPlant":"plant name","symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
     "symptom is curl, deformity, spots, wilt, yellowing, insects, or an empty string.",
     "observations has 2 or 3 items. likelyCauses and mitigations are empty only when no symptom is visible. actions has exactly 3 items. confidenceScore is from 0 to 1. chemicals has at most 2 items.",
   ].join(" ");
@@ -409,7 +429,14 @@ export function framesSummary(locale: Locale, frames: readonly ConceptCounts[]):
   return lines.map((line, index) => `Frame ${index + 1}: ${line}`).join("\n");
 }
 
-export function userPrompt(locale: Locale, summary: string, context: FarmerContext, farmerPlant: string, angles = 1): string {
+export function userPrompt(
+  locale: Locale,
+  summary: string,
+  context: FarmerContext,
+  farmerPlant: string,
+  angles = 1,
+  memory: string | null = null,
+): string {
   const language = normalizeLocale(locale) === "sw" ? "Swahili" : "English";
   return [
     angles > 1 ? `These are ${angles} phone photos of one farm bed, each from a different angle.` : "This is a phone photo of one farm bed.",
@@ -420,6 +447,7 @@ export function userPrompt(locale: Locale, summary: string, context: FarmerConte
     "If no marks were returned, still read the photo, the plant name, and the notes. Empty marks are not a reason to skip likely causes, mitigation, or the three checks.",
     angles > 1 ? `Frames:\n${summary}` : `In frame: ${summary}`,
     contextPromptBlock(context),
+    ...(memory ? [memory] : []),
     "Use the photo, the plant name, those marks, and any context.",
     angles > 1
       ? "observations must describe only the plants actually in these photos. Do not name a crop that is not in the photos."
@@ -559,6 +587,10 @@ function draftFromRecord(record: Record<string, unknown>): ModelDraft {
     symptom: record.symptom,
     likelyCauses: record.likelyCauses,
     mitigations: record.mitigations,
+    growthTrend: record.growthTrend,
+    flowering: record.flowering,
+    sinceLastCheck: record.sinceLastCheck,
+    plantInFrame: record.plantInFrame,
   };
 }
 
@@ -577,5 +609,6 @@ function emptyDraft(partial: Partial<ModelDraft>): ModelDraft {
     symptom: partial.symptom ?? "",
     likelyCauses: partial.likelyCauses ?? [],
     mitigations: partial.mitigations ?? [],
+    plantInFrame: partial.plantInFrame,
   };
 }
