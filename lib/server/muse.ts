@@ -414,6 +414,7 @@ export function developerPrompt(locale: Locale): string {
     "If one extra fact would make the checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
     "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
     `Reply in ${language}.`,
+    ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
     "Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
     "When plantInFrame is false, leave observations, likelyCauses, mitigations, actions, and chemicals empty.",
     "Return one JSON object only, with this shape:",
@@ -456,6 +457,7 @@ export function userPrompt(
     "Make the three actions specific to that symptom. Do not answer with a generic soil, leaf-removal, and re-photo list.",
     "Set sprayIndicated and name chemicals by active ingredient only when a spray is the usual next step. Do not give a numeric spray rate.",
     `Write the JSON in ${language}.`,
+    ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
   ].join("\n");
 }
 
