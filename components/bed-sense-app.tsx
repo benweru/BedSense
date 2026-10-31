@@ -1,7 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
+import {
+  Checklist,
+  EmptyIllustration,
+  FirstVisitIntro,
+  GuestSavePrompt,
+  MaskToggle,
+  ResultSkeleton,
+  SavedBurst,
+  ScanStatus,
+  SeverityLine,
+  severityBorder,
+  buzz,
+} from "@/components/premium";
 import { PlantMemory, PlantsHomeCard, ProgressNote, type SavedPlant } from "@/components/plant-memory";
 import { SiteChrome } from "@/components/site-chrome";
 import { VoiceContext } from "@/components/voice-context";
@@ -10,6 +24,9 @@ import { NOTES_LIMIT, contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, forgetCheck, rememberCheck } from "@/lib/history";
 import { parseFarmerPlant } from "@/lib/plant-name";
+import { severityFor } from "@/lib/severity";
+import { browserSupabase } from "@/lib/supabase-browser";
+import { UI, type UiWords } from "@/lib/ui-copy";
 import { clearHistoryStore, useHistory, useLocale, writeHistory } from "@/lib/phone-store";
 import {
   QUALITY_BANDS,
@@ -51,7 +68,19 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const [dragging, setDragging] = useState(false);
   const [savedPlant, setSavedPlant] = useState<SavedPlant | null>(null);
   const [memoryRefresh, setMemoryRefresh] = useState(0);
+  const [showMasks, setShowMasks] = useState(true);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const router = useRouter();
   const text = copy[locale];
+  const words = UI[locale];
+
+  useEffect(() => {
+    const supabase = browserSupabase();
+    if (!supabase) return;
+    void supabase.auth.getUser().then(({ data }) => setSignedIn(Boolean(data.user)));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setSignedIn(Boolean(session?.user)));
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   const choosePlant = useCallback((plant: SavedPlant | null) => {
     setSavedPlant(plant);
@@ -171,6 +200,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         );
         return;
       }
+      setShowMasks(true);
       setResult(body);
       if (body.plantId) setMemoryRefresh((count) => count + 1);
       if (body.contextAsk) {
@@ -255,30 +285,56 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     if (libraryRef.current) libraryRef.current.value = "";
   }
 
+  function rescan() {
+    reset();
+    window.requestAnimationFrame(() => {
+      document.getElementById("new-check")?.scrollIntoView({ block: "start", behavior: "smooth" });
+      cameraRef.current?.click();
+    });
+  }
+
   const busy = phase === "preparing" || phase === "analyzing";
   const sessionLive = Boolean(plantName.trim() || context.notes.trim() || photos.length > 0 || preview || result || error);
 
   return (
-    <SiteChrome pad={photos.length > 0 && !busy ? "pb-36" : "pb-12"}>
+    <SiteChrome pad={(photos.length > 0 && !busy && !result) || (!preview && !busy && (!plants || savedPlant)) ? "pb-36 lg:pb-12" : "pb-12"}>
+      {plants ? null : <FirstVisitIntro locale={locale} />}
       <div className="mt-6 sm:mt-8 lg:max-w-3xl">
         {plants ? (
-          <h1 className="font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.03em] text-paper">{locale === "sw" ? "Mimea yangu" : "My plants"}</h1>
+          <>
+            <p className="eyebrow text-leaf">{locale === "sw" ? "Kumbukumbu ya mimea" : "Plant memory"}</p>
+            <h1 className="mt-2 font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.01em] text-paper">
+              {locale === "sw" ? "Mimea yangu" : "My plants"}
+              <span className="text-mute">{locale === "sw" ? ", kwa muda." : ", over time."}</span>
+            </h1>
+          </>
         ) : (
-          <p className="max-w-2xl font-serif text-2xl leading-snug text-paper/80 sm:text-3xl">{text.lede}</p>
+          <>
+            <p className="eyebrow text-leaf">{locale === "sw" ? "Kitanda chako, kimesomwa" : "Farm bed check"}</p>
+            <p className="mt-2 max-w-2xl font-serif text-2xl leading-snug text-paper sm:text-3xl">
+              {text.lede.split(". ")[0]}
+              {text.lede.includes(". ") ? <span className="text-mute">. {text.lede.split(". ").slice(1).join(". ")}</span> : null}
+            </p>
+          </>
         )}
         {!plants && sessionLive && !(photos.length > 0 && !busy) && !(result && !busy) ? (
           <button
             type="button"
             onClick={startFresh}
-            className="mt-5 min-h-14 rounded-2xl border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper transition-[border-color,background-color,box-shadow] duration-500 ease-out-soft hover:border-leaf hover:shadow-[0_0_32px_-12px_rgba(31,157,85,0.8)]"
+            className="lift mt-5 min-h-14 rounded-full border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper transition-[border-color,background-color,box-shadow] duration-500 ease-out-soft hover:border-leaf hover:shadow-[0_0_32px_-12px_rgba(31,157,85,0.8)]"
           >
             {text.newCheck}
           </button>
         ) : null}
       </div>
 
-      <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:items-stretch lg:gap-5">
-      <div className="min-w-0 space-y-8 lg:rounded-[26px] lg:border lg:border-white/10 lg:bg-card lg:p-6 lg:shadow-[0_24px_60px_-36px_rgba(0,0,0,0.85)]">
+      <div className={`mt-6 lg:mt-8 lg:grid lg:items-start lg:gap-6 ${plants && !result && !busy ? "lg:max-w-4xl lg:grid-cols-1" : "lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]"}`}>
+      <div
+        id="left-column"
+        className={`flex min-w-0 flex-col gap-6 lg:rounded-[32px] lg:border lg:border-white/[0.09] lg:bg-card lg:p-6 lg:shadow-[0_24px_60px_-36px_rgba(0,0,0,0.85)] ${
+          preview && (busy || result) ? "lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto" : ""
+        }`}
+      >
       {plants ? (
         <PlantMemory
           locale={locale}
@@ -294,10 +350,11 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
       {!plants || savedPlant ? (
       <>
-      <section id="new-check" className="rounded-[26px] border border-leaf/40 bg-card p-5 sm:p-6">
-        <h2 className="font-serif text-2xl leading-tight text-paper">{text.newCheck}</h2>
+      <section id="new-check" className="rounded-[28px] border border-leaf/40 bg-card p-5 sm:p-6">
+        <p className="eyebrow text-leaf">01</p>
+        <h2 className="mt-1 font-serif text-2xl leading-tight text-paper">{text.newCheck}</h2>
         {savedPlant ? <p className="mt-1 text-sm leading-6 text-mute">{savedPlant.name}</p> : null}
-      <div id="home-plant-name" className={`mt-4 ${plantError ? "rounded-[26px] border border-beet bg-beet/10 p-3 sm:p-4" : ""}`}>
+      <div id="home-plant-name" className={`mt-4 ${plantError ? "rounded-[28px] border border-beet bg-beet/10 p-3 sm:p-4" : ""}`}>
         <label htmlFor="plant-name" className={`block text-base font-semibold ${plantError ? "text-beet" : "text-paper"}`}>
           {text.plantNameLabel}
         </label>
@@ -316,7 +373,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             if (parseFarmerPlant(event.target.value)) setPlantError(false);
           }}
           className={`mt-2 min-h-14 w-full rounded-2xl border px-4 text-base text-paper placeholder:text-mute ${
-            plantError ? "border-beet bg-beet/15 ring-2 ring-beet" : "border-white/15 bg-field"
+            plantError ? "border-beet bg-beet/15 ring-2 ring-beet" : "border-white/[0.18] bg-field"
           }`}
         />
         <p id="plant-name-hint" className={`mt-2 text-sm leading-6 sm:text-base ${plantError ? "text-paper" : "text-mute"}`}>
@@ -346,7 +403,8 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       />
 
       <section
-        className={`rounded-[26px] border bg-card p-5 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 ${dragging ? "border-leaf bg-leaf/10" : "border-white/10 lg:hover:border-leaf/60"}`}
+        id="photo-stage"
+        className={`rounded-[28px] border bg-card p-5 shadow ${preview ? "lg:order-first" : ""}-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 ${dragging ? "border-leaf bg-leaf/10" : "border-white/[0.09] lg:hover:border-leaf/60"}`}
         onDragOver={(event) => {
           event.preventDefault();
           if (!busy) setDragging(true);
@@ -358,29 +416,49 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           if (!busy) void onFiles(event.dataTransfer.files, photos.length > 0 ? "append" : "replace");
         }}
       >
+        {preview && photos.length > 0 && !result && !busy ? (
+          <div className="mb-3">
+            <p className="eyebrow text-leaf">{words.preview}</p>
+            <p className="mt-1 text-sm leading-6 text-mute">{words.previewHint}</p>
+          </div>
+        ) : null}
         {preview ? (
           <MaskCanvas
             src={photos[frame]?.dataUrl ?? preview}
             alt={text.title}
-            result={result}
+            result={busy ? null : result}
             frame={photos.length > 0 ? frame : 0}
             width={photos[frame]?.width}
             height={photos[frame]?.height}
+            showMasks={showMasks}
+            scanning={phase === "analyzing"}
           />
         ) : (
-          <div className="flex min-h-72 flex-col items-center justify-center rounded-[20px] border border-dashed border-leaf/50 bg-field px-6 py-10 text-center">
-            <p className="font-serif text-3xl leading-[1.04] tracking-[-0.03em]">{text.capture}</p>
-            <p className="mt-3 max-w-xs text-base leading-6 text-mute">{text.hint}</p>
-            <p className="mt-2 hidden text-sm font-semibold text-leaf lg:block">{text.dropPhoto}</p>
+          <div id="empty-state" className="flex min-h-72 flex-col items-center justify-center rounded-[24px] border border-dashed border-leaf/40 bg-field px-6 py-10 text-center">
+            <EmptyIllustration />
+            <p className="mt-4 font-serif text-3xl leading-[1.04] tracking-[-0.01em]">
+              {words.emptyTitle}
+            </p>
+            <p className="mt-3 max-w-xs text-base leading-6 text-mute">{words.emptyTip}</p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => cameraRef.current?.click()}
+              className="lift mt-5 min-h-14 rounded-full bg-leaf px-6 text-base font-semibold text-paper"
+            >
+              {words.emptyCta}
+            </button>
+            <p className="mt-3 hidden text-sm font-semibold text-leaf lg:block">{text.dropPhoto}</p>
           </div>
         )}
+        {result && !busy && result.masks.length > 0 && preview ? <MaskToggle showMasks={showMasks} onChange={setShowMasks} words={words} /> : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className={`mt-4 grid-cols-2 gap-3 ${preview ? "grid" : "hidden lg:grid"}`}>
           <button
             type="button"
             disabled={busy}
             onClick={() => cameraRef.current?.click()}
-            className="min-h-14 rounded-2xl bg-soil px-3 text-base font-semibold leading-tight text-paper transition-colors hover:bg-leaf disabled:opacity-60"
+            className="press min-h-14 rounded-full bg-soil px-3 text-base font-semibold leading-tight text-paper transition-colors hover:bg-leaf disabled:opacity-60"
           >
             {text.capture}
           </button>
@@ -388,7 +466,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             type="button"
             disabled={busy}
             onClick={() => libraryRef.current?.click()}
-            className="min-h-14 rounded-2xl border border-white/10 bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-clay hover:text-clay disabled:opacity-60"
+            className="press min-h-14 rounded-full border border-white/[0.09] bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-clay hover:text-clay disabled:opacity-60"
           >
             {text.upload}
           </button>
@@ -467,12 +545,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           <button
             type="button"
             onClick={() => addRef.current?.click()}
-            className="mt-3 min-h-14 w-full rounded-2xl border border-white/10 bg-field px-4 text-base font-semibold text-paper"
+            className="press mt-3 min-h-14 w-full rounded-full border border-white/[0.09] bg-field px-4 text-base font-semibold text-paper"
           >
             {text.addAngle}
           </button>
         ) : null}
-        {busy ? <CheckProgress text={text} step={progressStep} /> : null}
+        {phase === "analyzing" ? <ScanStatus words={words} /> : phase === "preparing" ? <CheckProgress text={text} step={progressStep} /> : null}
         {error ? (
           <p className="mt-3 text-base leading-6 text-beet" role="alert">
             {error}
@@ -480,14 +558,14 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         ) : null}
         {preview && !busy ? (
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={reset} className="min-h-12 rounded-xl px-3 text-base font-semibold text-leaf">
+            <button type="button" onClick={reset} className="press min-h-12 rounded-full px-3 text-base font-semibold text-leaf">
               {text.retake}
             </button>
             {photos.length > 0 && phase === "error" ? (
               <button
                 type="button"
                 onClick={() => void runCheck(photos)}
-                className="min-h-12 rounded-xl px-3 text-base font-semibold text-leaf"
+                className="press min-h-12 rounded-full px-3 text-base font-semibold text-leaf"
               >
                 {text.retry}
               </button>
@@ -500,23 +578,26 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       </div>
 
       <div className="mt-8 flex min-w-0 flex-col gap-5 lg:mt-0 lg:h-full">
+      {phase === "analyzing" ? <ResultSkeleton /> : null}
       {result && !busy ? (
         <div className="space-y-4">
-          <button
-            type="button"
-            onClick={startFresh}
-            className="min-h-14 w-full rounded-2xl border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper lg:w-auto"
-          >
-            {text.newCheck}
-          </button>
-          <ResultCard locale={locale} result={result} />
+          <ResultCard
+            key={result.id}
+            locale={locale}
+            result={result}
+            words={words}
+            signedIn={signedIn}
+            onRescan={rescan}
+            onNewCheck={startFresh}
+            onOpenProfile={() => router.push("/plants")}
+          />
         </div>
       ) : null}
 
       {plants ? null : (
-      <section className="rounded-[26px] border border-onion/30 bg-card p-5 sm:p-6 lg:flex-1">
+      <section className="rounded-[28px] border border-onion/30 bg-card p-5 sm:p-6 lg:flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] sm:text-3xl">{text.history}</h2>
+          <h2 className="font-serif text-2xl leading-[1.04] tracking-[-0.01em] sm:text-3xl">{text.history}</h2>
           {history.length > 0 ? (
             <button type="button" onClick={clearHistory} className="min-h-11 px-2 text-base font-semibold text-leaf">
               {text.clear}
@@ -552,20 +633,32 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       </div>
       </div>
 
-      {photos.length > 0 && !busy ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {!preview && !busy && (!plants || savedPlant) ? (
+        <div id="mobile-action-bar" className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.09] bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
+          <div className="mx-auto grid w-full max-w-xl grid-cols-2 gap-3 px-4 sm:px-6">
+            <button type="button" onClick={() => cameraRef.current?.click()} className="press min-h-14 rounded-full bg-leaf px-3 text-base font-semibold text-paper">
+              {text.capture}
+            </button>
+            <button type="button" onClick={() => libraryRef.current?.click()} className="press min-h-14 rounded-full border border-white/[0.18] bg-field px-3 text-base font-semibold text-paper">
+              {text.upload}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {photos.length > 0 && !busy && !result ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.09] bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex w-full max-w-xl gap-3 px-4 sm:px-6 lg:max-w-6xl lg:px-8">
             <button
               type="button"
               onClick={startFresh}
-              className="min-h-14 shrink-0 rounded-2xl border border-leaf/50 bg-leaf/15 px-4 text-base font-semibold text-paper"
+              className="press min-h-14 shrink-0 rounded-full border border-leaf/50 bg-leaf/15 px-4 text-base font-semibold text-paper"
             >
               {text.newCheck}
             </button>
             <button
               type="button"
               onClick={() => void submitPrepared()}
-              className="min-h-14 w-full rounded-2xl bg-leaf px-4 text-base font-semibold tracking-tight text-paper shadow-[0_12px_30px_-16px_rgba(31,157,85,0.9)] lg:max-w-[28rem]"
+              className="press min-h-14 w-full rounded-full bg-leaf px-4 text-base font-semibold tracking-tight text-paper lg:max-w-[28rem]"
             >
               {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
             </button>
@@ -576,8 +669,47 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   );
 }
 
-function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult }) {
+function ResultCard({
+  locale,
+  result,
+  words,
+  signedIn,
+  onRescan,
+  onNewCheck,
+  onOpenProfile,
+}: {
+  locale: Locale;
+  result: AnalyzeResult;
+  words: UiWords;
+  signedIn: boolean | null;
+  onRescan: () => void;
+  onNewCheck: () => void;
+  onOpenProfile: () => void;
+}) {
   const text = copy[locale];
+  const severity = severityFor(result);
+  const filed = Boolean(result.plantId);
+  const [saved, setSaved] = useState(false);
+  const [guestAsk, setGuestAsk] = useState(false);
+  const [guestDismissed, setGuestDismissed] = useState(false);
+  useEffect(() => {
+    if (filed) buzz();
+  }, [filed]);
+  function save() {
+    if (filed) {
+      onOpenProfile();
+      return;
+    }
+    if (!signedIn) {
+      setGuestAsk(true);
+      setGuestDismissed(false);
+      return;
+    }
+    buzz();
+    setSaved(true);
+    window.setTimeout(onOpenProfile, 650);
+  }
+  const showGuest = !filed && signedIn === false && !guestDismissed && (guestAsk || !result.qualityHold);
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
   let step = 1;
@@ -594,37 +726,69 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
       ) : null}
       {result.qualityHold ? (
         <div id="quality-hold" className="rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-5 py-5" role="status">
-          <p className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-ink sm:text-3xl">{result.qualityMessage}</p>
+          <p className="font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-ink sm:text-3xl">{result.qualityMessage}</p>
         </div>
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
       {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="inline-flex min-h-8 items-center rounded-full bg-[#f6b23a] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink">
+      <div id="diagnosis-card" className={`rise rounded-[32px] border border-white/[0.18] ${severityBorder(severity)} bg-card p-5 shadow-[0_30px_60px_-36px_rgba(0,0,0,0.9)] sm:p-6`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          {severity ? <SeverityLine severity={severity} words={words} /> : <p className="eyebrow text-mute">{words.diagnosis}</p>}
+          <span className="eyebrow text-mute/70">
             {result.mode === "mock" ? text.modeMock : text.modeLive}
-          </p>
-          <h2 className="mt-3 font-serif text-3xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-4xl">
+          </span>
+        </div>
+        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="min-w-0 font-serif text-3xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-4xl">
             {text.plantLine({
               detectedPlant: result.detectedPlant,
               cropFocus: result.cropFocus,
               primaryCrop: result.primaryCrop,
             })}
+            {result.likelyCauses?.[0] ? <span className="mt-2 block text-xl leading-snug text-mute sm:text-2xl">{result.likelyCauses[0]}</span> : null}
           </h2>
+          <p className="shrink-0 sm:text-right">
+            <span className="eyebrow block text-dusk">{text.confidence}</span>
+            <span className="text-base font-semibold">{text.levelLabel(result.confidence)}</span>
+            <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-white/15">
+              <span className="block h-full origin-left bg-leaf" style={{ width: `${score}%` }} />
+            </span>
+          </p>
         </div>
-        <p className="shrink-0 sm:text-right">
-          <span className="block font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-dusk">{text.confidence}</span>
-          <span className="text-base font-semibold">{text.levelLabel(result.confidence)}</span>
-          <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-white/15">
-            <span className="block h-full bg-onion" style={{ width: `${score}%` }} />
-          </span>
-        </p>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {saved ? (
+            <SavedBurst label={words.savedToProfile} />
+          ) : filed ? (
+            <>
+              <SavedBurst label={words.savedToProfile} />
+              <button type="button" onClick={save} className="lift min-h-12 rounded-full border border-leaf/50 px-4 text-base font-semibold text-paper">
+                {words.openProfile}
+              </button>
+            </>
+          ) : (
+            <button
+              id="save-to-profile"
+              type="button"
+              onClick={save}
+              className="lift min-h-12 rounded-full bg-leaf px-5 text-base font-semibold text-paper"
+            >
+              {words.saveToProfile}
+            </button>
+          )}
+          <button id="rescan" type="button" onClick={onRescan} className="lift min-h-12 rounded-full border border-white/[0.18] px-4 text-base font-semibold text-paper">
+            {words.rescan}
+          </button>
+          <button type="button" onClick={onNewCheck} className="press min-h-12 rounded-full px-3 text-base font-semibold text-mute hover:text-paper">
+            {text.newCheck}
+          </button>
+        </div>
       </div>
+      {showGuest && (guestAsk || filed === false) ? <GuestSavePrompt words={words} onDismiss={() => setGuestDismissed(true)} /> : null}
 
-      <section id="result-stands-out" className="overflow-hidden rounded-[26px] border border-[#c8881a]/60 bg-card shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)]">
+      <section id="result-stands-out" style={{ animationDelay: "120ms" }} className="rise overflow-hidden rounded-[28px] border border-[#c8881a]/60 bg-card shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)]">
         <div className="border-b border-[#c8881a]/40 bg-[#f8e7c4] px-4 py-4 text-ink sm:px-5">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-ink/60">{standsStep}</p>
-          <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] sm:text-3xl">{text.observations}</h3>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">{standsStep}</p>
+          <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.01em] sm:text-3xl">{text.observations}</h3>
         </div>
         <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
           {result.masks.length === 0 ? <p className="text-base leading-6 text-mute">{text.noMasks}</p> : null}
@@ -651,22 +815,22 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
       {pair ? (
         <div className="grid gap-4 xl:grid-cols-2">
           <AdviceList step={causeStep} id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
-          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
+          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} words={words} checklist />
         </div>
       ) : (
         <>
           <AdviceList step={causeStep} id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
-          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
+          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} words={words} checklist />
         </>
       )}
 
-      <div id="result-checks" className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] sm:p-5">
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-clay">{checkStep}</p>
-        <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-3xl">{text.actions}</h3>
+      <div id="result-checks" style={{ animationDelay: "280ms" }} className="rise rounded-[28px] border border-white/[0.09] bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] sm:p-5">
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-clay">{checkStep}</p>
+        <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{text.actions}</h3>
         <p className="mt-2 text-base leading-6 text-mute">{text.actionsHint}</p>
         <ol className="mt-4 space-y-3">
           {result.actions.map((action, index) => (
-            <li key={action} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-field px-3 py-3 sm:px-4 sm:py-4">
+            <li key={action} className="flex items-start gap-3 rounded-2xl border border-white/[0.09] bg-field px-3 py-3 sm:px-4 sm:py-4">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-soil font-serif text-xl text-paper">
                 {index + 1}
               </span>
@@ -680,15 +844,15 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
 
       {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
 
-      <aside className="rounded-[26px] border border-beet/40 bg-beet/10 px-4 py-4 sm:px-5">
-        <h3 className="font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-beet">{text.askAgronomist}</h3>
+      <aside className="rounded-[28px] border border-beet/40 bg-beet/10 px-4 py-4 sm:px-5">
+        <h3 className="font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-beet">{text.askAgronomist}</h3>
         <p className="mt-2 text-base leading-7 text-paper">{result.agronomistCallout}</p>
       </aside>
 
       {result.note === "local-fallback" ? <p className="text-base leading-6 text-mute">{text.backupNote}</p> : null}
 
       <div>
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-dusk">{text.beforeYouAct}</h3>
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-dusk">{text.beforeYouAct}</h3>
         <p className="mt-2 text-base leading-7 text-paper/85">{result.disclaimer}</p>
       </div>
     </section>
@@ -698,7 +862,7 @@ function ResultCard({ locale, result }: { locale: Locale; result: AnalyzeResult 
 function CheckProgress({ text, step }: { text: Copy; step: number }) {
   const clamped = Math.min(2, Math.max(0, step));
   return (
-    <div id="check-progress" className="mt-4 rounded-[26px] border-2 border-[#c56a00] bg-[#fff4dc] px-4 py-5 text-ink shadow-sm" role="status" aria-live="polite" aria-busy="true">
+    <div id="check-progress" className="mt-4 rounded-[28px] border-2 border-[#c56a00] bg-[#fff4dc] px-4 py-5 text-ink shadow-sm" role="status" aria-live="polite" aria-busy="true">
       <div className="flex items-center gap-3">
         <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
           <span className="absolute inset-0 animate-spin rounded-full border-2 border-[#f0d7a4] border-t-[#c56a00]" />
@@ -739,26 +903,34 @@ function AdviceList({
   title,
   hint,
   items,
+  words,
+  checklist = false,
 }: {
   id: string;
   step?: string;
   title: string;
   hint: string;
   items: readonly string[];
+  words?: UiWords;
+  checklist?: boolean;
 }) {
   if (items.length === 0) return null;
   return (
-    <div id={id} className="rounded-[26px] border border-white/10 bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/50 lg:hover:shadow-[0_0_40px_-16px_rgba(31,157,85,0.45)]">
-      {step ? <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-clay">{step}</p> : null}
-      <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.03em] text-paper sm:text-3xl">{title}</h3>
+    <div id={id} style={{ animationDelay: "200ms" }} className="rise rounded-[28px] border border-white/[0.09] bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/50 lg:hover:shadow-[0_0_40px_-16px_rgba(31,157,85,0.45)]">
+      {step ? <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-clay">{step}</p> : null}
+      <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{title}</h3>
       <p className="mt-2 text-base leading-6 text-mute">{hint}</p>
-      <ul className="mt-4 space-y-3">
-        {items.map((item) => (
-          <li key={item} className="rounded-2xl border border-white/10 bg-field px-4 py-3 text-base leading-7">
-            {item}
-          </li>
-        ))}
-      </ul>
+      {checklist && words ? (
+        <Checklist id={`${id}-list`} items={items} words={words} />
+      ) : (
+        <ul className="mt-4 space-y-3">
+          {items.map((item, index) => (
+            <li key={item} style={{ animationDelay: `${240 + index * 100}ms` }} className="rise rounded-[20px] border border-white/[0.09] bg-field px-4 py-3 text-base leading-7">
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -766,8 +938,8 @@ function AdviceList({
 function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) {
   return (
     <div className="space-y-4">
-      <div id="result-chemicals" className="rounded-[26px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{text.chemicalsTitle}</h3>
+      <div id="result-chemicals" className="rounded-[28px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{text.chemicalsTitle}</h3>
         <p className="mt-2 text-base leading-7">
           <span className="font-semibold">{text.chemicalsSuspect}. </span>
           {advice.suspect}
@@ -775,7 +947,7 @@ function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) 
         <p className="mt-2 text-base leading-7 text-paper/85">{advice.verifyNote}</p>
         <ul className="mt-4 space-y-3">
           {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-2xl border border-white/10 bg-field px-4 py-3">
+            <li key={product.activeIngredient} className="rounded-2xl border border-white/[0.09] bg-field px-4 py-3">
               <p className="text-base font-semibold">{product.activeIngredient}</p>
               <p className="text-sm leading-6 text-mute">{product.productClass}</p>
               <p className="mt-1 text-base leading-7">{product.useNote}</p>
@@ -784,16 +956,16 @@ function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) 
         </ul>
       </div>
 
-      <div id="result-shops" className="rounded-[26px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-leaf">{text.chemicalsWhere}</h3>
+      <div id="result-shops" className="rounded-[28px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{text.chemicalsWhere}</h3>
         <ul className="mt-3 space-y-3">
           {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-2xl border border-white/10 bg-field px-4 py-3">
+            <li key={product.activeIngredient} className="rounded-2xl border border-white/[0.09] bg-field px-4 py-3">
               <p className="text-base font-semibold">{product.activeIngredient}</p>
               {product.offers.length === 0 ? <p className="mt-1 text-base leading-6">{text.chemicalsNoShop}</p> : null}
               <ul className="mt-2 space-y-2">
                 {orderedOffers(product.offers).map((offer) => (
-                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl border border-white/10 bg-card px-3 py-3 text-base leading-6">
+                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl border border-white/[0.09] bg-card px-3 py-3 text-base leading-6">
                     <span className="font-semibold text-[#f6b23a]">{text.quality[offer.quality]}</span>
                     <span className="text-mute"> · {offer.brand} · {offer.pack}</span>
                     <span className="mt-0.5 block">
@@ -848,7 +1020,7 @@ function ContextForm({
   const filled = preview.length > 0;
   const previewText = preview.length > 90 ? `${preview.slice(0, 89).trimEnd()}…` : preview;
   return (
-    <section id="home-context" className="rounded-[26px] border border-clay/40 bg-card p-5 transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 lg:hover:border-clay">
+    <section id="home-context" className="rounded-[28px] border border-clay/40 bg-card p-5 transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 lg:hover:border-clay">
       <button
         type="button"
         aria-expanded={open}
@@ -886,7 +1058,7 @@ function ContextForm({
             aria-labelledby="context-title"
             aria-describedby="context-guide"
             onChange={(event) => onChange({ ...emptyFarmerContext(), notes: event.target.value })}
-            className="min-h-32 w-full rounded-2xl border border-white/15 bg-field px-4 py-3 text-base leading-7 font-normal text-paper placeholder:text-mute"
+            className="min-h-32 w-full rounded-2xl border border-white/[0.18] bg-field px-4 py-3 text-base leading-7 font-normal text-paper placeholder:text-mute"
           />
           <p id="context-guide" className="text-base leading-7 text-mute">
             {text.contextGuide}
@@ -897,7 +1069,7 @@ function ContextForm({
               type="button"
               disabled={disabled || contextIsEmpty(context)}
               onClick={onUpdate}
-              className="min-h-14 w-full rounded-2xl bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60"
+              className="press min-h-14 w-full rounded-full bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60"
             >
               {text.contextUpdate}
             </button>
@@ -987,7 +1159,7 @@ function RecentCheck({
 
   if (confirm) {
     return (
-      <div role="alertdialog" aria-label={ask} className="flex w-44 flex-col justify-between gap-3 rounded-[26px] border border-beet/50 bg-card p-3 lg:w-full">
+      <div role="alertdialog" aria-label={ask} className="flex w-44 flex-col justify-between gap-3 rounded-[28px] border border-beet/50 bg-card p-3 lg:w-full">
         <p className="text-sm leading-5 text-paper">{ask}</p>
         <div className="grid grid-cols-1 gap-2">
           <button type="button" autoFocus onClick={() => setConfirm(false)} className="min-h-11 rounded-xl bg-soil px-3 text-sm font-semibold text-paper">
@@ -1023,7 +1195,7 @@ function RecentCheck({
           }
           onOpen();
         }}
-        className={`w-full touch-manipulation overflow-hidden rounded-[26px] border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-onion lg:group-hover:border-clay" : "border-white/10 lg:group-hover:border-leaf/50"}`}
+        className={`w-full touch-manipulation overflow-hidden rounded-[28px] border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-onion lg:group-hover:border-clay" : "border-white/[0.09] lg:group-hover:border-leaf/50"}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={entry.thumbnail} alt="" className="h-28 w-full object-cover" />
