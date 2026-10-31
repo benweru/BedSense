@@ -18,7 +18,7 @@ const MESSAGES: Record<AnalyzeError["code"], Record<Locale, string>> = {
   },
   image_too_large: {
     en: "That photo is too large. Try a closer shot or a smaller file.",
-    sw: "Picha hiyo ni kubwa sana. Jaribu picha ya karibu au faili ndogo.",
+    sw: "Picha hii ni kubwa sana. Jaribu picha nyingine au faili ndogo zaidi.",
   },
   missing_key: {
     en: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
@@ -30,11 +30,11 @@ const MESSAGES: Record<AnalyzeError["code"], Record<Locale, string>> = {
   },
   muse_unavailable: {
     en: "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
-    sw: "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya mazungumzo ya Muse Spark au Muse Wonder, kisha fanya ukaguzi tena.",
+    sw: "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya Muse Spark au Muse Wonder, kisha jaribu kukagua tena.",
   },
   upstream: {
     en: "The model call did not finish. Try the photo again.",
-    sw: "Wito wa modeli haukukamilika. Jaribu picha tena.",
+    sw: "Modeli haikujibu. Jaribu tena na picha.",
   },
 };
 

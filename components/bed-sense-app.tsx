@@ -305,12 +305,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             <p className="eyebrow text-leaf">{locale === "sw" ? "Kumbukumbu ya mimea" : "Plant memory"}</p>
             <h1 className="mt-2 font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.01em] text-paper">
               {locale === "sw" ? "Mimea yangu" : "My plants"}
-              <span className="text-mute">{locale === "sw" ? ", kwa muda." : ", over time."}</span>
+              <span className="text-mute">{locale === "sw" ? ", siku baada ya siku." : ", over time."}</span>
             </h1>
           </>
         ) : (
           <>
-            <p className="eyebrow text-leaf">{locale === "sw" ? "Kitanda chako, kimesomwa" : "Farm bed check"}</p>
+            <p className="eyebrow text-leaf">{locale === "sw" ? "Ukaguzi wa kitalu" : "Farm bed check"}</p>
             <p className="mt-2 max-w-2xl font-serif text-2xl leading-snug text-paper sm:text-3xl">
               {text.lede.split(". ")[0]}
               {text.lede.includes(". ") ? <span className="text-mute">. {text.lede.split(". ").slice(1).join(". ")}</span> : null}

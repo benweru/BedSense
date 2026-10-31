@@ -181,7 +181,7 @@ export function VoiceNote({
       return;
     }
     if (!canRecordVoice()) {
-      setMessage(locale === "sw" ? "Kipaza sauti hakipatikani." : "This browser cannot use the microphone.");
+      setMessage(locale === "sw" ? "Kivinjari hiki hakiwezi kutumia maikrofoni." : "This browser cannot use the microphone.");
       return;
     }
     const audio = new AudioContext();
@@ -201,7 +201,7 @@ export function VoiceNote({
         if (transcript) onTranscript(transcript);
         else setMessage(locale === "sw" ? "Hakuna maneno yaliyosikika." : "No words came through.");
       })
-      .catch(() => setMessage(locale === "sw" ? "Sauti haikufika." : "The voice note did not come through."))
+      .catch(() => setMessage(locale === "sw" ? "Ujumbe wa sauti haukufika." : "The voice note did not come through."))
       .finally(() => {
         void audio.close();
         setVoicePhase("idle");
