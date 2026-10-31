@@ -326,7 +326,7 @@ const sw: Copy = {
   qualityMixed: "Sogea karibu upige picha iliyo wazi zaidi. Picha hizi ziko mbali sana au hazionekani vizuri.",
   qualityHarshLight: (frames, total) => {
     const subject = total === 1 ? "picha hii" : `picha ${frames.join(" na ")}`;
-    return `${subject} haina mwanga mzuri. Tafadhali piga au pakia picha yenye mwanga mzuri zaidi.`;
+    return `${subject.charAt(0).toUpperCase()}${subject.slice(1)} haina mwanga mzuri. Tafadhali piga au pakia picha yenye mwanga mzuri zaidi.`;
   },
   qualityBatch: (kept, skipped) => {
     const lit = skipped.filter((item) => item.lighting).map((item) => item.frame);
