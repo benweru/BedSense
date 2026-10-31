@@ -7,18 +7,25 @@ export function canRecordVoice(): boolean {
 }
 
 /** Start a voice note from a tap so the AudioContext is allowed to start. Call stop() on the next tap. */
-export function startVoiceRecorder(audio: AudioContext): { stop: () => void; result: Promise<Uint8Array> } {
+export function startVoiceRecorder(
+  audio: AudioContext,
+  onLevel?: (level: number) => void,
+): { stop: () => void; result: Promise<Uint8Array> } {
   let endCapture = () => {};
-  const result = capture(audio, (end) => {
-    endCapture = end;
-  });
+  const result = capture(
+    audio,
+    (end) => {
+      endCapture = end;
+    },
+    onLevel,
+  );
   return {
     stop: () => endCapture(),
     result,
   };
 }
 
-async function capture(audio: AudioContext, bindStop: (end: () => void) => void): Promise<Uint8Array> {
+async function capture(audio: AudioContext, bindStop: (end: () => void) => void, onLevel?: (level: number) => void): Promise<Uint8Array> {
   if (typeof audio.createScriptProcessor !== "function") throw new Error("unsupported");
   let release = () => {};
   let stopped = false;
@@ -39,7 +46,13 @@ async function capture(audio: AudioContext, bindStop: (end: () => void) => void)
   gain.gain.value = 0;
   const chunks: Float32Array[] = [];
   processor.onaudioprocess = (event) => {
-    chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+    const data = event.inputBuffer.getChannelData(0);
+    chunks.push(new Float32Array(data));
+    if (onLevel) {
+      let sum = 0;
+      for (let index = 0; index < data.length; index += 1) sum += data[index] * data[index];
+      onLevel(Math.min(1, Math.sqrt(sum / Math.max(1, data.length)) * 6));
+    }
   };
   source.connect(processor);
   processor.connect(gain);

@@ -1,11 +1,42 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Waveform } from "@/components/premium";
 import { canRecordVoice, startVoiceRecorder } from "@/components/voice-capture";
 import { appendToContext, emptyFarmerContext } from "@/lib/context";
 import { wavBlob } from "@/lib/voice";
 import type { Copy } from "@/lib/copy";
 import type { FarmerContext, Locale } from "@/lib/types";
+import { UI } from "@/lib/ui-copy";
+
+const BARS = 18;
+const HOLD_MS = 350;
+
+/** Hold-to-record with a tap-to-talk fallback. Keyboard click still toggles. */
+function useHoldGesture(toggle: () => void, listening: () => boolean) {
+  const pressAt = useRef(0);
+  return {
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      pressAt.current = Date.now();
+      toggle();
+    },
+    onPointerUp: () => {
+      if (listening() && pressAt.current && Date.now() - pressAt.current > HOLD_MS) toggle();
+      pressAt.current = 0;
+    },
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (event.detail === 0) toggle();
+    },
+  };
+}
+
+function useLevels() {
+  const [levels, setLevels] = useState<number[]>(() => Array(BARS).fill(0));
+  const push = (level: number) => setLevels((current) => [...current.slice(1), level]);
+  const clear = () => setLevels(Array(BARS).fill(0));
+  return { levels, push, clear };
+}
 
 export function VoiceContext({
   text,
@@ -25,6 +56,7 @@ export function VoiceContext({
   const stopRef = useRef<(() => void) | null>(null);
   const phaseRef = useRef(phase);
   const contextRef = useRef(context);
+  const wave = useLevels();
   useEffect(() => {
     contextRef.current = context;
   }, [context]);
@@ -50,11 +82,12 @@ export function VoiceContext({
     }
     const audio = new AudioContext();
     void audio.resume();
-    const recorder = startVoiceRecorder(audio);
+    const recorder = startVoiceRecorder(audio, wave.push);
     stopRef.current = () => {
       recorder.stop();
       stopRef.current = null;
     };
+    wave.clear();
     setVoicePhase("listening");
     setMessage(null);
     void recorder.result
@@ -81,7 +114,9 @@ export function VoiceContext({
       });
   }
 
-  const label = phase === "listening" ? text.voiceFinish : phase === "writing" ? text.voiceWriting : text.voiceHold;
+  const words = UI[locale];
+  const gesture = useHoldGesture(toggle, () => phaseRef.current === "listening");
+  const label = phase === "listening" ? words.releaseToFinish : phase === "writing" ? text.voiceWriting : text.voiceHold;
   const announcement = phase === "listening" ? text.voiceListening : phase === "writing" ? text.voiceWriting : "";
 
   return (
@@ -93,14 +128,17 @@ export function VoiceContext({
         type="button"
         disabled={disabled || phase === "writing"}
         aria-pressed={phase === "listening"}
-        onClick={toggle}
+        aria-label={phase === "idle" ? `${text.voiceHold}. ${words.holdToTalk}` : label}
+        {...gesture}
         onContextMenu={(event) => event.preventDefault()}
-        className={`min-h-14 w-full touch-manipulation rounded-2xl px-4 text-base font-semibold select-none disabled:opacity-60 ${
-          phase === "listening" ? "bg-[#f6b23a] text-ink shadow-[inset_0_0_0_2px_#c56a00]" : "bg-soil text-paper"
+        className={`press flex min-h-14 w-full touch-none items-center justify-center gap-3 rounded-full px-4 text-base font-semibold select-none disabled:opacity-60 ${
+          phase === "listening" ? "bg-[#8ee6b0] text-ink shadow-[0_0_0_6px_rgba(31,157,85,0.25)]" : "bg-soil text-paper"
         }`}
       >
-        {label}
+        {phase === "listening" ? <Waveform levels={wave.levels} /> : <MicIcon />}
+        <span>{label}</span>
       </button>
+      {phase === "idle" ? <p className="mt-2 text-center text-sm text-mute">{words.holdToTalk}</p> : null}
       {message ? (
         <p className="mt-2 text-base leading-6 text-beet" role="alert">
           {message}
@@ -127,12 +165,18 @@ export function VoiceNote({
   const [phase, setPhase] = useState<"idle" | "listening" | "writing">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
+  const phaseRef = useRef(phase);
+  const wave = useLevels();
+  function setVoicePhase(next: "idle" | "listening" | "writing") {
+    phaseRef.current = next;
+    setPhase(next);
+  }
 
   useEffect(() => () => stopRef.current?.(), []);
 
   function toggle() {
-    if (disabled || phase === "writing") return;
-    if (phase === "listening") {
+    if (disabled || phaseRef.current === "writing") return;
+    if (phaseRef.current === "listening") {
       stopRef.current?.();
       return;
     }
@@ -142,16 +186,17 @@ export function VoiceNote({
     }
     const audio = new AudioContext();
     void audio.resume();
-    const recorder = startVoiceRecorder(audio);
+    const recorder = startVoiceRecorder(audio, wave.push);
     stopRef.current = () => {
       recorder.stop();
       stopRef.current = null;
     };
-    setPhase("listening");
+    wave.clear();
+    setVoicePhase("listening");
     setMessage(null);
     void recorder.result
       .then(async (wav) => {
-        setPhase("writing");
+        setVoicePhase("writing");
         const transcript = await sendTranscript(wav, locale);
         if (transcript) onTranscript(transcript);
         else setMessage(locale === "sw" ? "Hakuna maneno yaliyosikika." : "No words came through.");
@@ -159,10 +204,12 @@ export function VoiceNote({
       .catch(() => setMessage(locale === "sw" ? "Sauti haikufika." : "The voice note did not come through."))
       .finally(() => {
         void audio.close();
-        setPhase("idle");
+        setVoicePhase("idle");
         stopRef.current = null;
       });
   }
+
+  const gesture = useHoldGesture(toggle, () => phaseRef.current === "listening");
 
   return (
     <div>
@@ -170,9 +217,11 @@ export function VoiceNote({
         type="button"
         disabled={disabled || phase === "writing"}
         aria-pressed={phase === "listening"}
-        onClick={toggle}
-        className={`min-h-12 rounded-2xl px-4 text-sm font-semibold disabled:opacity-60 ${phase === "listening" ? "bg-[#f6b23a] text-ink" : "bg-soil text-paper"}`}
+        {...gesture}
+        onContextMenu={(event) => event.preventDefault()}
+        className={`press inline-flex min-h-12 touch-none items-center gap-2 rounded-full px-4 text-sm font-semibold select-none disabled:opacity-60 ${phase === "listening" ? "bg-[#8ee6b0] text-ink" : "bg-soil text-paper"}`}
       >
+        {phase === "listening" ? <Waveform levels={wave.levels.slice(-10)} /> : <MicIcon />}
         {phase === "listening" ? listeningLabel : phase === "writing" ? "…" : label}
       </button>
       {message ? (
@@ -181,6 +230,15 @@ export function VoiceNote({
         </p>
       ) : null}
     </div>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="9" y="3.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" strokeLinecap="round" />
+    </svg>
   );
 }
 

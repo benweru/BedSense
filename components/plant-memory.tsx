@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { flushSync } from "react-dom";
+import { CheckMark, EmptyIllustration, SeverityPill } from "@/components/premium";
 import { VoiceNote } from "@/components/voice-context";
+import { severityFor } from "@/lib/severity";
+import { sinceLastVisit } from "@/lib/since-last-visit";
+import { UI } from "@/lib/ui-copy";
 import { daysBetween, recheckDue } from "@/lib/memory";
 import { writeHistory } from "@/lib/phone-store";
 import { browserSupabase } from "@/lib/supabase-browser";
@@ -162,7 +167,7 @@ export function PlantsHomeCard({ locale }: { locale: Locale }) {
   }, []);
   if (!browserSupabase()) return null;
   return (
-    <Link href="/plants" className="block rounded-[26px] border border-dusk/40 bg-card p-5 transition-colors hover:border-dusk sm:p-6">
+    <Link href="/plants" className="lift block rounded-[28px] border border-dusk/40 bg-card p-5 hover:border-dusk sm:p-6">
       <h2 className="font-serif text-2xl leading-tight text-paper">{words.view}</h2>
       {signedOut ? <p className="mt-2 text-sm leading-6 text-mute">{words.signInLead}</p> : null}
       {plants && plants.length === 0 && !signedOut ? <p className="mt-2 text-sm leading-6 text-mute">{words.none}</p> : null}
@@ -238,12 +243,20 @@ export function PlantMemory({
     if (fresh.lastCheckAt !== selected.lastCheckAt || fresh.checkCount !== selected.checkCount) onSelect(fresh);
   }, [plants, selected, onSelect]);
 
+  const ui = UI[locale];
+  const pick = (plant: SavedPlant | null) => {
+    const doc = document as Document & { startViewTransition?: (update: () => void) => unknown };
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (doc.startViewTransition && !reduce) doc.startViewTransition(() => flushSync(() => onSelect(plant)));
+    else onSelect(plant);
+  };
+
   if (!supabase) return null;
 
   if (!user) return <SignIn words={words} />;
 
   return (
-    <section id="plant-memory" className="rounded-[26px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
+    <section id="plant-memory" className="rounded-[28px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-serif text-2xl leading-tight text-paper">{words.title}</h2>
         <button
@@ -264,42 +277,71 @@ export function PlantMemory({
       ) : null}
 
       {plantsLoading && plants.length === 0 ? <p className="mt-4"><Spinner /></p> : null}
-      <div role="radiogroup" aria-label={words.title} className="mt-3 flex flex-col gap-2">
-        {plants.map((plant) => {
-          const due = recheckDue(plant.lastCheckAt, new Date());
-          const days = plant.lastCheckAt ? daysBetween(plant.lastCheckAt, new Date()) : null;
-          const active = selected?.id === plant.id;
-          return (
-            <button
-              key={plant.id}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              disabled={disabled}
-              onClick={() => onSelect(active ? null : plant)}
-              className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-2 text-left ${
-                active ? "border-leaf bg-leaf/15" : "border-white/15 bg-field"
-              }`}
-            >
-              <span className="min-w-0">
-                <span className="block truncate text-base font-semibold text-paper">
-                  {plant.name}
-                  {plant.bedLabel ? <span className="font-normal text-mute"> · {plant.bedLabel}</span> : null}
+      {!plantsLoading && plants.length === 0 && !creating ? (
+        <div id="plants-empty" className="mt-4 flex flex-col items-center rounded-[24px] border border-dashed border-leaf/40 bg-field px-6 py-8 text-center">
+          <EmptyIllustration />
+          <p className="mt-3 font-serif text-2xl text-paper">{words.none}</p>
+          <p className="mt-2 max-w-xs text-base leading-6 text-mute">{ui.emptyTip}</p>
+        </div>
+      ) : null}
+      <div role="radiogroup" aria-label={words.title} className={`mt-4 grid gap-3 ${selected ? "grid-cols-1 sm:max-w-xs" : "grid-cols-2 lg:grid-cols-3"}`}>
+        {plants
+          .filter((plant) => !selected || plant.id === selected.id)
+          .map((plant, index) => {
+            const due = recheckDue(plant.lastCheckAt, new Date());
+            const days = plant.lastCheckAt ? daysBetween(plant.lastCheckAt, new Date()) : null;
+            const active = selected?.id === plant.id;
+            const latest = history.find((entry) => entry.result.plantId === plant.id);
+            const health = latest ? severityFor(latest.result) : null;
+            return (
+              <button
+                key={plant.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={disabled}
+                onClick={() => pick(active ? null : plant)}
+                style={{ viewTransitionName: `plant-${plant.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, animationDelay: `${Math.min(index, 4) * 40}ms` }}
+                className={`plant-card rise lift group relative flex aspect-[4/5] min-w-0 flex-col justify-end overflow-hidden rounded-[24px] border text-left ${
+                  active ? "border-leaf" : "border-white/[0.09]"
+                }`}
+              >
+                {latest ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- local check thumbnail
+                  <img src={latest.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover saturate-[0.9] contrast-[1.05]" />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center bg-field">
+                    <EmptyIllustration />
+                  </span>
+                )}
+                <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,12,0)_35%,rgba(7,17,12,0.92)_100%)]" aria-hidden="true" />
+                <span className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
+                  {health ? <span className="rounded-full bg-page/80 backdrop-blur-sm"><SeverityPill severity={health} words={ui} /></span> : null}
+                  {due ? <span className="rounded-full bg-[#f6b23a] px-2.5 py-1 text-xs font-semibold text-ink">{words.recheckDue}</span> : null}
                 </span>
-                <span className="block text-sm text-mute">
-                  {days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
+                {active ? (
+                  <span className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-leaf text-page">
+                    <CheckMark />
+                  </span>
+                ) : null}
+                <span className="relative block p-3">
+                  <span className="block truncate font-serif text-lg leading-tight text-paper">
+                    {plant.name}
+                    {plant.bedLabel ? <span className="text-mute"> · {plant.bedLabel}</span> : null}
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-5 text-paper/75">
+                    {days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
+                  </span>
                 </span>
-              </span>
-              {due ? <span className="shrink-0 rounded-full bg-[#f6b23a] px-3 py-1 text-xs font-semibold text-ink">{words.recheckDue}</span> : null}
-            </button>
-          );
-        })}
-        {selected ? (
-          <button type="button" disabled={disabled} onClick={() => onSelect(null)} className="min-h-11 text-left text-sm font-semibold text-mute hover:text-paper">
-            {words.noPlant}
-          </button>
-        ) : null}
+              </button>
+            );
+          })}
       </div>
+      {selected ? (
+        <button type="button" disabled={disabled} onClick={() => pick(null)} className="mt-2 min-h-11 text-left text-sm font-semibold text-mute hover:text-paper">
+          {words.noPlant}
+        </button>
+      ) : null}
 
       {!selected && creating ? (
         <NewPlantForm
@@ -317,7 +359,7 @@ export function PlantMemory({
           type="button"
           disabled={disabled}
           onClick={() => setCreating(true)}
-          className="mt-3 min-h-12 w-full rounded-2xl border border-dashed border-leaf/60 text-base font-semibold text-paper"
+          className="lift mt-3 min-h-12 w-full rounded-full border border-dashed border-leaf/60 text-base font-semibold text-paper"
         >
           + {words.newPlant}
         </button>
@@ -350,7 +392,7 @@ function kenyaPhone(raw: string): string | null {
 
 function Spinner() {
   return (
-    <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-white/15 border-t-leaf" role="status" aria-label="Loading" />
+    <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-white/[0.18] border-t-leaf" role="status" aria-label="Loading" />
   );
 }
 
@@ -397,7 +439,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   }
 
   return (
-    <section id="plant-memory" className="rounded-[26px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
+    <section id="plant-memory" className="rounded-[28px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
       {heading ? <h2 className="font-serif text-2xl leading-tight text-paper">{words.title}</h2> : null}
       <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.signInLead}</p>
       <form
@@ -422,7 +464,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
             setSent(false);
             setError(false);
           }}
-          className="min-h-12 rounded-2xl border border-white/15 bg-field px-4 text-base text-paper placeholder:text-mute"
+          className="press min-h-12 rounded-full border border-white/[0.18] bg-field px-4 text-base text-paper placeholder:text-mute"
         />
         {byEmail ? null : <p className="text-sm leading-6 text-mute">{words.phoneHint}</p>}
         {sent ? (
@@ -435,11 +477,11 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
               inputMode="numeric"
               autoComplete="one-time-code"
               onChange={(event) => setCode(event.target.value)}
-              className="min-h-12 rounded-2xl border border-white/15 bg-field px-4 text-base text-paper placeholder:text-mute"
+              className="press min-h-12 rounded-full border border-white/[0.18] bg-field px-4 text-base text-paper placeholder:text-mute"
             />
           </>
         ) : null}
-        <button type="submit" disabled={busy} className="min-h-12 rounded-2xl bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
+        <button type="submit" disabled={busy} className="press min-h-12 rounded-full bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
           {sent ? words.verify : words.sendCode}
         </button>
         <button
@@ -485,7 +527,7 @@ function NewPlantForm({ words, onCancel, onCreated }: { words: Words; onCancel: 
     onCreated(body.plant);
   }
 
-  const field = "min-h-12 rounded-2xl border border-white/15 bg-field px-4 text-base text-paper placeholder:text-mute";
+  const field = "min-h-12 rounded-2xl border border-white/[0.18] bg-field px-4 text-base text-paper placeholder:text-mute";
   return (
     <form
       className="mt-3 flex flex-col gap-2"
@@ -504,7 +546,7 @@ function NewPlantForm({ words, onCancel, onCreated }: { words: Words; onCancel: 
         <button type="submit" disabled={busy || !name.trim()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
           {busy ? <Spinner /> : words.save}
         </button>
-        <button type="button" onClick={onCancel} className="min-h-12 rounded-2xl border border-white/15 px-4 text-base font-semibold text-paper">
+        <button type="button" onClick={onCancel} className="press min-h-12 rounded-full border border-white/[0.18] px-4 text-base font-semibold text-paper">
           {words.cancel}
         </button>
       </div>
@@ -630,9 +672,19 @@ function Timeline({
     ...checks.map((check) => ({ at: check.createdAt, check, practice: null as PracticeLog | null })),
     ...practices.map((practice) => ({ at: practice.loggedAt, check: null as PlantCheck | null, practice })),
   ].sort((a, b) => b.at.localeCompare(a.at));
+  const visitLine = sinceLastVisit(
+    checks.map((check) => ({ createdAt: check.createdAt, counts: check.result.counts, sinceLastCheck: check.result.progress?.sinceLastCheck ?? null })),
+    locale,
+  );
 
   return (
-    <div id="plant-timeline" className="mt-5 border-t border-white/10 pt-5">
+    <div id="plant-timeline" className="rise mt-5 border-t border-white/[0.09] pt-5">
+      {visitLine ? (
+        <p id="since-last-visit" className="mb-4 rounded-[20px] border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper">
+          <span className="eyebrow block text-leaf">{UI[locale].sinceLastVisit}</span>
+          {visitLine}
+        </p>
+      ) : null}
       {loading || saving ? <p className="mb-3"><Spinner /></p> : null}
       {importable.length > 0 && !importOpen ? (
         <button type="button" onClick={() => setImportOpen(true)} className="mb-4 min-h-12 w-full rounded-2xl border border-dashed border-leaf/60 text-base font-semibold text-paper">
@@ -640,7 +692,7 @@ function Timeline({
         </button>
       ) : null}
       {importOpen && importable.length > 0 ? (
-        <div className="mb-4 rounded-2xl border border-white/15 bg-field p-3">
+        <div className="mb-4 rounded-2xl border border-white/[0.18] bg-field p-3">
           <p className="text-base text-paper">{words.importLead}</p>
           <ul className="mt-3 space-y-2">
             {importable.map((entry) => {
@@ -648,7 +700,7 @@ function Timeline({
               const name = entry.result.farmerPlant || entry.result.detectedPlant;
               return (
                 <li key={entry.id}>
-                  <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-2 py-2 ${on ? "border-leaf bg-leaf/15" : "border-white/10"}`}>
+                  <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-2 py-2 ${on ? "border-leaf bg-leaf/15" : "border-white/[0.09]"}`}>
                     <input
                       type="checkbox"
                       checked={on}
@@ -696,7 +748,7 @@ function Timeline({
           maxLength={500}
           rows={3}
           onChange={(event) => setNote(event.target.value)}
-          className="min-h-24 w-full rounded-2xl border border-white/15 bg-field px-4 py-3 text-base text-paper placeholder:text-mute"
+          className="min-h-24 w-full rounded-2xl border border-white/[0.18] bg-field px-4 py-3 text-base text-paper placeholder:text-mute"
         />
         <div className="flex flex-wrap items-center gap-2">
           <VoiceNote
@@ -706,24 +758,25 @@ function Timeline({
             listeningLabel={words.practiceListening}
             onTranscript={(transcript) => setNote((current) => (current ? `${current} ${transcript}` : transcript).slice(0, 500))}
           />
-          <button type="submit" disabled={!note.trim() || saving} className="min-h-12 rounded-2xl bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
+          <button type="submit" disabled={!note.trim() || saving} className="press min-h-12 rounded-full bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
             {words.logIt}
           </button>
         </div>
       </form>
 
-      <h3 className="mt-5 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{words.timeline}</h3>
+      <h3 className="mt-5 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-mute">{words.timeline}</h3>
       {events.length === 0 ? <p className="mt-2 text-base text-mute">{words.emptyTimeline}</p> : null}
-      <ol className="mt-2 space-y-2">
+      <ol className="relative mt-3 space-y-3 border-l border-white/[0.18] pl-4 lg:flex lg:gap-3 lg:space-y-0 lg:overflow-x-auto lg:border-t lg:border-l-0 lg:pt-4 lg:pb-2 lg:pl-0">
         {events.map((event) => {
           const check = event.check;
           return check ? (
-            <li key={`c-${check.id}`} className="flex gap-3 rounded-2xl bg-field p-2">
+            <li key={`c-${check.id}`} className="relative flex gap-3 rounded-[20px] border border-white/[0.09] bg-field p-2 lg:w-64 lg:shrink-0 lg:flex-col">
+              <span aria-hidden="true" className="absolute top-5 -left-[21px] h-2.5 w-2.5 rounded-full bg-leaf ring-4 ring-page lg:-top-[21px] lg:left-5" />
               {check.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
-                <img src={check.photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" />
+                <img src={check.photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-[14px] object-cover lg:h-36 lg:w-full" />
               ) : (
-                <span className="h-16 w-16 shrink-0 rounded-xl bg-white/5" />
+                <span className="h-16 w-16 shrink-0 rounded-[14px] bg-white/5 lg:h-36 lg:w-full" />
               )}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-paper">
@@ -741,7 +794,7 @@ function Timeline({
               </span>
             </li>
           ) : event.practice ? (
-            <li key={`p-${event.practice.id}`} className="rounded-2xl border border-white/10 px-3 py-2 text-sm text-mute">
+            <li key={`p-${event.practice.id}`} className="relative rounded-[20px] lg:w-56 lg:shrink-0 border border-white/[0.09] px-3 py-2 text-sm text-mute">
               <span className="font-semibold text-paper">{dateFormat.format(new Date(event.practice.loggedAt))}</span> · {words.kinds[event.practice.kind]}: {event.practice.note}
             </li>
           ) : null;

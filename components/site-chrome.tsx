@@ -32,7 +32,7 @@ export function SiteChrome({ children, pad }: { children: ReactNode; pad?: strin
           </Link>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <div role="group" aria-label={text.language} className="flex rounded-full border border-white/10 bg-card p-1">
+          <div role="group" aria-label={text.language} className="flex rounded-full border border-white/[0.09] bg-card p-1">
             {(["en", "sw"] as const).map((code) => (
               <button
                 key={code}
@@ -48,7 +48,7 @@ export function SiteChrome({ children, pad }: { children: ReactNode; pad?: strin
           <Link
             href="/profile"
             aria-label={text.profile}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border hover:border-leaf hover:text-leaf ${pathname === "/profile" ? "border-leaf text-leaf" : "border-white/10 text-paper"}`}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border hover:border-leaf hover:text-leaf ${pathname === "/profile" ? "border-leaf text-leaf" : "border-white/[0.09] text-paper"}`}
           >
             <ProfileIcon />
           </Link>

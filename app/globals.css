@@ -191,3 +191,175 @@ body::before {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- Premium pass: type, surfaces, motion ---------- */
+@layer base {
+  html {
+    background-color: #07110c;
+  }
+  h1, h2, h3, .font-serif {
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  body {
+    font-size: 16px;
+  }
+}
+
+:root {
+  --hair: rgba(244, 244, 241, 0.09);
+  --hair-strong: rgba(244, 244, 241, 0.18);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.surface-1 { background-color: var(--color-page); }
+.surface-2 { background-color: var(--color-card); }
+.surface-3 { background-color: var(--color-field); }
+.hairline { border: 1px solid var(--hair); }
+.hairline-strong { border: 1px solid var(--hair-strong); }
+
+/* Hover lifts 2px with a deeper shadow; press settles to .98. Transform and shadow only. */
+.lift {
+  transition: transform 240ms var(--ease), box-shadow 240ms var(--ease), border-color 240ms var(--ease), background-color 240ms var(--ease);
+}
+@media (hover: hover) {
+  .lift:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 22px 44px -22px rgba(0, 0, 0, 0.85), 0 0 0 1px var(--hair-strong);
+  }
+}
+.press {
+  transition: transform 200ms var(--ease), box-shadow 240ms var(--ease), background-color 240ms var(--ease), border-color 240ms var(--ease);
+}
+.press:active:not(:disabled),
+.lift:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@keyframes bs-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.rise {
+  animation: bs-rise 520ms var(--ease) both;
+}
+
+@keyframes bs-page {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.page-enter {
+  animation: bs-page 220ms var(--ease) both;
+}
+
+/* Soft green scan line sweeping over the photo while SAM and Muse run. */
+@keyframes bs-scan {
+  0% { transform: translateY(-30%); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateY(330%); opacity: 0; }
+}
+.scan-line {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 30%;
+  background: linear-gradient(180deg, transparent 0%, rgba(52, 190, 112, 0.08) 55%, rgba(110, 231, 160, 0.55) 98%, rgba(190, 255, 214, 0.9) 100%);
+  animation: bs-scan 2.4s var(--ease) infinite;
+  pointer-events: none;
+}
+
+@keyframes bs-label {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.tick-label {
+  animation: bs-label 360ms var(--ease) both;
+}
+
+@keyframes bs-shimmer {
+  0% { opacity: 0.45; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.45; }
+}
+.skeleton {
+  background: rgba(244, 244, 241, 0.06);
+  border-radius: 14px;
+  animation: bs-shimmer 1.6s ease-in-out infinite;
+}
+
+/* SAM masks wipe in from the left: plant first, then weeds. */
+@keyframes bs-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.mask-wipe {
+  animation: bs-wipe 600ms var(--ease) both;
+}
+.mask-layer {
+  transition: opacity 260ms var(--ease);
+}
+
+@keyframes bs-pop {
+  0% { opacity: 0; transform: scale(0.6) rotate(-12deg); }
+  60% { opacity: 1; transform: scale(1.08) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.pop {
+  animation: bs-pop 520ms var(--ease) both;
+}
+
+@keyframes bs-sprout {
+  from { stroke-dashoffset: 60; }
+  to { stroke-dashoffset: 0; }
+}
+.sprout path {
+  stroke-dasharray: 60;
+  animation: bs-sprout 700ms var(--ease) both;
+}
+
+@keyframes bs-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: bs-fade 200ms var(--ease) both;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line,
+  .skeleton {
+    animation: none !important;
+  }
+  .rise,
+  .page-enter,
+  .tick-label,
+  .mask-wipe,
+  .pop,
+  .fade-in,
+  .sprout path {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  .lift:hover,
+  .lift:active,
+  .press:active {
+    transform: none !important;
+  }
+}
