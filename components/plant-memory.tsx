@@ -1,5 +1,6 @@
 "use client";
 
+import { relocalizeResult, relocalizeText } from "@/lib/relocalize";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
@@ -667,12 +668,17 @@ function Timeline({
   }
 
   const dateFormat = new Intl.DateTimeFormat(locale === "sw" ? "sw-KE" : "en-KE", { day: "numeric", month: "short" });
+  const shownChecks = checks.map((check) => ({
+    ...check,
+    result: relocalizeResult(check.result, locale),
+    summary: check.summary ? relocalizeText(check.summary, locale, [check.result.farmerPlant, check.result.detectedPlant]) : check.summary,
+  }));
   const events = [
-    ...checks.map((check) => ({ at: check.createdAt, check, practice: null as PracticeLog | null })),
+    ...shownChecks.map((check) => ({ at: check.createdAt, check, practice: null as PracticeLog | null })),
     ...practices.map((practice) => ({ at: practice.loggedAt, check: null as PlantCheck | null, practice })),
   ].sort((a, b) => b.at.localeCompare(a.at));
   const visitLine = sinceLastVisit(
-    checks.map((check) => ({ createdAt: check.createdAt, counts: check.result.counts, sinceLastCheck: check.result.progress?.sinceLastCheck ?? null })),
+    shownChecks.map((check) => ({ createdAt: check.createdAt, counts: check.result.counts, sinceLastCheck: check.result.progress?.sinceLastCheck ?? null })),
     locale,
   );
 

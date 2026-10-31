@@ -123,6 +123,10 @@ export type AnalyzeResult = {
   /** Set when this photo, or every photo in the batch, is too far or not clear enough to diagnose. */
   qualityHold?: "too_far" | "unclear" | "harsh_light" | "mixed" | "not_plant" | null;
   qualityMessage?: string | null;
+  /** Per-frame verdicts behind `qualityHold`, so the client can rebuild the message in either language. */
+  qualityVerdicts?: ("use" | "too_far" | "unclear" | "harsh_light")[] | null;
+  /** Kept and skipped frames behind `qualityNote`, so the client can rebuild it in either language. */
+  qualityBatch?: { kept: number[]; skipped: { frame: number; lighting: boolean }[] } | null;
   /** Set when a multi-photo check kept the clear frames and skipped the rest. */
   qualityNote?: string | null;
   /** Set when the check belongs to a saved plant that already has earlier checks. */

@@ -4,6 +4,7 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
 import { parseFarmerPlant } from "@/lib/plant-name";
+import { holdFor, qualityMessageFor, qualityNoteFor } from "@/lib/quality-copy";
 import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
@@ -126,6 +127,26 @@ async function runAnalysis(
   );
   const usable = segmented.filter((photo) => photo.verdict === "use");
   if (usable.length === 0) {
+    // Soft frames skip SAM, so a sharp-enough photo of a wall, a face or a floor
+    // lands here as "unclear". Ask Muse whether a plant is in frame at all before
+    // telling the farmer to hold the phone steady.
+    const anySoft = segmented.some((photo) => photo.verdict === "unclear");
+    const plantCheck = anySoft
+      ? await adviseBed({
+          imageUrl: segmented[0]?.url ?? first.url,
+          imageUrls: segmented.map((photo) => photo.url),
+          apiKey,
+          locale,
+          counts: emptyConceptCounts(),
+          frameCounts: segmented.map(() => emptyConceptCounts()),
+          context,
+          primaryCrop: null,
+          farmerPlant,
+          deadline,
+          memory: null,
+          wantProgress: false,
+        })
+      : null;
     return done(withheldResult({
       id,
       createdAt,
@@ -135,6 +156,7 @@ async function runAnalysis(
       mime: first.mime,
       frames: segmented.map((photo) => ({ width: photo.size.width, height: photo.size.height, mime: photo.mime })),
       verdicts: segmented.map((photo) => photo.verdict),
+      hold: plantCheck?.plantInFrame === false ? "not_plant" : undefined,
     }));
   }
   const lead = usable[0] ?? segmented[0];
@@ -186,13 +208,8 @@ async function runAnalysis(
   const skipped = segmented
     .filter((photo) => photo.verdict !== "use")
     .map((photo) => ({ frame: photo.frame + 1, lighting: photo.verdict === "harsh_light" }));
-  const qualityNote =
-    skipped.length > 0
-      ? copy[locale].qualityBatch(
-          usable.map((photo) => photo.frame + 1),
-          skipped,
-        )
-      : null;
+  const qualityBatch = skipped.length > 0 ? { kept: usable.map((photo) => photo.frame + 1), skipped } : null;
+  const qualityNote = qualityNoteFor(locale, qualityBatch);
 
   return done({
     id,
@@ -227,6 +244,7 @@ async function runAnalysis(
     qualityHold: null,
     qualityMessage: null,
     qualityNote,
+    qualityBatch,
     progress: memory?.hasHistory ? advice.progress : null,
   });
 }
@@ -251,27 +269,8 @@ function withheldResult(options: {
   hold?: "too_far" | "unclear" | "mixed" | "not_plant";
 }): AnalyzeResult {
   const text = copy[options.locale];
-  const rejected = options.verdicts.filter((verdict) => verdict !== "use");
-  const hold = rejected.every((verdict) => verdict === "too_far")
-    ? "too_far"
-    : rejected.every((verdict) => verdict === "unclear")
-      ? "unclear"
-      : rejected.every((verdict) => verdict === "harsh_light")
-        ? "harsh_light"
-        : "mixed";
-  const dark = options.verdicts.flatMap((verdict, index) => (verdict === "harsh_light" ? [index + 1] : []));
-  const lighting = dark.length > 0 ? text.qualityHarshLight(dark, options.verdicts.length) : "";
-  const qualityHold = options.hold ?? hold;
-  const qualityMessage =
-    qualityHold === "not_plant"
-      ? text.qualityNotPlant
-      : qualityHold === "too_far"
-        ? text.qualityTooFar
-        : qualityHold === "unclear"
-          ? text.qualityUnclear
-          : qualityHold === "harsh_light"
-            ? lighting
-            : [text.qualityMixed, lighting].filter(Boolean).join(" ");
+  const qualityHold = options.hold ?? holdFor(options.verdicts);
+  const qualityMessage = qualityMessageFor(options.locale, qualityHold, options.verdicts);
   return {
     id: options.id,
     createdAt: options.createdAt,
@@ -300,6 +299,7 @@ function withheldResult(options: {
     note: null,
     qualityHold,
     qualityMessage,
+    qualityVerdicts: options.verdicts,
     qualityNote: null,
   };
 }
