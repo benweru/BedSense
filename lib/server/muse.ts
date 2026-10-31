@@ -65,6 +65,8 @@ export type TriageDraft = {
   progress: PlantProgress | null;
   /** False when the photo is not a real plant. Missing means the model did not say. */
   plantInFrame: boolean | null;
+  /** Symptom class settled from the photo or the farmer's notes, when one is named. */
+  issue: IssueId | null;
 };
 
 export async function adviseBed(options: MemoryOptions & {
@@ -263,6 +265,7 @@ async function completeModel(
     }),
     progress: options.wantProgress ? parseProgress(parsed) : null,
     plantInFrame: parseFlag(parsed.plantInFrame),
+    issue: finalized.issue,
   };
 }
 
@@ -304,6 +307,7 @@ export function localFallback(
     }),
     progress: null,
     plantInFrame: null,
+    issue: finalized.issue,
   };
 }
 

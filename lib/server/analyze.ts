@@ -180,7 +180,10 @@ async function runAnalysis(
     wantProgress: memory?.hasHistory ?? false,
   });
   const genericOnly = advice.actions.every((action, index) => action === copy[locale].fallbackActions[index]);
-  if (advice.plantInFrame === false || (masks.length === 0 && advice.plantInFrame !== true && (advice.triageSource === "local-fallback" || genericOnly))) {
+  // A symptom in the farmer's notes still earns the fallback reading when Muse
+  // is down. Withholding is for readings with nothing to diagnose.
+  const symptomInNotes = advice.triageSource === "local-fallback" && advice.issue !== null;
+  if (advice.plantInFrame === false || (masks.length === 0 && advice.plantInFrame !== true && !symptomInNotes && (advice.triageSource === "local-fallback" || genericOnly))) {
     return done(withheldResult({
       id,
       createdAt,
