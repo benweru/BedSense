@@ -415,7 +415,7 @@ export function developerPrompt(locale: Locale): string {
     "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
     `Reply in ${language}.`,
     ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
-    "Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
+    "Judge plantInFrame from the photo alone, not from the plant the farmer named. Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
     "When plantInFrame is false, leave observations, likelyCauses, mitigations, actions, and chemicals empty.",
     "Return one JSON object only, with this shape:",
     '{"plantInFrame":true,"detectedPlant":"plant name","symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
@@ -514,9 +514,11 @@ const DRAFT_KEYS = ["observations", "actions", "likelyCauses", "mitigations"] as
 /** JSON when Muse finished it, a closed array when the rest was cut off, or symptom prose. */
 export function readModelDraft(text: string): ModelDraft | null {
   const fromJson = draftFromJson(text);
-  if (fromJson && draftHasReading(fromJson)) return fromJson;
+  // The prompt asks for empty lists when there is no plant. That reply is a verdict, not a failed read.
+  if (fromJson && (draftHasReading(fromJson) || parseFlag(fromJson.plantInFrame) === false)) return fromJson;
   const partial = draftFromPartial(text);
   if (partial && draftHasReading(partial)) return partial;
+  if (/"plantInFrame"\s*:\s*false\b/.test(text)) return emptyDraft({ plantInFrame: false });
   const sentences = proseSentences(text);
   if (!inferIssue(sentences.join(" "))) return null;
   return emptyDraft({ observations: sentences.slice(0, 3) });

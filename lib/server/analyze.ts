@@ -130,8 +130,8 @@ async function runAnalysis(
     // Soft frames skip SAM, so a sharp-enough photo of a wall, a face or a floor
     // lands here as "unclear". Ask Muse whether a plant is in frame at all before
     // telling the farmer to hold the phone steady.
-    const allSoft = segmented.every((photo) => photo.verdict === "unclear");
-    const plantCheck = allSoft
+    const anySoft = segmented.some((photo) => photo.verdict === "unclear");
+    const plantCheck = anySoft
       ? await adviseBed({
           imageUrl: segmented[0]?.url ?? first.url,
           imageUrls: segmented.map((photo) => photo.url),
