@@ -252,9 +252,10 @@ body::before {
 }
 
 @keyframes bs-page {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
+/* Opacity only: a transform here would make every position:fixed child (intro, mobile bar) scroll with the page. */
 .page-enter {
   animation: bs-page 220ms var(--ease) both;
 }
