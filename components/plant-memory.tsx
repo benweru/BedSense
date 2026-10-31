@@ -301,7 +301,7 @@ export function PlantMemory({
         ) : null}
       </div>
 
-      {creating ? (
+      {!selected && creating ? (
         <NewPlantForm
           words={words}
           onCancel={() => setCreating(false)}
@@ -311,7 +311,8 @@ export function PlantMemory({
             onSelect(plant);
           }}
         />
-      ) : (
+      ) : null}
+      {!selected && !creating ? (
         <button
           type="button"
           disabled={disabled}
@@ -320,7 +321,7 @@ export function PlantMemory({
         >
           + {words.newPlant}
         </button>
-      )}
+      ) : null}
 
       {selected ? (
         <Timeline
@@ -353,7 +354,11 @@ function Spinner() {
   );
 }
 
-function SignIn({ words }: { words: Words }) {
+export function AccountSignIn({ locale, heading = true }: { locale: Locale; heading?: boolean }) {
+  return <SignIn words={WORDS[locale]} heading={heading} />;
+}
+
+function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) {
   const supabase = browserSupabase();
   const [byEmail, setByEmail] = useState(false);
   const [target, setTarget] = useState("");
@@ -393,8 +398,8 @@ function SignIn({ words }: { words: Words }) {
 
   return (
     <section id="plant-memory" className="rounded-[26px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
-      <h2 className="font-serif text-2xl leading-tight text-paper">{words.title}</h2>
-      <p className="mt-2 text-base leading-6 text-mute">{words.signInLead}</p>
+      {heading ? <h2 className="font-serif text-2xl leading-tight text-paper">{words.title}</h2> : null}
+      <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.signInLead}</p>
       <form
         className="mt-3 flex flex-col gap-2"
         onSubmit={(event) => {

@@ -266,7 +266,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         ) : (
           <p className="max-w-2xl font-serif text-2xl leading-snug text-paper/80 sm:text-3xl">{text.lede}</p>
         )}
-        {sessionLive && !(photos.length > 0 && !busy) && !(result && !busy) ? (
+        {!plants && sessionLive && !(photos.length > 0 && !busy) && !(result && !busy) ? (
           <button
             type="button"
             onClick={startFresh}
