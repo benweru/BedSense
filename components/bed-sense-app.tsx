@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { relocalizeResult } from "@/lib/relocalize";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
 import {
@@ -671,7 +672,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
 function ResultCard({
   locale,
-  result,
+  result: stored,
   words,
   signedIn,
   onRescan,
@@ -686,6 +687,8 @@ function ResultCard({
   onNewCheck: () => void;
   onOpenProfile: () => void;
 }) {
+  // Stored results keep the language they were made in. Fixed copy follows the toggle.
+  const result = useMemo(() => relocalizeResult(stored, locale), [stored, locale]);
   const text = copy[locale];
   const severity = severityFor(result);
   const filed = Boolean(result.plantId);

@@ -138,7 +138,7 @@ const en: Copy = {
   removePhoto: "Remove",
   photoLimit: "Three photos is the limit for one check.",
   qualityTooFar: "Move closer to the bed. This photo is too far away for a reliable check.",
-  qualityNotPlant: "Please use a photo of a plant.",
+  qualityNotPlant: "We couldn't find a plant in this photo. Take a picture of the plant or bed you want checked.",
   qualityUnclear: "This photo is not clearly in view. Hold the phone steady and fill the frame with the plant.",
   qualityMixed: "Move closer and take a clearer photo. These ones are too far away or not clearly in view.",
   qualityHarshLight: (frames, total) => {
@@ -321,7 +321,7 @@ const sw: Copy = {
   removePhoto: "Ondoa",
   photoLimit: "Unaweza kutumia picha tatu tu kwa ukaguzi mmoja.",
   qualityTooFar: "Sogea karibu na kitalu. Picha hii iko mbali sana kukaguliwa vizuri.",
-  qualityNotPlant: "Tafadhali tumia picha ya mmea.",
+  qualityNotPlant: "Hatukuona mmea kwenye picha hii. Piga picha ya mmea au kitalu unachotaka kukagua.",
   qualityUnclear: "Picha hii haiko wazi. Shika simu bila kutikisika, na mmea ujae kwenye picha.",
   qualityMixed: "Sogea karibu upige picha iliyo wazi zaidi. Picha hizi ziko mbali sana au hazionekani vizuri.",
   qualityHarshLight: (frames, total) => {
