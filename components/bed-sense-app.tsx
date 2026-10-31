@@ -12,7 +12,8 @@ import {
   ResultSkeleton,
   SavedBurst,
   ScanStatus,
-  SeverityPill,
+  SeverityLine,
+  severityBorder,
   buzz,
 } from "@/components/premium";
 import { PlantMemory, PlantsHomeCard, ProgressNote, type SavedPlant } from "@/components/plant-memory";
@@ -443,7 +444,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
               type="button"
               disabled={busy}
               onClick={() => cameraRef.current?.click()}
-              className="lift mt-5 min-h-14 rounded-full bg-leaf px-6 text-base font-semibold text-paper shadow-[0_12px_30px_-16px_rgba(31,157,85,0.9)]"
+              className="lift mt-5 min-h-14 rounded-full bg-leaf px-6 text-base font-semibold text-paper"
             >
               {words.emptyCta}
             </button>
@@ -657,7 +658,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             <button
               type="button"
               onClick={() => void submitPrepared()}
-              className="press min-h-14 w-full rounded-full bg-leaf px-4 text-base font-semibold tracking-tight text-paper shadow-[0_12px_30px_-16px_rgba(31,157,85,0.9)] lg:max-w-[28rem]"
+              className="press min-h-14 w-full rounded-full bg-leaf px-4 text-base font-semibold tracking-tight text-paper lg:max-w-[28rem]"
             >
               {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
             </button>
@@ -730,11 +731,10 @@ function ResultCard({
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
       {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
-      <div id="diagnosis-card" className="rise rounded-[32px] border border-white/[0.18] bg-card p-5 shadow-[0_30px_60px_-36px_rgba(0,0,0,0.9)] sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="eyebrow mr-1 text-leaf">{words.diagnosis}</p>
-          {severity ? <SeverityPill severity={severity} words={words} /> : null}
-          <span className="inline-flex min-h-8 items-center rounded-full border border-white/[0.09] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-mute">
+      <div id="diagnosis-card" className={`rise rounded-[32px] border border-white/[0.18] ${severityBorder(severity)} bg-card p-5 shadow-[0_30px_60px_-36px_rgba(0,0,0,0.9)] sm:p-6`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          {severity ? <SeverityLine severity={severity} words={words} /> : <p className="eyebrow text-mute">{words.diagnosis}</p>}
+          <span className="eyebrow text-mute/70">
             {result.mode === "mock" ? text.modeMock : text.modeLive}
           </span>
         </div>
@@ -770,7 +770,7 @@ function ResultCard({
               id="save-to-profile"
               type="button"
               onClick={save}
-              className="lift min-h-12 rounded-full bg-leaf px-5 text-base font-semibold text-paper shadow-[0_12px_30px_-16px_rgba(31,157,85,0.9)]"
+              className="lift min-h-12 rounded-full bg-leaf px-5 text-base font-semibold text-paper"
             >
               {words.saveToProfile}
             </button>

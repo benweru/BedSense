@@ -7,7 +7,8 @@ export const UI = {
   en: {
     scanSteps: ["Finding the plant…", "Marking weeds…", "Asking Muse…"] as const,
     scanEyebrow: "Reading your photo",
-    severity: { healthy: "Healthy", watch: "Watch", act: "Act now" } as Record<Severity, string>,
+    severity: { healthy: "Healthy", watch: "Watch", act: "Needs attention" } as Record<Severity, string>,
+    severityLine: { healthy: "Looks healthy", watch: "Keep an eye on it", act: "Needs attention" } as Record<Severity, string>,
     diagnosis: "Diagnosis",
     original: "Original",
     masked: "Marks",
@@ -42,7 +43,8 @@ export const UI = {
   sw: {
     scanSteps: ["Inatafuta mmea…", "Inaalamisha magugu…", "Inauliza Muse…"] as const,
     scanEyebrow: "Inasoma picha yako",
-    severity: { healthy: "Mzima", watch: "Angalia", act: "Chukua hatua" } as Record<Severity, string>,
+    severity: { healthy: "Mzima", watch: "Angalia", act: "Inahitaji uangalizi" } as Record<Severity, string>,
+    severityLine: { healthy: "Inaonekana mzima", watch: "Ifuatilie", act: "Inahitaji uangalizi" } as Record<Severity, string>,
     diagnosis: "Utambuzi",
     original: "Asili",
     masked: "Alama",

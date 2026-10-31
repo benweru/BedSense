@@ -23,16 +23,12 @@ export function ScanStatus({ words }: { words: UiWords }) {
       <p key={step} className="tick-label mt-1 font-serif text-2xl leading-tight text-paper">
         {words.scanSteps[step]}
       </p>
-      <ol className="mt-3 flex gap-1.5" aria-hidden="true">
-        {words.scanSteps.map((label, index) => (
-          <li key={label} className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
-            <span
-              className="block h-full origin-left rounded-full bg-leaf"
-              style={{ transform: `scaleX(${index <= step ? 1 : 0})`, transition: "transform 600ms cubic-bezier(.22,1,.36,1)" }}
-            />
-          </li>
-        ))}
-      </ol>
+      <div className="mt-3 h-px w-full overflow-hidden bg-white/10" aria-hidden="true">
+        <span
+          className="block h-full origin-left bg-leaf"
+          style={{ transform: `scaleX(${(step + 1) / words.scanSteps.length})`, transition: "transform 600ms cubic-bezier(.22,1,.36,1)" }}
+        />
+      </div>
     </div>
   );
 }
@@ -42,7 +38,7 @@ export function ResultSkeleton() {
   return (
     <div className="space-y-4" aria-hidden="true">
       <div className="rounded-[28px] hairline surface-2 p-5 sm:p-6">
-        <div className="skeleton h-7 w-24 rounded-full" />
+        <div className="skeleton h-3 w-32" />
         <div className="skeleton mt-4 h-9 w-3/4" />
         <div className="skeleton mt-3 h-4 w-1/2" />
       </div>
@@ -56,18 +52,23 @@ export function ResultSkeleton() {
   );
 }
 
-const PILL: Record<Severity, string> = {
-  healthy: "bg-leaf/20 text-[#8ee6b0] border-leaf/50",
-  watch: "bg-clay/20 text-[#f4b896] border-clay/50",
-  act: "bg-chili/25 text-[#ff9b9f] border-chili/60",
+const TONE: Record<Severity, string> = {
+  healthy: "border-l-leaf",
+  watch: "border-l-clay",
+  act: "border-l-[#b4545a]",
 };
 
-export function SeverityPill({ severity, words }: { severity: Severity; words: UiWords }) {
+/** Left-border tone for the diagnosis card. */
+export function severityBorder(severity: Severity | null): string {
+  return severity ? `border-l-[3px] ${TONE[severity]}` : "";
+}
+
+/** Quiet uppercase line, muted text, no pill or dot. */
+export function SeverityLine({ severity, words }: { severity: Severity; words: UiWords }) {
   return (
-    <span id="severity-pill" data-severity={severity} className={`inline-flex min-h-8 items-center gap-2 rounded-full border px-3 py-1 text-sm font-semibold ${PILL[severity]}`}>
-      <span className="h-2 w-2 rounded-full bg-current" aria-hidden="true" />
-      {words.severity[severity]}
-    </span>
+    <p id="severity-line" data-severity={severity} className="eyebrow text-mute">
+      {words.severityLine[severity]}
+    </p>
   );
 }
 
@@ -248,10 +249,8 @@ export function FirstVisitIntro({ locale }: { locale: Locale }) {
           <button type="button" onClick={finish} className="press min-h-12 rounded-full px-4 text-base font-semibold text-mute hover:text-paper">
             {words.skip}
           </button>
-          <div className="flex items-center gap-1.5" aria-hidden="true">
-            {words.intro.map((entry, index) => (
-              <span key={entry.title} className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${index === card ? "w-6 bg-leaf" : "w-1.5 bg-white/20"}`} />
-            ))}
+          <div className="h-px w-16 overflow-hidden bg-white/15" aria-hidden="true">
+            <span className="block h-full origin-left bg-paper/70" style={{ transform: `scaleX(${(card + 1) / words.intro.length})`, transition: "transform 300ms cubic-bezier(.22,1,.36,1)" }} />
           </div>
           <button
             type="button"

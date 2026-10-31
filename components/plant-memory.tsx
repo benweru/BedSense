@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { flushSync } from "react-dom";
-import { CheckMark, EmptyIllustration, SeverityPill } from "@/components/premium";
+import { CheckMark, EmptyIllustration } from "@/components/premium";
 import { VoiceNote } from "@/components/voice-context";
 import { severityFor } from "@/lib/severity";
 import { sinceLastVisit } from "@/lib/since-last-visit";
@@ -316,8 +316,7 @@ export function PlantMemory({
                 )}
                 <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,12,0)_35%,rgba(7,17,12,0.92)_100%)]" aria-hidden="true" />
                 <span className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
-                  {health ? <span className="rounded-full bg-page/80 backdrop-blur-sm"><SeverityPill severity={health} words={ui} /></span> : null}
-                  {due ? <span className="rounded-full bg-[#f6b23a] px-2.5 py-1 text-xs font-semibold text-ink">{words.recheckDue}</span> : null}
+                  {due ? <span className="eyebrow text-[#f6b23a]">{words.recheckDue}</span> : null}
                 </span>
                 {active ? (
                   <span className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-leaf text-page">
@@ -330,7 +329,7 @@ export function PlantMemory({
                     {plant.bedLabel ? <span className="text-mute"> · {plant.bedLabel}</span> : null}
                   </span>
                   <span className="mt-0.5 block text-xs leading-5 text-paper/75">
-                    {days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
+                    {health ? `${ui.severity[health]} · ` : ""}{days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
                   </span>
                 </span>
               </button>
@@ -771,7 +770,6 @@ function Timeline({
           const check = event.check;
           return check ? (
             <li key={`c-${check.id}`} className="relative flex gap-3 rounded-[20px] border border-white/[0.09] bg-field p-2 lg:w-64 lg:shrink-0 lg:flex-col">
-              <span aria-hidden="true" className="absolute top-5 -left-[21px] h-2.5 w-2.5 rounded-full bg-leaf ring-4 ring-page lg:-top-[21px] lg:left-5" />
               {check.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
                 <img src={check.photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-[14px] object-cover lg:h-36 lg:w-full" />
