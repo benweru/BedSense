@@ -72,7 +72,7 @@ describe("messy chili photos", () => {
     expect(summary).toContain("Muse returned a real diagnosis (causes, not the local backup): 4/6 (67%)");
     expect(summary).toContain("Muse failed: 2/6 (33%)");
     expect(summary).toContain("No chili crop and no Muse diagnosis: 2/6 (33%)");
-    expect(readFileSync(path.join("docs", "messy-chili-summary.md"), "utf8")).toBe(summary);
+    expect(readFileSync(path.join("docs", "messy-chili-summary.md"), "utf8").replace(/\r\n/g, "\n")).toBe(summary);
     expect(JSON.parse(readFileSync(path.join("fixtures", "chili", "manifest.json"), "utf8"))).toHaveLength(6);
   });
 
