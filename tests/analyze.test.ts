@@ -133,7 +133,7 @@ describe("analyze pipeline", () => {
     expect(swahili[2]?.toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|beetroot|\bbeets?\b/);
   });
 
-  it("accepts optional context in demo mode and stops asking once it is present", async () => {
+  it("accepts optional context in demo mode and still carries a follow-up", async () => {
     vi.stubEnv("MOCK_META", "1");
     const response = await POST(
       new Request("http://localhost/api/analyze", {
@@ -150,7 +150,8 @@ describe("analyze pipeline", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.contextUsed).toBe(true);
-    expect(body.contextAsk).toBeNull();
+    // The follow-up is guaranteed on every reading now; context no longer silences it.
+    expect(body.contextAsk).toBeTruthy();
     expect(body.detectedPlant).toBe("Onion");
     expect(body.farmerPlant).toBe("onion");
     expect(body.actions).toHaveLength(3);

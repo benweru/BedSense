@@ -78,6 +78,12 @@ export type MaskMark = {
 
 export type ConceptCounts = Record<ConceptId, number>;
 
+/** One turn in the follow-up Q&A thread attached to a check. Never triggers a re-scan. */
+export type AskTurn = {
+  role: "farmer" | "bedsense";
+  text: string;
+};
+
 export type AnalyzeResult = {
   id: string;
   createdAt: string;
@@ -105,6 +111,10 @@ export type AnalyzeResult = {
   /** Free-text name the farmer typed before the check. */
   farmerPlant: string;
   contextAsk: string | null;
+  /** True when a symptom is visible but the evidence does not yet separate the causes, so no chemical is named. */
+  needsInfo?: boolean;
+  /** Follow-up Q&A about this reading. Client-kept; absent on older checks. */
+  thread?: AskTurn[];
   contextUsed: boolean;
   chemicals: ChemicalAdvice | null;
   counts: ConceptCounts;

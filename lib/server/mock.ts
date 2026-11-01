@@ -7,6 +7,7 @@ import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
 import { displayPlantName, matchPlant, type KnownPlant } from "@/lib/plants";
 import { researchFertilizers, researchFor } from "@/lib/research";
+import { followUpFor } from "@/lib/server/muse";
 import { finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
@@ -115,7 +116,8 @@ export function buildMockResult(options: {
       (farmerPlant ? displayPlantName(options.locale, farmerPlant) : "") ||
       (focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant),
     farmerPlant,
-    contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
+    contextAsk: followUpFor(options.locale, { issue: null, chemicals, needsInfo: false }),
+    needsInfo: false,
     contextUsed: !contextIsEmpty(context),
     chemicals,
     counts,
@@ -189,7 +191,8 @@ function issueResult(options: {
     primaryCrop: null,
     detectedPlant: plantLabel,
     farmerPlant: options.farmerPlant,
-    contextAsk: contextIsEmpty(options.context) ? text.contextAskDefault : null,
+    contextAsk: followUpFor(options.locale, { issue: options.issue, chemicals, needsInfo: false }),
+    needsInfo: false,
     contextUsed: !contextIsEmpty(options.context),
     chemicals,
     counts,

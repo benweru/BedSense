@@ -263,6 +263,66 @@ export const RESEARCH: readonly ResearchEntry[] = [
     },
   },
   {
+    id: "blister-mite",
+    kind: "pest",
+    issues: ["spots", "insects"],
+    aliases: ["blister mite", "blister mites", "eriophyid", "malengelenge", "vinundu"],
+    actives: ["Abamectin"],
+    fertilizers: [],
+    practices: {
+      en: [
+        "Look at the underside of a blistered {plant} leaf with a lens or a close phone photo; blister mites are too small to name with the naked eye.",
+        "Take the worst blistered {plant} leaves off the bed and do not compost them back onto the row.",
+        "Do not buy a spray for blisters on {plant} until the underside check separates mites from a water mark.",
+      ],
+      sw: [
+        "Angalia upande wa chini wa jani la {plant} lenye malengelenge kwa lenzi au picha ya karibu ya simu; utitiri wa malengelenge ni mdogo mno kuonekana kwa macho.",
+        "Ondoa majani ya {plant} yenye malengelenge zaidi kwenye kitanda na usiyageuze kuwa mboji kwenye mstari.",
+        "Usinunue dawa ya malengelenge ya {plant} hadi ukaguzi wa upande wa chini utenganishe utitiri na alama ya maji.",
+      ],
+    },
+  },
+  {
+    id: "oedema",
+    kind: "deficiency",
+    issues: ["spots"],
+    aliases: ["oedema", "edema", "water blisters", "intumescence"],
+    actives: [],
+    fertilizers: [],
+    practices: {
+      en: [
+        "Blisters from uneven water on {plant} need no spray. Let the root zone dry between waterings instead of soaking on a fixed day.",
+        "Water {plant} at the soil in the morning and open crowded growth so leaves dry after watering.",
+        "New {plant} growth should come out clean once watering evens out; photograph the same leaf again if blisters spread to new growth.",
+      ],
+      sw: [
+        "Malengelenge ya maji yasiyo sawa kwenye {plant} hayahitaji dawa. Acha eneo la mizizi likauke kati ya kumwagilia badala ya kumwagilia kwa siku maalum.",
+        "Mwagilia {plant} kwenye udongo asubuhi na ufungue ukuaji uliosongamana ili majani yakauke baada ya kumwagilia.",
+        "Ukuaji mpya wa {plant} unapaswa kutoka safi maji yakilingana; piga picha ya jani hilo tena malengelenge yakiingia kwenye ukuaji mpya.",
+      ],
+    },
+  },
+  {
+    id: "bacterial-spot",
+    kind: "disease",
+    issues: ["spots"],
+    aliases: ["bacterial spot", "bacterial blight", "bacterial speck", "bakteria"],
+    actives: ["Copper oxychloride"],
+    fertilizers: [],
+    practices: {
+      en: [
+        "Take the worst spotted {plant} leaves off the bed and wash hands and tools before touching healthy plants.",
+        "Water the soil under {plant}, not the leaves, and stay out of the bed while leaves are wet.",
+        "Do not save seed or compost from spotted {plant} growth; carry this photo to an agrovet before any spray.",
+      ],
+      sw: [
+        "Ondoa majani ya {plant} yenye madoa zaidi kwenye kitanda na uoshe mikono na vifaa kabla ya kugusa mimea yenye afya.",
+        "Mwagilia udongo chini ya {plant}, si majani, na usiingie kitandani majani yakiwa na unyevu.",
+        "Usihifadhi mbegu wala mboji kutoka kwa {plant} yenye madoa; peleka picha hii kwa agrovet kabla ya dawa yoyote.",
+      ],
+    },
+  },
+  {
     id: "sucking-pests",
     kind: "pest",
     aliases: ["sucking pests", "sucking insects", "sucking pest", "pests", "wadudu", "dudu"],
