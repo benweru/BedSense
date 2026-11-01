@@ -17,7 +17,8 @@ const RULES: readonly { id: IssueId; pattern: RegExp }[] = [
   },
   {
     id: "spots",
-    pattern: /\b(spots?|spotted|lesions?|blight|madoa|doa)\b/i,
+    pattern:
+      /\b(spots?|spotted|lesions?|blight|blisters?|blistered|blistering|bumps?|bumpy|galls?|oedema|edema|madoa|doa|malengelenge|vinundu)\b/i,
   },
   {
     id: "wilt",
@@ -25,11 +26,12 @@ const RULES: readonly { id: IssueId; pattern: RegExp }[] = [
   },
   {
     id: "yellowing",
-    pattern: /\b(yellow\w*|chloros\w*|njano|manjano)\b/i,
+    pattern: /\b(yellow\w*|chloros\w*|mosaic|mottl\w*|njano|manjano)\b/i,
   },
   {
     id: "insects",
-    pattern: /\b(insects?|pests?|mites?|aphids?|whitefl\w*|thrips?|dudu|wadudu|utitiri|nzi weupe)\b/i,
+    pattern:
+      /\b(insects?|pests?|mites?|aphids?|whitefl\w*|thrips?|caterpillars?|webbing|webs?|sooty|honeydew|chew\w*|holes?|dudu|wadudu|utitiri|nzi weupe|viwavi|utando|mashimo)\b/i,
   },
 ];
 

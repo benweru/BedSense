@@ -113,7 +113,7 @@ describe("public project boundaries", () => {
     expect(copy.sw.plantNamePlaceholder).not.toContain("Kwa mfano");
     expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "onion", detectedPlant: "Onion" }).toLowerCase()).toContain("unusual");
     expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "beetroot", detectedPlant: "Beetroot" }).toLowerCase()).not.toContain("mixed bed");
-    expect(copy.sw.actions).toContain("Ukaguzi tatu");
+    expect(copy.sw.actions).toContain("Mambo matatu");
     expect(copy.sw.plantLine({ cropFocus: "mixed", primaryCrop: "onion", detectedPlant: "Kitunguu" })).toContain("si wa kawaida");
     expect(copy.sw.plantLine({ cropFocus: "mixed", primaryCrop: "chili", detectedPlant: "Pilipili" })).not.toContain("kilichochanganyika");
 

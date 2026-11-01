@@ -45,9 +45,9 @@ describe("voice notes", () => {
     expect(copy.en.voiceListening).toBe("Listening… tap to finish");
     expect(copy.en.voiceEmpty).toBe("Nothing was heard. Tap to talk, then speak, then tap to finish.");
     expect(copy.en.voiceFailed.toLowerCase()).not.toContain("hold");
-    expect(copy.sw.voiceHold).toBe("Gonga uongee");
-    expect(copy.sw.voiceFinish).toBe("Gonga umalize");
-    expect(copy.sw.voiceEmpty).toContain("Gonga uongee");
+    expect(copy.sw.voiceHold).toBe("Bonyeza kuongea");
+    expect(copy.sw.voiceFinish).toBe("Bonyeza kumaliza");
+    expect(copy.sw.voiceEmpty).toContain("Bonyeza kuongea");
     expect(copy.en.contextGuide.toLowerCase()).toContain("fertilizer");
     expect(copy.sw.contextGuide).toContain("mbolea");
   });

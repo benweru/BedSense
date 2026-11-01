@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { relocalizeResult } from "@/lib/relocalize";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
 import {
@@ -31,6 +32,7 @@ import { clearHistoryStore, useHistory, useLocale, writeHistory } from "@/lib/ph
 import {
   QUALITY_BANDS,
   type AnalyzeResult,
+  type AskTurn,
   type ChemicalAdvice,
   type FarmerContext,
   type HistoryEntry,
@@ -305,12 +307,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             <p className="eyebrow text-leaf">{locale === "sw" ? "Kumbukumbu ya mimea" : "Plant memory"}</p>
             <h1 className="mt-2 font-serif text-[clamp(2.6rem,6vw,4.75rem)] leading-[1.04] tracking-[-0.01em] text-paper">
               {locale === "sw" ? "Mimea yangu" : "My plants"}
-              <span className="text-mute">{locale === "sw" ? ", kwa muda." : ", over time."}</span>
+              <span className="text-mute">{locale === "sw" ? ", siku baada ya siku." : ", over time."}</span>
             </h1>
           </>
         ) : (
           <>
-            <p className="eyebrow text-leaf">{locale === "sw" ? "Kitanda chako, kimesomwa" : "Farm bed check"}</p>
+            <p className="eyebrow text-leaf">{locale === "sw" ? "Ukaguzi wa kitalu" : "Farm bed check"}</p>
             <p className="mt-2 max-w-2xl font-serif text-2xl leading-snug text-paper sm:text-3xl">
               {text.lede.split(". ")[0]}
               {text.lede.includes(". ") ? <span className="text-mute">. {text.lede.split(". ").slice(1).join(". ")}</span> : null}
@@ -590,6 +592,13 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             onRescan={rescan}
             onNewCheck={startFresh}
             onOpenProfile={() => router.push("/plants")}
+            onThread={(thread) => {
+              setResult((current) => (current && current.id === result.id ? { ...current, thread } : current));
+              const entry = history.find((item) => item.id === result.id);
+              if (entry) {
+                writeHistory(rememberCheck(history, { ...entry, result: { ...entry.result, thread } }));
+              }
+            }}
           />
         </div>
       ) : null}
@@ -671,12 +680,13 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
 function ResultCard({
   locale,
-  result,
+  result: stored,
   words,
   signedIn,
   onRescan,
   onNewCheck,
   onOpenProfile,
+  onThread,
 }: {
   locale: Locale;
   result: AnalyzeResult;
@@ -685,7 +695,10 @@ function ResultCard({
   onRescan: () => void;
   onNewCheck: () => void;
   onOpenProfile: () => void;
+  onThread: (thread: AskTurn[]) => void;
 }) {
+  // Stored results keep the language they were made in. Fixed copy follows the toggle.
+  const result = useMemo(() => relocalizeResult(stored, locale), [stored, locale]);
   const text = copy[locale];
   const severity = severityFor(result);
   const filed = Boolean(result.plantId);
@@ -838,6 +851,18 @@ function ResultCard({
             </li>
           ))}
         </ol>
+        {result.needsInfo ? (
+          <p className="mt-4 rounded-2xl border border-beet/40 bg-beet/10 px-4 py-3 text-base leading-6 text-paper" role="status">
+            {text.needsInfoNote}
+          </p>
+        ) : null}
+        {result.contextAsk ? (
+          <p className="mt-4 rounded-2xl border border-beet/40 bg-beet/10 px-4 py-3 text-base leading-6 text-paper" role="status">
+            <span className="block font-semibold text-beet">{result.needsInfo ? text.needsInfoLabel : text.contextAskLabel}</span>
+            {result.contextAsk}
+          </p>
+        ) : null}
+        <FollowUpChat locale={locale} text={text} result={result} onThread={onThread} />
       </div>
       </div>
       )}
@@ -856,6 +881,123 @@ function ResultCard({
         <p className="mt-2 text-base leading-7 text-paper/85">{result.disclaimer}</p>
       </div>
     </section>
+  );
+}
+
+/** Follow-up Q&A about this reading. Text-only: it never re-runs the check or touches a photo. */
+function FollowUpChat({
+  locale,
+  text,
+  result,
+  onThread,
+}: {
+  locale: Locale;
+  text: Copy;
+  result: AnalyzeResult;
+  onThread: (thread: AskTurn[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [demo, setDemo] = useState(false);
+  const thread = result.thread ?? [];
+
+  async function ask() {
+    const question = draft.replace(/\s+/g, " ").trim();
+    if (!question || busy) return;
+    const asked: AskTurn[] = [...thread, { role: "farmer", text: question }];
+    onThread(asked);
+    setDraft("");
+    setFailed(false);
+    setBusy(true);
+    try {
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          locale,
+          question,
+          thread,
+          grounding: {
+            plant: result.detectedPlant,
+            observations: result.observations,
+            likelyCauses: result.likelyCauses ?? [],
+            mitigations: result.mitigations ?? [],
+            actions: [...result.actions],
+            suspect: result.chemicals?.suspect ?? null,
+            actives: result.chemicals?.products.map((product) => product.activeIngredient) ?? [],
+            needsInfo: Boolean(result.needsInfo),
+            followUp: result.contextAsk,
+          },
+        }),
+      });
+      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string };
+      if (!response.ok || !body.answer) {
+        setFailed(true);
+        return;
+      }
+      if (body.demo) setDemo(true);
+      onThread([...asked, { role: "bedsense", text: body.answer }]);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-5 border-t border-white/[0.09] pt-4">
+      <h4 className="font-serif text-xl leading-tight text-paper">{text.askTitle}</h4>
+      <p className="mt-1 text-sm leading-6 text-mute">{text.askHint}</p>
+      {thread.length > 0 ? (
+        <ul className="mt-3 space-y-2">
+          {thread.map((turn, index) => (
+            <li
+              key={`${index}-${turn.text.slice(0, 24)}`}
+              className={
+                turn.role === "farmer"
+                  ? "rounded-2xl border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper"
+                  : "rounded-2xl border border-white/[0.09] bg-field px-4 py-3 text-base leading-6 text-paper"
+              }
+            >
+              {turn.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {demo ? <p className="mt-2 text-sm leading-6 text-mute">{text.askDemoNote}</p> : null}
+      {failed ? (
+        <p className="mt-2 text-sm leading-6 text-beet" role="alert">
+          {text.askFailed}
+        </p>
+      ) : null}
+      <div className="mt-3 flex items-end gap-2">
+        <textarea
+          value={draft}
+          rows={2}
+          maxLength={500}
+          disabled={busy}
+          placeholder={text.askPlaceholder}
+          aria-label={text.askTitle}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void ask();
+            }
+          }}
+          className="min-h-12 flex-1 rounded-2xl border border-white/[0.18] bg-field px-4 py-3 text-base leading-6 text-paper placeholder:text-mute disabled:opacity-60"
+        />
+        <button
+          type="button"
+          disabled={busy || draft.trim().length === 0}
+          onClick={() => void ask()}
+          className="press min-h-12 shrink-0 rounded-full bg-leaf px-5 text-base font-semibold text-paper disabled:opacity-60"
+        >
+          {busy ? text.askThinking : text.askSend}
+        </button>
+      </div>
+    </div>
   );
 }
 

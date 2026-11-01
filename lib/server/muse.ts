@@ -61,10 +61,14 @@ export type TriageDraft = {
   confidenceStated: boolean;
   detectedPlant: string;
   contextAsk: string | null;
+  /** True when a symptom is visible but no chemical is named because the causes are not separated yet. */
+  needsInfo: boolean;
   chemicals: ChemicalAdvice | null;
   progress: PlantProgress | null;
   /** False when the photo is not a real plant. Missing means the model did not say. */
   plantInFrame: boolean | null;
+  /** Symptom class settled from the photo or the farmer's notes, when one is named. */
+  issue: IssueId | null;
 };
 
 export async function adviseBed(options: MemoryOptions & {
@@ -244,25 +248,36 @@ async function completeModel(
     symptom: parsed.symptom,
     suspect: parsed.suspect,
   });
+  const chemicals = chemicalsFromReading({
+    locale: options.locale,
+    issue: finalized.issue,
+    sprayEvidence: finalized.sprayEvidence,
+    sprayIndicated: parsed.sprayIndicated,
+    diseaseIndicated: parsed.diseaseIndicated,
+    suspect: parsed.suspect,
+    chemicals: parsed.chemicals,
+    fallbackSuspect: finalized.likelyCauses[0] ?? "",
+  });
+  const needsInfo = needsMoreInfo({
+    issue: finalized.issue,
+    chemicals,
+    confidence: finalized.confidence,
+    suspect: parsed.suspect,
+    fallbackSuspect: finalized.likelyCauses[0] ?? "",
+  });
+  const modelAsk = repairAsk(options.locale, cleanContextAsk(parsed.contextAsk));
   return {
     ...finalized,
     model,
     triageSource: "muse",
     confidenceStated: typeof parsed.confidenceScore === "number",
     detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
-    contextAsk: repairAsk(options.locale, cleanContextAsk(parsed.contextAsk)),
-    chemicals: chemicalsFromReading({
-      locale: options.locale,
-      issue: finalized.issue,
-      sprayEvidence: finalized.sprayEvidence,
-      sprayIndicated: parsed.sprayIndicated,
-      diseaseIndicated: parsed.diseaseIndicated,
-      suspect: parsed.suspect,
-      chemicals: parsed.chemicals,
-      fallbackSuspect: finalized.likelyCauses[0] ?? "",
-    }),
+    contextAsk: modelAsk ?? followUpFor(options.locale, { issue: finalized.issue, chemicals, needsInfo }),
+    needsInfo,
+    chemicals,
     progress: options.wantProgress ? parseProgress(parsed) : null,
     plantInFrame: parseFlag(parsed.plantInFrame),
+    issue: finalized.issue,
   };
 }
 
@@ -285,25 +300,35 @@ export function localFallback(
     plantName: farmerPlant,
     context,
   });
+  const chemicals = chemicalsFromReading({
+    locale,
+    issue: finalized.issue,
+    sprayEvidence: finalized.sprayEvidence,
+    sprayIndicated: null,
+    diseaseIndicated: null,
+    suspect: "",
+    chemicals: [],
+    fallbackSuspect: finalized.likelyCauses[0] ?? "",
+  });
+  const needsInfo = needsMoreInfo({
+    issue: finalized.issue,
+    chemicals,
+    confidence: finalized.confidence,
+    suspect: "",
+    fallbackSuspect: finalized.likelyCauses[0] ?? "",
+  });
   return {
     ...finalized,
     model: null,
     triageSource: "local-fallback",
     confidenceStated: false,
     detectedPlant: namedPlant(locale, null, farmerPlant, primaryCrop),
-    contextAsk: contextIsEmpty(context) ? text.contextAskDefault : null,
-    chemicals: chemicalsFromReading({
-      locale,
-      issue: finalized.issue,
-      sprayEvidence: finalized.sprayEvidence,
-      sprayIndicated: null,
-      diseaseIndicated: null,
-      suspect: "",
-      chemicals: [],
-      fallbackSuspect: finalized.likelyCauses[0] ?? "",
-    }),
+    contextAsk: followUpFor(locale, { issue: finalized.issue, chemicals, needsInfo }),
+    needsInfo,
+    chemicals,
     progress: null,
     plantInFrame: null,
+    issue: finalized.issue,
   };
 }
 
@@ -330,6 +355,35 @@ function repairAsk(locale: Locale, ask: string | null): string | null {
 function researchText(suspect: unknown, fallback: string): string {
   const named = typeof suspect === "string" ? suspect : "";
   return `${named}\n${fallback}`;
+}
+
+/**
+ * A symptom with no chemical named is an unfinished reading, not a dead end:
+ * it counts as needing more evidence when confidence is low, or when neither
+ * the model nor the research table could name the problem behind the symptom.
+ */
+export function needsMoreInfo(options: {
+  issue: IssueId | null;
+  chemicals: ChemicalAdvice | null;
+  confidence: "low" | "medium" | "high";
+  suspect: unknown;
+  fallbackSuspect: string;
+}): boolean {
+  if (!options.issue || options.chemicals) return false;
+  if (options.confidence === "low") return true;
+  return !researchFor(researchText(options.suspect, options.fallbackSuspect), options.issue);
+}
+
+/** Every rendered reading carries a follow-up. The wording follows what the reading could not yet do. */
+export function followUpFor(
+  locale: Locale,
+  outcome: { issue: IssueId | null; chemicals: ChemicalAdvice | null; needsInfo: boolean },
+): string {
+  const text = copy[locale];
+  if (outcome.needsInfo) return text.followUpNeedsInfo;
+  if (outcome.chemicals) return text.followUpSpray;
+  if (outcome.issue) return text.followUpMitigation;
+  return text.contextAskDefault;
 }
 
 function chemicalsFromReading(options: {
@@ -395,7 +449,7 @@ export function developerPrompt(locale: Locale): string {
     "Do not mention a crop that is not in the photo. Do not say another crop is missing, secondary, or grown on a different bed.",
     "If SAM returned no marks, still triage from the photo, the plant name, and the farmer's notes. Empty marks are not a reason to skip observations, the three checks, or chemicals when a problem is visible or described.",
     "Do not say that segmentation failed, that marks may be missing, or that no plants were marked.",
-    "When the photo or the notes show a concrete symptom (curl, deformity, spots, insects, wilt, or yellowing), fill likelyCauses with 2 short hypotheses and mitigations with 2 or 3 practical steps.",
+    "When the photo or the notes show a concrete symptom (curl, deformity, spots, blisters or raised bumps, insects, chewing or holes, webbing, sticky or sooty coating, mosaic, wilt, or yellowing), fill likelyCauses with 2 short hypotheses and mitigations with 2 or 3 practical steps.",
     "Looped, hooked, or corkscrew fruit or leaves are a deformity even when SAM returned nothing.",
     "Mitigations are cultural practice, monitoring, sanitation, or irrigation. They are not spray rates, and they are not the same sentences as actions.",
     "Return exactly three next checks in actions. Each check must be about the symptom you saw on the named plant.",
@@ -405,16 +459,18 @@ export function developerPrompt(locale: Locale): string {
     "Set sprayIndicated to false when the next step is to look, change water, or remove damaged growth. Curl or twisted fruit alone is not a spray.",
     "If sprayIndicated is true, set diseaseIndicated to true, name the problem briefly in suspect, and recommend one or two chemicals.",
     "If you suspect a disease, pest, or nutrient deficiency but are unsure which product fits, still name the problem in suspect; the server looks up matching chemicals, fertilizer, and practices for what you named.",
+    "Every symptom must end in mitigation steps and, when a spray is the usual next step, chemicals. If the photo does not separate the likely causes, do not guess a chemical: keep chemicals empty, say in likelyCauses why the causes are not separated yet, and put the one missing angle or fact that would separate them in contextAsk (for example a close photo of the underside of one affected leaf).",
     "Each chemical has activeIngredient (the common name, such as mancozeb), productClass (such as fungicide or insecticide), and useNote (typical use, with no numeric rate).",
     "Do not invent an exact spray rate, mixing rate, millilitres, grams, or litres per area or per tank. Say the rate must follow the product label.",
     "This chemical advice is for the farmer to verify with a local agroveterinary officer before buying or spraying.",
     "If sprayIndicated is false and the problem is not a nutrient deficiency, set diseaseIndicated to false, suspect to an empty string, and chemicals to an empty array. Still return likelyCauses and mitigations when a symptom is visible.",
     "When yellowing points to feeding instead of a spray, name the deficiency in suspect and set diseaseIndicated to true; the server answers with fertilizer and practices.",
     "If the farmer mentions products already used, treat that as history. Do not turn that history into a new numeric dose.",
-    "If one extra fact would make the checks more accurate, put one short question in contextAsk. Otherwise contextAsk is an empty string.",
+    "Always put one short follow-up in contextAsk: what you still need, what was already sprayed or fed, or the one fact that would make the next check more accurate.",
     "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
     `Reply in ${language}.`,
-    "Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
+    ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
+    "Judge plantInFrame from the photo alone, not from the plant the farmer named. Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
     "When plantInFrame is false, leave observations, likelyCauses, mitigations, actions, and chemicals empty.",
     "Return one JSON object only, with this shape:",
     '{"plantInFrame":true,"detectedPlant":"plant name","symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
@@ -452,10 +508,11 @@ export function userPrompt(
     angles > 1
       ? "observations must describe only the plants actually in these photos. Do not name a crop that is not in the photos."
       : "observations must describe only the plants in this photo: symptoms, vigor, spacing, damage, soil, or their count. Do not name a crop that is not in the photo.",
-    "If a symptom is visible, likelyCauses and mitigations are required even when SAM returned nothing. Looped, hooked, or corkscrew growth is a symptom.",
+    "If a symptom is visible, likelyCauses and mitigations are required even when SAM returned nothing. Looped, hooked, or corkscrew growth is a symptom. Raised blisters, bumps, chewing, webbing, and sooty coating are symptoms too.",
     "Make the three actions specific to that symptom. Do not answer with a generic soil, leaf-removal, and re-photo list.",
     "Set sprayIndicated and name chemicals by active ingredient only when a spray is the usual next step. Do not give a numeric spray rate.",
     `Write the JSON in ${language}.`,
+    ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
   ].join("\n");
 }
 
@@ -512,9 +569,11 @@ const DRAFT_KEYS = ["observations", "actions", "likelyCauses", "mitigations"] as
 /** JSON when Muse finished it, a closed array when the rest was cut off, or symptom prose. */
 export function readModelDraft(text: string): ModelDraft | null {
   const fromJson = draftFromJson(text);
-  if (fromJson && draftHasReading(fromJson)) return fromJson;
+  // The prompt asks for empty lists when there is no plant. That reply is a verdict, not a failed read.
+  if (fromJson && (draftHasReading(fromJson) || parseFlag(fromJson.plantInFrame) === false)) return fromJson;
   const partial = draftFromPartial(text);
   if (partial && draftHasReading(partial)) return partial;
+  if (/"plantInFrame"\s*:\s*false\b/.test(text)) return emptyDraft({ plantInFrame: false });
   const sentences = proseSentences(text);
   if (!inferIssue(sentences.join(" "))) return null;
   return emptyDraft({ observations: sentences.slice(0, 3) });
