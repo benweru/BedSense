@@ -132,7 +132,7 @@ export function VoiceContext({
         {...gesture}
         onContextMenu={(event) => event.preventDefault()}
         className={`press flex min-h-14 w-full touch-none items-center justify-center gap-3 rounded-full px-4 text-base font-semibold select-none disabled:opacity-60 ${
-          phase === "listening" ? "bg-[#8ee6b0] text-ink shadow-[0_0_0_6px_rgba(31,157,85,0.25)]" : "bg-soil text-paper"
+          phase === "listening" ? "bg-leaf text-cream shadow-[0_0_0_6px_rgba(31,122,77,0.25)]" : "bg-leaf text-cream"
         }`}
       >
         {phase === "listening" ? <Waveform levels={wave.levels} /> : <MicIcon />}
@@ -140,7 +140,7 @@ export function VoiceContext({
       </button>
       {phase === "idle" ? <p className="mt-2 text-center text-sm text-mute">{words.holdToTalk}</p> : null}
       {message ? (
-        <p className="mt-2 text-base leading-6 text-beet" role="alert">
+        <p className="mt-2 text-base leading-6 text-danger" role="alert">
           {message}
         </p>
       ) : null}
@@ -219,13 +219,13 @@ export function VoiceNote({
         aria-pressed={phase === "listening"}
         {...gesture}
         onContextMenu={(event) => event.preventDefault()}
-        className={`press inline-flex min-h-12 touch-none items-center gap-2 rounded-full px-4 text-sm font-semibold select-none disabled:opacity-60 ${phase === "listening" ? "bg-[#8ee6b0] text-ink" : "bg-soil text-paper"}`}
+        className={`press inline-flex min-h-12 touch-none items-center gap-2 rounded-full px-4 text-sm font-semibold select-none disabled:opacity-60 ${phase === "listening" ? "bg-leaf text-cream" : "bg-leaf text-cream"}`}
       >
         {phase === "listening" ? <Waveform levels={wave.levels.slice(-10)} /> : <MicIcon />}
         {phase === "listening" ? listeningLabel : phase === "writing" ? "…" : label}
       </button>
       {message ? (
-        <p className="mt-2 text-sm text-beet" role="alert">
+        <p className="mt-2 text-sm text-danger" role="alert">
           {message}
         </p>
       ) : null}

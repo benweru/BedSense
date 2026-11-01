@@ -24,10 +24,6 @@ const MESSAGES: Record<AnalyzeError["code"], Record<Locale, string>> = {
     en: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
     sw: "Weka MODEL_API_KEY kwenye seva, au weka MOCK_META=1 ili kuendesha onyesho.",
   },
-  missing_plant: {
-    en: "Name the plant in the photo.",
-    sw: "Taja mmea ulio kwenye picha.",
-  },
   muse_unavailable: {
     en: "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
     sw: "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya Muse Spark au Muse Wonder, kisha jaribu kukagua tena.",
@@ -59,7 +55,7 @@ export async function POST(request: Request): Promise<Response> {
 
 function jsonError(code: AnalyzeError["code"], locale: Locale): Response {
   const status =
-    code === "bad_request" || code === "missing_plant"
+    code === "bad_request"
       ? 400
       : code === "unsupported_image"
         ? 415

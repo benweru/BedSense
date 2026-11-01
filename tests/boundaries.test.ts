@@ -94,23 +94,22 @@ describe("public project boundaries", () => {
     expect(shape(copy.en)).toEqual(shape(copy.sw));
   });
 
-  it("keeps the home line short and asks for the plant by name", () => {
-    const hero = "Photograph any plant on your farm bed. Meta intelligence models read the photo and return diagnoses and practical things to look at or do next.";
+  it("keeps the home line short and photo-first", () => {
+    const hero = "Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.";
     expect(copy.en.lede).toBe(hero);
     expect(copy.en.lede.toLowerCase()).not.toContain("triage steps only");
     expect(copy.en.lede.toLowerCase()).not.toContain("not a diagnosis");
-    expect(copy.sw.lede).toContain("Piga picha ya mmea wowote");
-    expect(copy.sw.lede).toContain("Modeli za akili za Meta");
+    expect(copy.en.lede).toContain("Your plants can’t talk, but your phone can listen");
+    expect(copy.sw.lede).toContain("Piga picha, jua tatizo");
     expect(copy.sw.lede).not.toMatch(/Kenya/i);
     expect(copy.sw.lede).not.toContain("Huchagui zao");
     expect(copy.en.actions.toLowerCase()).toContain("three next checks");
     expect(copy.en.actionsHint.toLowerCase()).toContain("not a diagnosis");
-    expect(copy.en.plantNameLabel.toLowerCase()).toContain("what plant");
-    expect(copy.sw.plantNameLabel).toContain("Mmea gani");
-    expect(copy.en.plantNamePlaceholder).toBe("e.g. Onion");
-    expect(copy.sw.plantNamePlaceholder).toBe("mf. Kitunguu");
-    expect(copy.en.plantNamePlaceholder).not.toMatch(/for example/i);
-    expect(copy.sw.plantNamePlaceholder).not.toContain("Kwa mfano");
+    expect(copy.en.photoOnlyHint.toLowerCase()).toContain("photo");
+    expect(copy.en.correctPlantPlaceholder).toBe("e.g. Avocado");
+    expect(copy.sw.correctPlantPlaceholder).toBe("mf. Parachichi");
+    expect(copy.en.correctPlantPlaceholder).not.toMatch(/for example/i);
+    expect(copy.sw.correctPlantPlaceholder).not.toContain("Kwa mfano");
     expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "onion", detectedPlant: "Onion" }).toLowerCase()).toContain("unusual");
     expect(copy.en.plantLine({ cropFocus: "mixed", primaryCrop: "beetroot", detectedPlant: "Beetroot" }).toLowerCase()).not.toContain("mixed bed");
     expect(copy.sw.actions).toContain("Mambo matatu");

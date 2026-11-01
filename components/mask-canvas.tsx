@@ -62,7 +62,7 @@ export function MaskCanvas({
   const revealKey = `${result?.id ?? "none"}-${frame}`;
 
   return (
-    <div className="relative overflow-hidden rounded-[28px] bg-page shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+    <div className="relative overflow-hidden rounded-xl bg-page ">
       {/* Phone photos are local data URLs, so the browser draws them directly. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img ref={imgRef} src={src} alt={alt} className="block h-auto w-full lg:max-h-[min(34rem,72vh)] lg:object-contain" />

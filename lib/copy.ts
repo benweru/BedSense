@@ -10,10 +10,11 @@ export type Copy = {
   kicker: string;
   title: string;
   lede: string;
-  plantNameLabel: string;
-  plantNameHint: string;
-  plantNamePlaceholder: string;
-  plantNameMissing: string;
+  photoOnlyHint: string;
+  correctPlantPrompt: string;
+  correctPlantLabel: string;
+  correctPlantPlaceholder: string;
+  correctPlantRun: string;
   newCheck: string;
   capture: string;
   upload: string;
@@ -62,6 +63,7 @@ export type Copy = {
   historyEmpty: string;
   historyHold: string;
   clear: string;
+  clearConfirm: string;
   deleteCheck: string;
   deleteCheckAsk: string;
   keepCheck: string;
@@ -88,7 +90,6 @@ export type Copy = {
   unknownPlant: string;
   dropPhoto: string;
   currentCheck: string;
-  contextTitle: string;
   contextHint: string;
   contextGuide: string;
   contextAskLabel: string;
@@ -131,6 +132,7 @@ export type Copy = {
   agronomistCallout: string;
   countLine: (counts: ConceptCounts) => string;
   plantLine: (input: PlantLineInput) => string;
+  plantMismatchNote: (farmerPlant: string, detectedPlant: string) => string;
   segmentFailed: (name: string) => string;
   levelLabel: (level: ConfidenceLevel) => string;
 };
@@ -138,11 +140,12 @@ export type Copy = {
 const en: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Photograph any plant on your farm bed. Meta intelligence models read the photo and return diagnoses and practical things to look at or do next.",
-  plantNameLabel: "What plant is in the photo?",
-  plantNameHint: "Required. The name is sent with the photo so the check can follow that plant.",
-  plantNamePlaceholder: "e.g. Onion",
-  plantNameMissing: "Please fill this in. Name the plant in the photo before the check runs.",
+  lede: "Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.",
+  photoOnlyHint: "Just add a photo — BedSense names the plant from the photo itself.",
+  correctPlantPrompt: "Not your plant? Name it",
+  correctPlantLabel: "What plant is this, really?",
+  correctPlantPlaceholder: "e.g. Avocado",
+  correctPlantRun: "Check again",
   newCheck: "New check",
   capture: "Take a photo",
   upload: "Choose a photo",
@@ -195,7 +198,7 @@ const en: Copy = {
   likelyCauses: "Likely causes",
   likelyCausesHint: "Hypotheses for this symptom. Not a diagnosis.",
   mitigations: "How to mitigate",
-  mitigationsHint: "Steps on the bed: culture, monitoring, sanitation, and water. A spray is listed only when it is the usual next step.",
+  mitigationsHint: "A spray is listed only when it is the usual next step.",
   actions: "Three next checks",
   actionsHint: "Practical things to look at or do next on this plant. Not a diagnosis or a spray rate.",
   progressTitle: "Checking this photo",
@@ -223,6 +226,7 @@ const en: Copy = {
   historyEmpty: "Your last five checks stay on this phone.",
   historyHold: "Hold a check to delete it, or choose Delete.",
   clear: "Clear",
+  clearConfirm: "Tap again to clear all",
   deleteCheck: "Delete this check",
   deleteCheckAsk: "Delete this recent check? It will be removed from this phone only.",
   keepCheck: "Keep",
@@ -257,8 +261,7 @@ const en: Copy = {
   unknownPlant: "Farm plant",
   dropPhoto: "Or drop a photo here",
   currentCheck: "This is the open check",
-  contextTitle: "Context or a question",
-  contextHint: "Add what you know, or ask a question about this plant.",
+  contextHint: "Add what you know about this plant.",
   contextGuide:
     "Optional. Add plant age, practices, sprays, fertilizer, water, weather, or known issues. You can also ask a question, such as whether to water today.",
   contextAskLabel: "A clearer check would use this",
@@ -334,6 +337,8 @@ const en: Copy = {
     if (named) return `This looks like ${named}.`;
     return "This looks like a farm plant. The three next checks still apply.";
   },
+  plantMismatchNote: (farmerPlant, detectedPlant) =>
+    `You wrote ${farmerPlant}, but this photo looks like ${detectedPlant}. The reading below follows the plant in the photo. If the photo is right, rename the plant so the next check compares like with like.`,
   segmentFailed: (name) => `${name} segmentation did not return, so those marks may be missing.`,
   levelLabel: (level) => (level === "low" ? "Low" : level === "medium" ? "Medium" : "High"),
 };
@@ -341,11 +346,12 @@ const en: Copy = {
 const sw: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Piga picha ya mmea wowote shambani kwako. Modeli za akili za Meta zinaangalia picha na kukuambia tatizo linaloweza kuwa, na unachoweza kukagua au kufanya.",
-  plantNameLabel: "Mmea gani uko kwenye picha?",
-  plantNameHint: "Lazima ujaze. Jina hili hutumwa pamoja na picha ili ukaguzi ufuatilie mmea huo.",
-  plantNamePlaceholder: "mf. Kitunguu",
-  plantNameMissing: "Tafadhali andika jina la mmea ulio kwenye picha kabla ya kukagua.",
+  lede: "Piga picha, jua tatizo. Piga picha ya mmea wako upate hatua rahisi za kuchukua leo.",
+  photoOnlyHint: "Ongeza picha tu — BedSense hutaja mmea kutoka kwenye picha yenyewe.",
+  correctPlantPrompt: "Si mmea wako? Utaje",
+  correctPlantLabel: "Mmea huu ni upi hasa?",
+  correctPlantPlaceholder: "mf. Parachichi",
+  correctPlantRun: "Kagua tena",
   newCheck: "Ukaguzi mpya",
   capture: "Piga picha",
   upload: "Chagua picha",
@@ -393,7 +399,7 @@ const sw: Copy = {
   likelyCauses: "Sababu zinazowezekana",
   likelyCausesHint: "Huenda hizi ndizo sababu za dalili hii. Si jibu la uhakika.",
   mitigations: "Unachoweza kufanya",
-  mitigationsHint: "Hatua za kuchukua shambani: utunzaji, kufuatilia, usafi na maji. Dawa inatajwa tu ikiwa ndiyo hatua ya kawaida inayofuata.",
+  mitigationsHint: "Dawa inatajwa tu ikiwa ndiyo hatua ya kawaida inayofuata.",
   actions: "Mambo matatu ya kukagua",
   actionsHint: "Mambo ya kuangalia au kufanya kwenye mmea huu. Si jibu la uhakika wala kipimo cha dawa.",
   progressTitle: "Inakagua picha hii",
@@ -421,6 +427,7 @@ const sw: Copy = {
   historyEmpty: "Ukaguzi wako tano wa mwisho huhifadhiwa kwenye simu hii.",
   historyHold: "Bonyeza na ushikilie ukaguzi ili kuufuta, au chagua Futa.",
   clear: "Futa",
+  clearConfirm: "Gusa tena kufuta yote",
   deleteCheck: "Futa ukaguzi huu",
   deleteCheckAsk: "Futa ukaguzi huu? Utafutwa kwenye simu hii pekee.",
   keepCheck: "Usifute",
@@ -438,7 +445,7 @@ const sw: Copy = {
   backupNote: "Ushauri huu umetoka kwenye hifadhi ya simu kwa sababu Muse Spark haikujibu.",
   museUnavailable:
     "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya Muse Spark au Muse Wonder, kisha jaribu kukagua tena.",
-  footer: "Huu ni mwongozo, si jibu la uhakika. Fuata kipimo cha dawa kilicho kwenye kibandiko.",
+  footer: "Uchunguzi wa awali, si utambuzi. Fuata kipimo cha dawa kilicho kwenye kibandiko.",
   back: "Rudi",
   profile: "Wasifu",
   account: "Akaunti",
@@ -455,8 +462,7 @@ const sw: Copy = {
   unknownPlant: "Mmea wa shamba",
   dropPhoto: "Au buruta picha hapa",
   currentCheck: "Ukaguzi unaoangalia sasa",
-  contextTitle: "Maelezo au swali",
-  contextHint: "Ongeza unachojua, au uliza swali kuhusu mmea huu.",
+  contextHint: "Ongeza unachojua kuhusu mmea huu.",
   contextGuide:
     "Si lazima. Andika umri wa mmea, unavyoutunza, dawa, mbolea, maji, hali ya hewa au matatizo uliyoona. Unaweza pia kuuliza swali, kama vile kama umwagilie leo.",
   contextAskLabel: "Haya yangesaidia ukaguzi kuwa sahihi zaidi",
@@ -534,6 +540,8 @@ const sw: Copy = {
     if (named) return `Hii inaonekana kama ${named}.`;
     return "Hii inaonekana kama mmea wa shamba. Mambo matatu ya kukagua bado yanafaa.";
   },
+  plantMismatchNote: (farmerPlant, detectedPlant) =>
+    `Uliandika ${farmerPlant}, lakini picha hii inaonekana kama ${detectedPlant}. Maelezo hapa chini yanafuata mmea ulio kwenye picha. Kama picha iko sahihi, badilisha jina la mmea ili ukaguzi ujao ulinganishe mimea inayofanana.`,
   segmentFailed: (name) => `Alama za ${name} hazikupatikana, kwa hiyo huenda baadhi hazipo.`,
   levelLabel: (level) => (level === "low" ? "Chini" : level === "medium" ? "Wastani" : "Juu"),
 };

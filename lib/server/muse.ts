@@ -2,7 +2,7 @@ import { adviseChemicals } from "@/lib/agrovet";
 import { cleanContextAsk, cleanPlantName, contextIsEmpty, contextPromptBlock, fallbackPlantName } from "@/lib/context";
 import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
-import { displayPlantName } from "@/lib/plants";
+import { displayPlantName, matchPlant, variantKey } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { researchActives, researchFertilizers, researchFor } from "@/lib/research";
 import { catalogChatModels, listMetaModels, MetaHttpError, MUSE_MODELS, postMeta, triageModelIds } from "@/lib/server/meta";
@@ -26,6 +26,7 @@ export type ModelDraft = {
   confidence: unknown;
   confidenceScore: unknown;
   detectedPlant: unknown;
+  plantMismatch?: unknown;
   contextAsk: unknown;
   diseaseIndicated: unknown;
   sprayIndicated: unknown;
@@ -60,6 +61,8 @@ export type TriageDraft = {
   /** False when Muse gave no score and the app filled one in. */
   confidenceStated: boolean;
   detectedPlant: string;
+  /** True when the photo clearly shows a different plant than the farmer named. */
+  plantMismatch: boolean;
   contextAsk: string | null;
   /** True when a symptom is visible but no chemical is named because the causes are not separated yet. */
   needsInfo: boolean;
@@ -249,6 +252,19 @@ async function completeModel(
   const text = chatOutputText(payload);
   const parsed = readModelDraft(text);
   if (!parsed) throw new Error("no_json");
+  // On a name mismatch the whole reading follows the plant in the photo,
+  // including the templated issue text — never the name the farmer typed.
+  const detected = namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop);
+  const mismatch = plantNameMismatch(options.farmerPlant, detected, parsed.plantMismatch);
+  if (mismatch) {
+    const rename = (value: unknown): unknown =>
+      typeof value === "string" ? renamePlantMention(value, options.farmerPlant, detected) : value;
+    parsed.observations = Array.isArray(parsed.observations) ? parsed.observations.map(rename) : parsed.observations;
+    parsed.likelyCauses = Array.isArray(parsed.likelyCauses) ? parsed.likelyCauses.map(rename) : parsed.likelyCauses;
+    parsed.mitigations = Array.isArray(parsed.mitigations) ? parsed.mitigations.map(rename) : parsed.mitigations;
+    parsed.actions = Array.isArray(parsed.actions) ? parsed.actions.map(rename) : parsed.actions;
+    parsed.contextAsk = rename(parsed.contextAsk);
+  }
   const finalized = finalizeTriage({
     locale: options.locale,
     observations: parsed.observations,
@@ -258,7 +274,8 @@ async function completeModel(
     confidence: parsed.confidence,
     confidenceScore: parsed.confidenceScore ?? 0.45,
     counts: options.counts,
-    plantName: options.farmerPlant,
+    // Unnamed checks finalize on the plant in the photo, like mismatches do.
+    plantName: mismatch || !options.farmerPlant ? detected : options.farmerPlant,
     context: options.context,
     symptom: parsed.symptom,
     suspect: parsed.suspect,
@@ -286,7 +303,8 @@ async function completeModel(
     model,
     triageSource: "muse",
     confidenceStated: typeof parsed.confidenceScore === "number",
-    detectedPlant: namedPlant(options.locale, parsed.detectedPlant, options.farmerPlant, options.primaryCrop),
+    detectedPlant: detected,
+    plantMismatch: mismatch,
     contextAsk: modelAsk ?? followUpFor(options.locale, { issue: finalized.issue, chemicals, needsInfo }),
     needsInfo,
     chemicals,
@@ -338,6 +356,7 @@ export function localFallback(
     triageSource: "local-fallback",
     confidenceStated: false,
     detectedPlant: namedPlant(locale, null, farmerPlant, primaryCrop),
+    plantMismatch: false,
     contextAsk: followUpFor(locale, { issue: finalized.issue, chemicals, needsInfo }),
     needsInfo,
     chemicals,
@@ -345,6 +364,32 @@ export function localFallback(
     plantInFrame: null,
     issue: finalized.issue,
   };
+}
+
+/**
+ * True when the plant in the photo is clearly not the plant the farmer named.
+ * The model's own flag wins; the name comparison is the backstop for models
+ * that name the photo's plant without setting the flag. Spelling variants of
+ * the same plant (chilli/chili, pilipili/chili) fold together and never flag.
+ */
+/** Swap whole-word mentions of the farmer's (wrong) plant name for the plant in the photo. */
+function renamePlantMention(sentence: string, farmerPlant: string, detectedPlant: string): string {
+  const name = farmerPlant.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (!name) return sentence;
+  return sentence.replace(new RegExp(`\\b${name}s?\\b`, "gi"), detectedPlant);
+}
+
+export function plantNameMismatch(farmerPlant: string, detectedPlant: string, modelFlag: unknown): boolean {
+  if (!farmerPlant.trim()) return false;
+  if (parseFlag(modelFlag) === true) return true;
+  const farmerKnown = matchPlant(farmerPlant);
+  const detectedKnown = matchPlant(detectedPlant);
+  if (farmerKnown && detectedKnown) return farmerKnown.en !== detectedKnown.en;
+  const farmer = variantKey(farmerPlant);
+  const detected = variantKey(detectedPlant);
+  if (!farmer || !detected || farmer === detected) return false;
+  // "tomato" vs "tomato plant" is the same plant named with more words.
+  return !farmer.includes(detected) && !detected.includes(farmer);
 }
 
 function namedPlant(locale: Locale, modelName: unknown, farmerPlant: string, primaryCrop: CropId | null): string {
@@ -454,7 +499,7 @@ export function developerPrompt(locale: Locale): string {
   return [
     "You are BedSense, a field triage assistant for any vegetable farm bed.",
     "A photo is one bed. If more than one photo is attached, they are different angles of that one bed and the one named plant.",
-    "The farmer names the plant in free text to assist you. Prefer that name in detectedPlant unless the photo clearly shows a different plant.",
+    "The farmer names the plant in free text to assist you. detectedPlant must name the plant the PHOTO actually shows. If the photo clearly shows a different plant than the farmer named, diagnose the plant in the photo, set plantMismatch to true, and write every observation, cause, and step about the plant in the photo. Otherwise set plantMismatch to false.",
     "The plant may be any farm plant, not a fixed list.",
     "Onion, beetroot, and chili are common crops, each grown on its own bed. They are not a limit on what you can advise.",
     "Onion and beetroot are never on the same bed. Chili is a separate secondary crop on its own bed.",
@@ -482,13 +527,13 @@ export function developerPrompt(locale: Locale): string {
     "When yellowing points to feeding instead of a spray, name the deficiency in suspect and set diseaseIndicated to true; the server answers with fertilizer and practices.",
     "If the farmer mentions products already used, treat that as history. Do not turn that history into a new numeric dose.",
     "Always put one short follow-up in contextAsk: what you still need, what was already sprayed or fed, or the one fact that would make the next check more accurate.",
-    "Do not ask the farmer to choose onion, beetroot, or chili from a list. They already named the plant.",
+    "Do not ask the farmer to choose onion, beetroot, or chili from a list. Name the plant you see in the photo.",
     `Reply in ${language}.`,
     ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
     "Judge plantInFrame from the photo alone, not from the plant the farmer named. Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
     "When plantInFrame is false, leave observations, likelyCauses, mitigations, actions, and chemicals empty.",
     "Return one JSON object only, with this shape:",
-    '{"plantInFrame":true,"detectedPlant":"plant name","symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
+    '{"plantInFrame":true,"detectedPlant":"plant name","plantMismatch":false,"symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
     "symptom is curl, deformity, spots, wilt, yellowing, insects, or an empty string.",
     "observations has 2 or 3 items. likelyCauses and mitigations are empty only when no symptom is visible. actions has exactly 3 items. confidenceScore is from 0 to 1. chemicals has at most 2 items.",
   ].join(" ");
@@ -511,7 +556,9 @@ export function userPrompt(
   const language = normalizeLocale(locale) === "sw" ? "Swahili" : "English";
   return [
     angles > 1 ? `These are ${angles} phone photos of one farm bed, each from a different angle.` : "This is a phone photo of one farm bed.",
-    `The farmer names the plant: ${farmerPlant}. Use that name.`,
+    farmerPlant
+      ? `The farmer names the plant: ${farmerPlant}. If the photo clearly shows a different plant, name that plant in detectedPlant, set plantMismatch to true, and diagnose the plant in the photo.`
+      : "The farmer did not name the plant. Identify the plant from the photo and name it in detectedPlant. Set plantMismatch to false.",
     angles > 1
       ? "SAM marks below are listed per frame. A crop that is not listed in a frame was not marked there."
       : "SAM marks below are only what was found in this photo. A crop that is not listed was not marked.",

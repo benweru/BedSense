@@ -1,8 +1,8 @@
 # BedSense
 
-Photograph any plant on your farm bed. Meta intelligence models read the photo and return diagnoses and practical things to look at or do next.
+Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.
 
-You name the plant in the photo so the check can follow it. You can also add one optional note: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.
+Just photograph the plant — BedSense names it from the photo. If it names the wrong plant, you can correct it on the result and re-check. You can also add one optional note: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.
 
 ## Who it is for
 

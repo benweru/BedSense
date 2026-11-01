@@ -199,7 +199,7 @@ describe("analyze pipeline", () => {
     expect(body.error).toBe("bad_request");
   });
 
-  it("asks for the plant name before it reads the photo", async () => {
+  it("reads the photo without a plant name (photo-only check)", async () => {
     vi.stubEnv("MOCK_META", "1");
     const response = await POST(
       new Request("http://localhost/api/analyze", {
@@ -208,9 +208,10 @@ describe("analyze pipeline", () => {
         body: JSON.stringify({ image: pngDataUrl(), plantName: "  " }),
       }),
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.error).toBe("missing_plant");
+    expect(body.farmerPlant).toBe("");
+    expect(body.detectedPlant).toBeTruthy();
   });
 
   it("segments with SAM and falls back from contributor Muse, stripping doses", async () => {
