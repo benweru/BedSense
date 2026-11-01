@@ -8,6 +8,7 @@ const MESSAGES = {
   bad_request: "Send a question about this check.",
   missing_key: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
   muse_unavailable: "Muse is not available for questions with this key.",
+  rate_limited: "Too many questions at once. Wait a few seconds, then ask again.",
   upstream: "That question did not go through. Try again.",
 } as const;
 
@@ -35,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 function jsonError(code: AskError["code"]): Response {
-  const status = code === "bad_request" ? 400 : code === "missing_key" || code === "muse_unavailable" ? 503 : 502;
+  const status =
+    code === "bad_request" ? 400 : code === "rate_limited" ? 429 : code === "missing_key" || code === "muse_unavailable" ? 503 : 502;
   return Response.json({ error: code, message: MESSAGES[code] }, { status });
 }

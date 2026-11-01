@@ -45,11 +45,9 @@ describe("dosage guard", () => {
     expect(result.confidenceScore).toBeLessThanOrEqual(0.4);
     expect(result.disclaimer.toLowerCase()).toContain("not a diagnosis");
     expect(result.agronomistCallout.toLowerCase()).toContain("agroveterinary");
-    expect(result.observations[0]).toContain("onion 2");
-    expect(result.observations[0]).toContain("yellow leaf 1");
-    expect(result.observations[0].toLowerCase()).not.toContain("beetroot");
-    expect(result.observations[0].toLowerCase()).not.toContain("chili");
-    expect(result.observations[0]).not.toContain(" 0");
+    // The count sentence is gone from What stands out; the model's own note leads.
+    expect(result.observations[0]).toBe("Outer leaves look tired.");
+    expect(result.observations.join(" ")).not.toMatch(/in this frame|onion 2|yellow leaf 1/i);
   });
 
   it("drops stands-out notes that name a crop or bed outside the frame", () => {

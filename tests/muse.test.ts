@@ -315,7 +315,8 @@ describe("adviseBed", () => {
     );
     await expect(adviseBed(bedOptions())).rejects.toBeInstanceOf(AnalyzeError);
     await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "muse_unavailable" });
-    expect(chatCalls).toEqual([]);
+    // A chat-less catalog is a failed read: the known Spark ids are called and 404 before giving up.
+    expect(chatCalls.length).toBeGreaterThan(0);
 
     const tried: string[] = [];
     vi.stubGlobal(
@@ -354,6 +355,26 @@ describe("adviseBed", () => {
     expect(catalogs).toBe(2);
     expect(tried).toEqual(["muse-spark-1.3"]);
     expect(recovered.model).toBe("muse-spark-1.3");
+
+    // A non-empty catalog with no chat model is the same failed read: retry, then call the known ids.
+    let chatlessCatalogs = 0;
+    const chatlessTried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) {
+          chatlessCatalogs += 1;
+          return jsonResponse({ data: [{ id: "sam-3.1" }, { id: "muse-image-1.0" }] });
+        }
+        const body = JSON.parse(String(init.body)) as { model?: string };
+        chatlessTried.push(body.model ?? "");
+        return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+      }),
+    );
+    const chatless = await adviseBed(bedOptions());
+    expect(chatlessCatalogs).toBe(2);
+    expect(chatlessTried).toEqual(["muse-spark-1.3-contributor"]);
+    expect(chatless.model).toBe("muse-spark-1.3-contributor");
 
     const fallbackTried: string[] = [];
     vi.stubGlobal(

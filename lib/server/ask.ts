@@ -1,12 +1,12 @@
 import { copy, normalizeLocale } from "@/lib/copy";
-import { isMockMode, listMetaModels, MetaHttpError, postMeta, readApiKey, triageModelIds } from "@/lib/server/meta";
+import { catalogChatModels, isMockMode, listMetaModels, MetaHttpError, postMeta, readApiKey, triageModelIds } from "@/lib/server/meta";
 import { chatOutputText } from "@/lib/server/muse";
 import { containsDosage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
 import type { AskTurn, Locale } from "@/lib/types";
 
 export class AskError extends Error {
-  readonly code: "bad_request" | "missing_key" | "muse_unavailable" | "upstream";
+  readonly code: "bad_request" | "missing_key" | "muse_unavailable" | "rate_limited" | "upstream";
 
   constructor(code: AskError["code"]) {
     super(code);
@@ -52,11 +52,13 @@ export async function answerFollowUp(input: {
 
   let models: string[];
   try {
-    models = triageModelIds(await listMetaModels(apiKey, 8_000));
+    let listed = await listMetaModels(apiKey, 8_000);
+    // Same rule as triage: a chat-less catalog read is retried once, then the known ids are called.
+    if (triageModelIds(listed).length === 0) listed = await listMetaModels(apiKey, 8_000);
+    models = catalogChatModels(listed);
   } catch (error) {
     throw askFailure(error);
   }
-  if (models.length === 0) throw new AskError("muse_unavailable");
 
   let sawLiveModel = false;
   for (const model of models.slice(0, 3)) {
@@ -66,6 +68,8 @@ export async function answerFollowUp(input: {
       if (answer) return { answer, locale, demo: false };
       sawLiveModel = true;
     } catch (error) {
+      // A rate limit will not clear by burning the next model; report it so the farmer can wait a few seconds.
+      if (error instanceof MetaHttpError && error.status === 429) throw new AskError("rate_limited");
       if (error instanceof MetaHttpError && (error.status === 404 || error.reason === "model_not_found")) continue;
       sawLiveModel = true;
     }
@@ -186,6 +190,7 @@ function cleanText(value: unknown, max: number): string {
 function askFailure(error: unknown): AskError {
   if (error instanceof AskError) return error;
   if (error instanceof MetaHttpError) {
+    if (error.status === 429) return new AskError("rate_limited");
     if (error.status === 401 || error.status === 403 || error.status === 404 || error.reason === "model_not_found") {
       return new AskError("muse_unavailable");
     }

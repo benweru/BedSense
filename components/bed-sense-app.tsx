@@ -17,11 +17,11 @@ import {
   severityBorder,
   buzz,
   prefersReducedMotion,
+  replayIntro,
 } from "@/components/premium";
 import { PlantMemory, PlantsHomeCard, ProgressNote, type SavedPlant } from "@/components/plant-memory";
 import { SiteChrome } from "@/components/site-chrome";
 import { VoiceContext } from "@/components/voice-context";
-import { CONCEPTS } from "@/lib/concepts";
 import { NOTES_LIMIT, contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, forgetCheck, rememberCheck } from "@/lib/history";
@@ -217,6 +217,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       }
       setShowMasks(true);
       setResult(body);
+      window.requestAnimationFrame(() => {
+        document.getElementById("result")?.scrollIntoView({
+          block: "start",
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+        });
+      });
       if (body.plantId) setMemoryRefresh((count) => count + 1);
       if (body.contextAsk) {
         setContextOpen(true);
@@ -251,6 +257,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     setFrame(0);
     setError(null);
     setPhase("ready");
+    window.requestAnimationFrame(() => {
+      document.getElementById("result")?.scrollIntoView({
+        block: "start",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
+    });
   }
 
   function clearHistory() {
@@ -331,6 +343,15 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             </p>
           </>
         )}
+        {!plants ? (
+          <button
+            type="button"
+            onClick={replayIntro}
+            className="press mt-4 min-h-11 rounded-full px-3 text-sm font-semibold text-leaf"
+          >
+            {words.howItWorks}
+          </button>
+        ) : null}
         {!plants && sessionLive && !(photos.length > 0 && !busy) && !(result && !busy) ? (
           <button
             type="button"
@@ -460,7 +481,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
               onClick={() => cameraRef.current?.click()}
               className="lift mt-5 min-h-14 rounded-full bg-leaf px-6 text-base font-semibold text-paper"
             >
-              {words.emptyCta}
+              {history.length > 0 ? words.emptyCtaAgain : words.emptyCta}
             </button>
             <p className="mt-3 hidden text-sm font-semibold text-leaf lg:block">{text.dropPhoto}</p>
           </div>
@@ -817,16 +838,6 @@ function ResultCard({
         </div>
         <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
           {result.masks.length === 0 ? <p className="text-base leading-6 text-mute">{text.noMasks}</p> : null}
-          {CONCEPTS.some((concept) => result.counts[concept.id] > 0) ? (
-            <ul className="flex flex-wrap gap-2">
-              {CONCEPTS.filter((concept) => result.counts[concept.id] > 0).map((concept) => (
-                <li key={concept.id} className="flex min-h-10 items-center gap-2 rounded-full border border-[#f6b23a]/50 bg-[#f6b23a]/15 px-3 py-2 text-sm font-semibold text-paper">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: concept.swatch }} />
-                  {text.concepts[concept.id]} {result.counts[concept.id]}
-                </li>
-              ))}
-            </ul>
-          ) : null}
           <ul className="space-y-3">
             {result.observations.map((item) => (
               <li key={item} className="border-l-4 border-[#e0941a] bg-field px-4 py-3 text-base leading-7 text-paper">
@@ -911,12 +922,13 @@ function FollowUpChat({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [limited, setLimited] = useState(false);
   const [demo, setDemo] = useState(false);
   const thread = result.thread ?? [];
 
   async function ask() {
     const question = draft.replace(/\s+/g, " ").trim();
-    if (!question || busy) return;
+    if (!question || busy || limited) return;
     const asked: AskTurn[] = [...thread, { role: "farmer", text: question }];
     onThread(asked);
     setDraft("");
@@ -945,7 +957,13 @@ function FollowUpChat({
       });
       const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string };
       if (!response.ok || !body.answer) {
-        setFailed(true);
+        if (body.error === "rate_limited") {
+          // Explain the pause in plain words and hold the button briefly so rapid taps stop hammering.
+          setLimited(true);
+          window.setTimeout(() => setLimited(false), 10_000);
+        } else {
+          setFailed(true);
+        }
         return;
       }
       if (body.demo) setDemo(true);
@@ -978,6 +996,11 @@ function FollowUpChat({
         </ul>
       ) : null}
       {demo ? <p className="mt-2 text-sm leading-6 text-mute">{text.askDemoNote}</p> : null}
+      {limited ? (
+        <p className="mt-2 text-sm leading-6 text-beet" role="alert">
+          {text.askRateLimited}
+        </p>
+      ) : null}
       {failed ? (
         <p className="mt-2 text-sm leading-6 text-beet" role="alert">
           {text.askFailed}
@@ -988,7 +1011,7 @@ function FollowUpChat({
           value={draft}
           rows={2}
           maxLength={500}
-          disabled={busy}
+          disabled={busy || limited}
           placeholder={text.askPlaceholder}
           aria-label={text.askTitle}
           onChange={(event) => setDraft(event.target.value)}
@@ -1002,7 +1025,7 @@ function FollowUpChat({
         />
         <button
           type="button"
-          disabled={busy || draft.trim().length === 0}
+          disabled={busy || limited || draft.trim().length === 0}
           onClick={() => void ask()}
           className="press min-h-12 shrink-0 rounded-full bg-leaf px-5 text-base font-semibold text-paper disabled:opacity-60"
         >

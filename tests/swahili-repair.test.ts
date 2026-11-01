@@ -181,7 +181,8 @@ describe("Swahili repair across the reading", () => {
       createdAt: "2026-10-25T12:00:00.000Z",
       plantName: "pilipili",
     });
-    expect(result.observations.join(" ")).toContain("pilipili");
+    expect(result.observations.join(" ").toLowerCase()).toContain("pilipili");
+    expect(result.observations.join(" ")).not.toMatch(/in this frame/i);
     expect(result.chemicals?.suspect).toContain("kwenye");
     expect(result.chemicals?.products[0]?.useNote).toContain("Kipimo kifuate kibandiko cha bidhaa");
   });

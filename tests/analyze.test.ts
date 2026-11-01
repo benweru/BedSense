@@ -114,8 +114,8 @@ describe("analyze pipeline", () => {
     expect(focuses[0]?.observations.join(" ").toLowerCase()).not.toMatch(/beetroot|\bbeets?\b|chili|pilipili/);
     expect(focuses[1]?.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|chili|pilipili/);
     expect(focuses[2]?.observations.join(" ").toLowerCase()).not.toMatch(/\bonions?\b|kitunguu|beetroot|\bbeets?\b/);
-    expect(focuses[0]?.observations[0]).toMatch(/onion \d+/);
-    expect(focuses[0]?.observations[0]).not.toMatch(/beetroot 0|chili 0/);
+    // What stands out carries the reading's own words, never the SAM count sentence.
+    expect(focuses[0]?.observations.join(" ")).not.toMatch(/in this frame|onion \d+|other plant/i);
 
     const swahili = [0, 1, 2].map((scenario) =>
       buildMockResult({
@@ -474,7 +474,7 @@ describe("analyze pipeline", () => {
     expect(result.chemicals).toBeNull();
   });
 
-  it("returns muse_unavailable instead of the generic checks when the catalog has no chat model", async () => {
+  it("returns muse_unavailable instead of the generic checks when no chat model answers", async () => {
     vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
     clearModelKeyChunks();
@@ -482,14 +482,21 @@ describe("analyze pipeline", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
+        if (String(url).endsWith("/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "sam-3.1" }, { id: "muse-image-1.0" }] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
         if (String(url).endsWith("/responses")) {
           return new Response('data: {"type":"response.completed"}\n\n', {
             status: 200,
             headers: { "content-type": "text/event-stream" },
           });
         }
-        return new Response(JSON.stringify({ data: [{ id: "sam-3.1" }, { id: "muse-image-1.0" }] }), {
-          status: 200,
+        // The chat-less catalog falls back to the known ids; this key has none of them.
+        return new Response(JSON.stringify({ error: { code: "model_not_found" } }), {
+          status: 404,
           headers: { "content-type": "application/json" },
         });
       }),

@@ -29,6 +29,16 @@ export function triageModelIds(ids: readonly string[]): string[] {
   return chosen;
 }
 
+/**
+ * Chat ids to call for this key. A catalog read that lists no chat model —
+ * empty or partial — is a failed read, not proof the key has no Muse: the
+ * known ids are tried instead, and a key that truly lacks them still 404s.
+ */
+export function catalogChatModels(ids: readonly string[]): string[] {
+  const chosen = triageModelIds(ids);
+  return chosen.length > 0 ? chosen : [...MUSE_MODELS];
+}
+
 function museRank(id: string): number {
   if (id.startsWith("muse-spark") && id.includes("contributor")) return 0;
   if (id.startsWith("muse-spark")) return 1;
@@ -49,15 +59,23 @@ const KEY_PARTS = 6;
 // A host can truncate one long MODEL_API_KEY. Forty characters counts as
 // complete; otherwise join MODEL_API_KEY_0 through MODEL_API_KEY_5.
 export function readApiKey(): string | null {
-  const direct = process.env.MODEL_API_KEY?.trim() ?? "";
+  const direct = unquote(process.env.MODEL_API_KEY?.trim() ?? "");
   if (direct.length >= COMPLETE_KEY_MIN_LENGTH) return direct;
   return readChunkedApiKey();
+}
+
+/** A dashboard paste can carry its quotes with it; the key inside is what Meta expects. */
+function unquote(value: string): string {
+  if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
+    return value.slice(1, -1).trim();
+  }
+  return value;
 }
 
 function readChunkedApiKey(): string | null {
   let joined = "";
   for (let index = 0; index < KEY_PARTS; index += 1) {
-    joined += process.env[`MODEL_API_KEY_${index}`]?.trim() ?? "";
+    joined += unquote(process.env[`MODEL_API_KEY_${index}`]?.trim() ?? "");
   }
   return joined ? joined : null;
 }
