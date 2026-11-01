@@ -219,6 +219,16 @@ function introSeen(): boolean {
   }
 }
 
+/** Reopen the first-visit intro on demand (the seen flag survives a cache clear, so testers need this). */
+export function replayIntro(): void {
+  try {
+    window.localStorage.removeItem(INTRO_KEY);
+  } catch {
+    /* private mode */
+  }
+  window.dispatchEvent(new Event("bedsense-intro"));
+}
+
 /** Three-card first-visit intro, shown once. */
 export function FirstVisitIntro({ locale }: { locale: Locale }) {
   const words = UI[locale];

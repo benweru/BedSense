@@ -58,6 +58,19 @@ describe("sparse marks and a reported issue", () => {
     const visible = result.observations.join("\n");
     expect(visible).not.toMatch(/beetroot|onion|chili|pilipili|segmentation did not return|notes you added|no plants were marked/i);
     expect(visible.toLowerCase()).toContain("twisted");
+    // The SAM count sentence is not an observation, even when marks landed.
+    const counted = finalizeTriage({
+      locale: "en",
+      plantName: "tomato",
+      observations: ["The fruit in the hand is twisted along the stem."],
+      actions: copy.en.fallbackActions,
+      counts: { ...emptyCounts, plant: 1 },
+      confidence: "low",
+      confidenceScore: 0.3,
+      context,
+    });
+    expect(counted.observations.join("\n")).not.toMatch(/in this frame|other plant/i);
+    expect(counted.observations.join("\n").toLowerCase()).toContain("twisted");
     expect(result.likelyCauses.join(" ").toLowerCase()).toContain("tomato");
     expect(result.mitigations.length).toBeGreaterThan(1);
     expect(result.actions).not.toEqual([...copy.en.fallbackActions]);

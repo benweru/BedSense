@@ -105,6 +105,7 @@ export type Copy = {
   askSend: string;
   askThinking: string;
   askFailed: string;
+  askRateLimited: string;
   askUnavailable: string;
   askDemoNote: string;
   contextNoted: string;
@@ -188,7 +189,7 @@ const en: Copy = {
   hint: "Fill the frame with one plant or one bed. Morning light and a steady phone help.",
   preparing: "Preparing the photo…",
   analyzing: "Reading the plant you named. Causes and next checks come next.",
-  retake: "New photo",
+  retake: "Start a fresh scan",
   retry: "Try again",
   observations: "What stands out",
   likelyCauses: "Likely causes",
@@ -278,6 +279,8 @@ const en: Copy = {
   askSend: "Ask",
   askThinking: "Thinking…",
   askFailed: "That question did not go through. Try again.",
+  askRateLimited:
+    "That is a lot of questions at once. Give it a few seconds, then ask again — your check above has not changed.",
   askUnavailable:
     "Muse is not available for questions right now. The checks above still stand; show this photo to an agrovet for more.",
   askDemoNote: "Demo answer from this check. Live answers need a model key.",
@@ -384,7 +387,7 @@ const sw: Copy = {
   hint: "Mmea mmoja au kitalu kimoja kijae kwenye picha. Mwanga wa asubuhi na kushika simu bila kutikisika husaidia.",
   preparing: "Inaandaa picha…",
   analyzing: "Inakagua mmea uliotaja. Sababu na hatua zinakuja.",
-  retake: "Piga picha tena",
+  retake: "Anza ukaguzi mpya",
   retry: "Jaribu tena",
   observations: "Kinachoonekana",
   likelyCauses: "Sababu zinazowezekana",
@@ -474,6 +477,8 @@ const sw: Copy = {
   askSend: "Uliza",
   askThinking: "Inafikiria…",
   askFailed: "Swali hilo halikupita. Jaribu tena.",
+  askRateLimited:
+    "Maswali ni mengi kwa wakati mmoja. Subiri sekunde chache, kisha uliza tena — ukaguzi wako ulio juu haujabadilika.",
   askUnavailable:
     "Muse haipatikani kwa maswali kwa sasa. Ukaguzi ulio juu bado unafaa; mwonyeshe agrovet picha hii kwa zaidi.",
   askDemoNote: "Jibu la onyesho kutoka ukaguzi huu. Majibu ya moja kwa moja yanahitaji ufunguo wa modeli.",

@@ -130,7 +130,7 @@ describe("follow-up Q&A endpoint", () => {
     expect(noChecks.status).toBe(400);
   });
 
-  it("reports muse_unavailable when the catalog has no chat model", async () => {
+  it("reports muse_unavailable when the catalog has no chat model and the known ids are missing", async () => {
     vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
     vi.stubGlobal(
@@ -142,12 +142,43 @@ describe("follow-up Q&A endpoint", () => {
             headers: { "content-type": "application/json" },
           });
         }
-        throw new Error("chat must not be called");
+        return new Response(JSON.stringify({ error: { code: "model_not_found" } }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        });
       }),
     );
     const response = await POST(askRequest({ locale: "en", question: "Why no spray?", grounding, thread: [] }));
     expect(response.status).toBe(503);
     const body = await response.json();
     expect(body.error).toBe("muse_unavailable");
+  });
+
+  it("reports rate_limited, not a generic failure, when Meta answers 429", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    let chats = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3" }] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        chats += 1;
+        return new Response(JSON.stringify({ error: { code: "rate_limit" } }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Can I spray today?", grounding, thread: [] }));
+    expect(response.status).toBe(429);
+    const body = await response.json();
+    expect(body.error).toBe("rate_limited");
+    // One 429 stops the loop instead of burning every model.
+    expect(chats).toBe(1);
   });
 });

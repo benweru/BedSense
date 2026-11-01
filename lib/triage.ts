@@ -179,8 +179,9 @@ export function finalizeTriage(options: {
   let notes = line(rawObservations, 280);
   if (notes.length === 0 && story) notes = line(story.observations, 280);
 
-  const countLine = text.countLine(options.counts);
-  const observations = [...(countLine && !NOISE.test(countLine) ? [countLine] : []), ...notes].slice(0, 4);
+  // What stands out is the model's and farmer's own words only. The SAM count
+  // sentence ("In this frame — other plant 1") is not an observation.
+  const observations = notes.slice(0, 4);
 
   let likelyCauses = line(Array.isArray(options.likelyCauses) ? options.likelyCauses : [], 320);
   let mitigations = line(Array.isArray(options.mitigations) ? options.mitigations : [], 320);

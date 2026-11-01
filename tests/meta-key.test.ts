@@ -35,6 +35,12 @@ describe("readApiKey", () => {
     stubChunks([" ", "\t", "", "", "", ""]);
     expect(readApiKey()).toBeNull();
   });
+
+  it("strips quotes a dashboard paste can carry", () => {
+    vi.stubEnv("MODEL_API_KEY", `"${COMPLETE}"`);
+    stubChunks([]);
+    expect(readApiKey()).toBe(COMPLETE);
+  });
 });
 
 describe("isMockMode", () => {

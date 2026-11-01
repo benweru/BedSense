@@ -5,7 +5,7 @@ import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } fro
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { researchActives, researchFertilizers, researchFor } from "@/lib/research";
-import { listMetaModels, MUSE_MODELS, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
+import { catalogChatModels, listMetaModels, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
 import { parseProgress } from "@/lib/memory";
 import { finalizeTriage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
@@ -105,19 +105,18 @@ export async function adviseBed(options: MemoryOptions & {
 
 async function catalogModels(apiKey: string, deadline: number): Promise<string[]> {
   let listed = await readCatalog(apiKey, deadline);
-  let models = triageModelIds(listed);
   // Production on 28 Oct returned a full catalog, then `data: []` on the same deploy.
-  // An empty body is a failed read, not proof this key has no chat model.
-  if (models.length === 0 && listed.length === 0) {
+  // An empty or chat-less body is a failed read, not proof this key has no chat model:
+  // read once more, then call the known ids. A key that truly lacks Muse still
+  // 404s on those calls and ends in muse_unavailable below.
+  if (triageModelIds(listed).length === 0) {
     listed = await readCatalog(apiKey, deadline);
-    models = triageModelIds(listed);
   }
-  if (models.length > 0) return models;
-  if (listed.length === 0) {
-    console.error(`muse catalog empty; fallback ${MUSE_MODELS.join(",")}`);
-    return [...MUSE_MODELS];
+  const models = catalogChatModels(listed);
+  if (triageModelIds(listed).length === 0) {
+    console.error(`muse catalog no chat models n=${listed.length}; trying known ${models.join(",")}`);
   }
-  throw new AnalyzeError("muse_unavailable");
+  return models;
 }
 
 async function readCatalog(apiKey: string, deadline: number): Promise<string[]> {
