@@ -1,5 +1,5 @@
 import { copy, normalizeLocale } from "@/lib/copy";
-import { catalogChatModels, isMockMode, listMetaModels, MetaHttpError, postMeta, readApiKey, triageModelIds } from "@/lib/server/meta";
+import { catalogChatModels, isMockMode, listMetaModels, MetaHttpError, MUSE_MODELS, postMeta, readApiKey, triageModelIds } from "@/lib/server/meta";
 import { chatOutputText } from "@/lib/server/muse";
 import { containsDosage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
@@ -57,7 +57,12 @@ export async function answerFollowUp(input: {
     if (triageModelIds(listed).length === 0) listed = await listMetaModels(apiKey, 8_000);
     models = catalogChatModels(listed);
   } catch (error) {
-    throw askFailure(error);
+    // A rejected catalog read (401/403) is not proof the chat call will fail: try the known ids.
+    if (error instanceof MetaHttpError && (error.status === 401 || error.status === 403)) {
+      models = [...MUSE_MODELS];
+    } else {
+      throw askFailure(error);
+    }
   }
 
   let sawLiveModel = false;
@@ -70,7 +75,12 @@ export async function answerFollowUp(input: {
     } catch (error) {
       // A rate limit will not clear by burning the next model; report it so the farmer can wait a few seconds.
       if (error instanceof MetaHttpError && error.status === 429) throw new AskError("rate_limited");
-      if (error instanceof MetaHttpError && (error.status === 404 || error.reason === "model_not_found")) continue;
+      if (
+        error instanceof MetaHttpError &&
+        (error.status === 404 || error.status === 401 || error.status === 403 || error.reason === "model_not_found")
+      ) {
+        continue;
+      }
       sawLiveModel = true;
     }
   }

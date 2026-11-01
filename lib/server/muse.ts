@@ -5,7 +5,7 @@ import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } fro
 import { displayPlantName } from "@/lib/plants";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { researchActives, researchFertilizers, researchFor } from "@/lib/research";
-import { catalogChatModels, listMetaModels, MetaHttpError, postMeta, triageModelIds } from "@/lib/server/meta";
+import { catalogChatModels, listMetaModels, MetaHttpError, MUSE_MODELS, postMeta, triageModelIds } from "@/lib/server/meta";
 import { parseProgress } from "@/lib/memory";
 import { finalizeTriage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
@@ -104,7 +104,19 @@ export async function adviseBed(options: MemoryOptions & {
 }
 
 async function catalogModels(apiKey: string, deadline: number): Promise<string[]> {
-  let listed = await readCatalog(apiKey, deadline);
+  let listed: string[];
+  try {
+    listed = await readCatalog(apiKey, deadline);
+  } catch (error) {
+    // The catalog read itself was rejected (401/403). That is not proof the chat
+    // call will be: call the known ids and let their answers decide. A key Meta
+    // truly rejects 401s there too and still ends in muse_unavailable.
+    if (error instanceof AnalyzeError && error.code === "muse_unavailable") {
+      console.error(`muse catalog rejected; trying known ${MUSE_MODELS.join(",")}`);
+      return [...MUSE_MODELS];
+    }
+    throw error;
+  }
   // Production on 28 Oct returned a full catalog, then `data: []` on the same deploy.
   // An empty or chat-less body is a failed read, not proof this key has no chat model:
   // read once more, then call the known ids. A key that truly lacks Muse still
@@ -171,7 +183,11 @@ async function tryModel(
       }
       const reason = error instanceof MetaHttpError ? `${error.status} ${error.reason}` : error instanceof Error ? error.message : "error";
       console.error(`muse ${model} ${reason}`);
-      const missing = error instanceof MetaHttpError && (error.status === 404 || error.reason === "model_not_found");
+      // 404: the id is not on this key. 401/403: this key cannot call it. Either way the model is unusable,
+      // so a key with no usable model ends in muse_unavailable instead of the local backup.
+      const missing =
+        error instanceof MetaHttpError &&
+        (error.status === 404 || error.status === 401 || error.status === 403 || error.reason === "model_not_found");
       return { draft: null, missing };
     }
   }
