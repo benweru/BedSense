@@ -31,6 +31,8 @@ const WORDS = {
   en: {
     title: "My plants",
     view: "View my plants",
+    oneSaved: "plant saved",
+    manySaved: "plants saved",
     signInLead: "Create an account with your phone number. Then save a plant and photograph it again in 2 or 3 days.",
     phone: "Phone number",
     phoneHint: "We send a code by SMS. A Safaricom, Airtel, or Telkom number is enough.",
@@ -79,6 +81,8 @@ const WORDS = {
   sw: {
     title: "Mimea yangu",
     view: "Ona mimea yangu",
+    oneSaved: "mmea umehifadhiwa",
+    manySaved: "mimea imehifadhiwa",
     signInLead: "Ingia kwa nambari yako ya simu. Kisha hifadhi mmea, na uupige picha tena baada ya siku 2 au 3.",
     phone: "Nambari ya simu",
     phoneHint: "Tutakutumia nambari kwa SMS. Laini ya Safaricom, Airtel au Telkom inafaa.",
@@ -136,10 +140,10 @@ const TREND_LABEL: Record<Locale, Record<GrowthTrend, string>> = {
 export function ProgressNote({ locale, progress }: { locale: Locale; progress: PlantProgress }) {
   const flowering = progress.flowering === null ? null : locale === "sw" ? (progress.flowering ? "Unatoa maua" : "Bado hautoi maua") : progress.flowering ? "Flowering" : "Not flowering yet";
   return (
-    <div id="plant-progress" className="rounded-2xl border border-leaf/50 bg-leaf/10 px-4 py-3" role="status">
+    <div id="plant-progress" className="rounded-lg border border-leaf/50 bg-leaf/10 px-4 py-3" role="status">
       <p className="flex flex-wrap gap-2 text-sm font-semibold text-paper">
-        {progress.growthTrend ? <span className="rounded-full bg-leaf/25 px-3 py-1">{TREND_LABEL[locale][progress.growthTrend]}</span> : null}
-        {flowering ? <span className="rounded-full bg-white/10 px-3 py-1">{flowering}</span> : null}
+        {progress.growthTrend ? <span className="rounded-[10px] bg-leaf/25 px-3 py-1">{TREND_LABEL[locale][progress.growthTrend]}</span> : null}
+        {flowering ? <span className="rounded-full bg-ink/10 px-3 py-1">{flowering}</span> : null}
       </p>
       {progress.sinceLastCheck ? <p className="mt-2 text-base leading-6 text-paper">{progress.sinceLastCheck}</p> : null}
     </div>
@@ -168,21 +172,15 @@ export function PlantsHomeCard({ locale }: { locale: Locale }) {
   }, []);
   if (!browserSupabase()) return null;
   return (
-    <Link href="/plants" className="lift block rounded-[28px] border border-dusk/40 bg-card p-5 hover:border-dusk sm:p-6">
-      <h2 className="font-serif text-2xl leading-tight text-paper">{words.view}</h2>
+    <Link href="/plants" className="lift block rounded-xl border border-leaf/40 bg-card p-5 hover:border-leaf sm:p-6">
+      <h2 className="font-semibold text-2xl leading-tight text-paper">{words.view}</h2>
       {signedOut ? <p className="mt-2 text-sm leading-6 text-mute">{words.signInLead}</p> : null}
       {plants && plants.length === 0 && !signedOut ? <p className="mt-2 text-sm leading-6 text-mute">{words.none}</p> : null}
-      <ul className="mt-3 space-y-1">
-        {(plants ?? []).map((plant) => {
-          const days = plant.lastCheckAt ? daysBetween(plant.lastCheckAt, new Date()) : null;
-          return (
-            <li key={plant.id} className="text-sm leading-6 text-mute">
-              <span className="font-semibold text-paper">{plant.name}</span>
-              {plant.bedLabel ? ` · ${plant.bedLabel}` : ""} · {days === null ? words.never : words.lastChecked(days)}
-            </li>
-          );
-        })}
-      </ul>
+      {plants && plants.length > 0 ? (
+        <p className="mt-2 text-sm leading-6 text-mute">
+          {plants.length} {plants.length === 1 ? words.oneSaved : words.manySaved}
+        </p>
+      ) : null}
     </Link>
   );
 }
@@ -257,9 +255,9 @@ export function PlantMemory({
   if (!user) return <SignIn words={words} />;
 
   return (
-    <section id="plant-memory" className="rounded-[28px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
+    <section id="plant-memory">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-serif text-2xl leading-tight text-paper">{words.title}</h2>
+        <h2 className="font-semibold text-2xl leading-tight text-paper">{words.title}</h2>
         <button
           type="button"
           onClick={() => {
@@ -272,16 +270,16 @@ export function PlantMemory({
         </button>
       </div>
       {error ? (
-        <p className="mt-2 text-base text-beet" role="alert">
+        <p className="mt-2 text-base text-danger" role="alert">
           {error}
         </p>
       ) : null}
 
       {plantsLoading && plants.length === 0 ? <p className="mt-4"><Spinner /></p> : null}
       {!plantsLoading && plants.length === 0 && !creating ? (
-        <div id="plants-empty" className="mt-4 flex flex-col items-center rounded-[24px] border border-dashed border-leaf/40 bg-field px-6 py-8 text-center">
+        <div id="plants-empty" className="mt-4 flex flex-col items-center rounded-lg border border-dashed border-leaf/40 bg-field px-6 py-8 text-center">
           <EmptyIllustration />
-          <p className="mt-3 font-serif text-2xl text-paper">{words.none}</p>
+          <p className="mt-3 text-2xl text-paper">{words.none}</p>
           <p className="mt-2 max-w-xs text-base leading-6 text-mute">{ui.emptyTip}</p>
         </div>
       ) : null}
@@ -303,8 +301,8 @@ export function PlantMemory({
                 disabled={disabled}
                 onClick={() => pick(active ? null : plant)}
                 style={{ viewTransitionName: `plant-${plant.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, animationDelay: `${Math.min(index, 4) * 40}ms` }}
-                className={`plant-card rise lift group relative flex aspect-[4/5] min-w-0 flex-col justify-end overflow-hidden rounded-[24px] border text-left ${
-                  active ? "border-leaf" : "border-white/[0.09]"
+                className={`plant-card rise lift group relative flex aspect-[4/5] min-w-0 flex-col justify-end overflow-hidden rounded-lg border text-left ${
+                  active ? "border-leaf" : "border-ink/10"
                 }`}
               >
                 {latest ? (
@@ -317,15 +315,15 @@ export function PlantMemory({
                 )}
                 <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,12,0)_35%,rgba(7,17,12,0.92)_100%)]" aria-hidden="true" />
                 <span className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
-                  {due ? <span className="eyebrow text-[#f6b23a]">{words.recheckDue}</span> : null}
+                  {due ? <span className="eyebrow text-sun">{words.recheckDue}</span> : null}
                 </span>
                 {active ? (
-                  <span className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-full bg-leaf text-page">
+                  <span className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-[10px] bg-leaf text-cream">
                     <CheckMark />
                   </span>
                 ) : null}
                 <span className="relative block p-3">
-                  <span className="block truncate font-serif text-lg leading-tight text-paper">
+                  <span className="block truncate text-lg leading-tight text-paper">
                     {plant.name}
                     {plant.bedLabel ? <span className="text-mute"> · {plant.bedLabel}</span> : null}
                   </span>
@@ -392,7 +390,7 @@ function kenyaPhone(raw: string): string | null {
 
 function Spinner() {
   return (
-    <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-white/[0.18] border-t-leaf" role="status" aria-label="Loading" />
+    <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-ink/20 border-t-leaf" role="status" aria-label="Loading" />
   );
 }
 
@@ -439,8 +437,8 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   }
 
   return (
-    <section id="plant-memory" className="rounded-[28px] border border-dusk/40 bg-card p-5 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.7)] sm:p-6">
-      {heading ? <h2 className="font-serif text-2xl leading-tight text-paper">{words.title}</h2> : null}
+    <section id="plant-memory">
+      {heading ? <h2 className="font-semibold text-2xl leading-tight text-paper">{words.title}</h2> : null}
       <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.signInLead}</p>
       <form
         className="mt-3 flex flex-col gap-2"
@@ -464,7 +462,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
             setSent(false);
             setError(false);
           }}
-          className="press min-h-12 rounded-full border border-white/[0.18] bg-field px-4 text-base text-paper placeholder:text-mute"
+          className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
         />
         {byEmail ? null : <p className="text-sm leading-6 text-mute">{words.phoneHint}</p>}
         {sent ? (
@@ -477,11 +475,11 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
               inputMode="numeric"
               autoComplete="one-time-code"
               onChange={(event) => setCode(event.target.value)}
-              className="press min-h-12 rounded-full border border-white/[0.18] bg-field px-4 text-base text-paper placeholder:text-mute"
+              className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
             />
           </>
         ) : null}
-        <button type="submit" disabled={busy} className="press min-h-12 rounded-full bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
+        <button type="submit" disabled={busy} className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
           {sent ? words.verify : words.sendCode}
         </button>
         <button
@@ -498,7 +496,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
           {byEmail ? words.usePhone : words.useEmail}
         </button>
         {error ? (
-          <p className="text-base text-beet" role="alert">
+          <p className="text-base text-danger" role="alert">
             {words.authError}
           </p>
         ) : null}
@@ -527,7 +525,7 @@ function NewPlantForm({ words, onCancel, onCreated }: { words: Words; onCancel: 
     onCreated(body.plant);
   }
 
-  const field = "min-h-12 rounded-2xl border border-white/[0.18] bg-field px-4 text-base text-paper placeholder:text-mute";
+  const field = "min-h-12 rounded-lg border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute";
   return (
     <form
       className="mt-3 flex flex-col gap-2"
@@ -543,10 +541,10 @@ function NewPlantForm({ words, onCancel, onCreated }: { words: Words; onCancel: 
         <input type="date" value={plantedOn} onChange={(event) => setPlantedOn(event.target.value)} className={`mt-1 w-full ${field}`} />
       </label>
       <div className="flex gap-2">
-        <button type="submit" disabled={busy || !name.trim()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
+        <button type="submit" disabled={busy || !name.trim()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
           {busy ? <Spinner /> : words.save}
         </button>
-        <button type="button" onClick={onCancel} className="press min-h-12 rounded-full border border-white/[0.18] px-4 text-base font-semibold text-paper">
+        <button type="button" onClick={onCancel} className="press min-h-12 rounded-full border border-ink/20 px-4 text-base font-semibold text-paper">
           {words.cancel}
         </button>
       </div>
@@ -683,21 +681,21 @@ function Timeline({
   );
 
   return (
-    <div id="plant-timeline" className="rise mt-5 border-t border-white/[0.09] pt-5">
+    <div id="plant-timeline" className="rise mt-5 border-t border-ink/10 pt-5">
       {visitLine ? (
-        <p id="since-last-visit" className="mb-4 rounded-[20px] border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper">
+        <p id="since-last-visit" className="mb-4 rounded-lg border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper">
           <span className="eyebrow block text-leaf">{UI[locale].sinceLastVisit}</span>
           {visitLine}
         </p>
       ) : null}
       {loading || saving ? <p className="mb-3"><Spinner /></p> : null}
       {importable.length > 0 && !importOpen ? (
-        <button type="button" onClick={() => setImportOpen(true)} className="mb-4 min-h-12 w-full rounded-2xl border border-dashed border-leaf/60 text-base font-semibold text-paper">
+        <button type="button" onClick={() => setImportOpen(true)} className="mb-4 min-h-12 w-full rounded-lg border border-dashed border-leaf/60 text-base font-semibold text-paper">
           {words.importButton}
         </button>
       ) : null}
       {importOpen && importable.length > 0 ? (
-        <div className="mb-4 rounded-2xl border border-white/[0.18] bg-field p-3">
+        <div className="mb-4 rounded-lg border border-ink/20 bg-field p-3">
           <p className="text-base text-paper">{words.importLead}</p>
           <ul className="mt-3 space-y-2">
             {importable.map((entry) => {
@@ -705,7 +703,7 @@ function Timeline({
               const name = entry.result.farmerPlant || entry.result.detectedPlant;
               return (
                 <li key={entry.id}>
-                  <label className={`flex cursor-pointer items-center gap-3 rounded-2xl border px-2 py-2 ${on ? "border-leaf bg-leaf/15" : "border-white/[0.09]"}`}>
+                  <label className={`flex cursor-pointer items-center gap-3 rounded-lg border px-2 py-2 ${on ? "border-leaf bg-leaf/15" : "border-ink/10"}`}>
                     <input
                       type="checkbox"
                       checked={on}
@@ -726,9 +724,9 @@ function Timeline({
               );
             })}
           </ul>
-          {importHint ? <p className="mt-2 text-sm text-beet">{words.importNone}</p> : null}
+          {importHint ? <p className="mt-2 text-sm text-danger">{words.importNone}</p> : null}
           <div className="mt-3 flex gap-2">
-            <button type="button" onClick={() => void importLocal()} className="min-h-11 rounded-full bg-leaf px-4 text-sm font-semibold text-paper">
+            <button type="button" onClick={() => void importLocal()} className="min-h-11 rounded-[10px] bg-leaf px-4 text-sm font-semibold text-cream">
               {words.importYes}
             </button>
             <button type="button" onClick={() => setImportOpen(false)} className="min-h-11 rounded-full px-4 text-sm font-semibold text-mute">
@@ -753,7 +751,7 @@ function Timeline({
           maxLength={500}
           rows={3}
           onChange={(event) => setNote(event.target.value)}
-          className="min-h-24 w-full rounded-2xl border border-white/[0.18] bg-field px-4 py-3 text-base text-paper placeholder:text-mute"
+          className="min-h-24 w-full rounded-lg border border-ink/20 bg-field px-4 py-3 text-base text-paper placeholder:text-mute"
         />
         <div className="flex flex-wrap items-center gap-2">
           <VoiceNote
@@ -763,7 +761,7 @@ function Timeline({
             listeningLabel={words.practiceListening}
             onTranscript={(transcript) => setNote((current) => (current ? `${current} ${transcript}` : transcript).slice(0, 500))}
           />
-          <button type="submit" disabled={!note.trim() || saving} className="press min-h-12 rounded-full bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60">
+          <button type="submit" disabled={!note.trim() || saving} className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
             {words.logIt}
           </button>
         </div>
@@ -771,11 +769,11 @@ function Timeline({
 
       <h3 className="mt-5 font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-mute">{words.timeline}</h3>
       {events.length === 0 ? <p className="mt-2 text-base text-mute">{words.emptyTimeline}</p> : null}
-      <ol className="relative mt-3 space-y-3 border-l border-white/[0.18] pl-4 lg:flex lg:gap-3 lg:space-y-0 lg:overflow-x-auto lg:border-t lg:border-l-0 lg:pt-4 lg:pb-2 lg:pl-0">
+      <ol className="relative mt-3 space-y-3 border-l border-ink/20 pl-4 lg:flex lg:gap-3 lg:space-y-0 lg:overflow-x-auto lg:border-t lg:border-l-0 lg:pt-4 lg:pb-2 lg:pl-0">
         {events.map((event) => {
           const check = event.check;
           return check ? (
-            <li key={`c-${check.id}`} className="relative flex gap-3 rounded-[20px] border border-white/[0.09] bg-field p-2 lg:w-64 lg:shrink-0 lg:flex-col">
+            <li key={`c-${check.id}`} className="relative flex gap-3 rounded-lg border border-ink/10 bg-field p-2 lg:w-64 lg:shrink-0 lg:flex-col">
               {check.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
                 <img src={check.photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-[14px] object-cover lg:h-36 lg:w-full" />
@@ -791,14 +789,14 @@ function Timeline({
                 {removingId === check.id ? (
                   <span className="mt-2 inline-flex"><Spinner /></span>
                 ) : (
-                  <button type="button" onClick={() => void removeCheck(check.id)} className="mt-1 min-h-10 text-sm font-semibold text-mute hover:text-beet">
+                  <button type="button" onClick={() => void removeCheck(check.id)} className="mt-1 min-h-10 text-sm font-semibold text-mute hover:text-danger">
                     {words.removeCheck}
                   </button>
                 )}
               </span>
             </li>
           ) : event.practice ? (
-            <li key={`p-${event.practice.id}`} className="relative rounded-[20px] lg:w-56 lg:shrink-0 border border-white/[0.09] px-3 py-2 text-sm text-mute">
+            <li key={`p-${event.practice.id}`} className="relative rounded-lg lg:w-56 lg:shrink-0 border border-ink/10 px-3 py-2 text-sm text-mute">
               <span className="font-semibold text-paper">{dateFormat.format(new Date(event.practice.loggedAt))}</span> · {words.kinds[event.practice.kind]}: {event.practice.note}
             </li>
           ) : null;
@@ -809,7 +807,7 @@ function Timeline({
         {confirmDelete ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-paper">{words.confirmDelete}</span>
-            <button type="button" onClick={() => void remove()} className="min-h-11 rounded-full bg-beet px-4 text-sm font-semibold text-paper">
+            <button type="button" onClick={() => void remove()} className="min-h-11 rounded-full bg-danger px-4 text-sm font-semibold text-cream">
               {words.deletePlant}
             </button>
             <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-11 rounded-full px-4 text-sm font-semibold text-mute">
@@ -817,7 +815,7 @@ function Timeline({
             </button>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 text-sm font-semibold text-beet hover:underline">
+          <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 text-sm font-semibold text-danger hover:underline">
             {words.deletePlant}
           </button>
         )}

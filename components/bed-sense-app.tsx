@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
 import {
-  Checklist,
   EmptyIllustration,
   FirstVisitIntro,
   GuestSavePrompt,
@@ -53,7 +52,6 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
-  const plantRef = useRef<HTMLInputElement>(null);
   const runRef = useRef(0);
   const locale = useLocale();
   const history = useHistory();
@@ -64,10 +62,6 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [context, setContext] = useState<FarmerContext>(emptyFarmerContext);
-  const [contextOpen, setContextOpen] = useState(false);
-  const [plantName, setPlantName] = useState("");
-  const [plantError, setPlantError] = useState(false);
-  const [progressStep, setProgressStep] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [savedPlant, setSavedPlant] = useState<SavedPlant | null>(null);
   const [memoryRefresh, setMemoryRefresh] = useState(0);
@@ -87,42 +81,23 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
   const choosePlant = useCallback((plant: SavedPlant | null) => {
     setSavedPlant(plant);
-    if (plant) {
-      setPlantName(plant.name);
-      setPlantError(false);
-    }
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = locale === "sw" ? "sw" : "en";
   }, [locale]);
 
-  useEffect(() => {
-    if (phase !== "analyzing") return;
-    const timer = window.setTimeout(() => setProgressStep(2), 4000);
-    return () => window.clearTimeout(timer);
-  }, [phase]);
-
-  // Keep the running check in view: the progress card sits below the photo strip, off-screen on phones.
+  // Keep the running check in view: on phones the photo stage sits below the fold when a scan starts.
   useEffect(() => {
     if (phase !== "preparing" && phase !== "analyzing") return;
     const frame = window.requestAnimationFrame(() => {
-      document.getElementById("check-progress")?.scrollIntoView({
-        block: "nearest",
+      document.getElementById("photo-stage")?.scrollIntoView({
+        block: "start",
         behavior: prefersReducedMotion() ? "auto" : "smooth",
       });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [phase]);
-
-  function markPlantMissing() {
-    setPlantError(true);
-    setPhase("idle");
-    window.requestAnimationFrame(() => {
-      plantRef.current?.focus();
-      document.getElementById("home-plant-name")?.scrollIntoView({ block: "center" });
-    });
-  }
 
   async function onFiles(list: FileList | undefined, mode: "replace" | "append") {
     const incoming = [...(list ?? [])];
@@ -135,7 +110,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     const chosen = incoming.slice(0, room);
     const overflow = incoming.length > room;
     const ticket = runRef.current;
-    setProgressStep(0);
+
     setPhase("preparing");
     setError(overflow ? text.photoLimit : null);
     setResult(null);
@@ -148,11 +123,6 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       setPhotos(next);
       setFrame(shown);
       setPreview(next[shown]?.dataUrl ?? next[0]?.dataUrl ?? null);
-      if (!parseFarmerPlant(plantName)) {
-        markPlantMissing();
-        return;
-      }
-      setPlantError(false);
       setPhase("idle");
     } catch {
       if (ticket !== runRef.current) return;
@@ -163,22 +133,13 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
   async function submitPrepared() {
     if (photos.length === 0) return;
-    if (!parseFarmerPlant(plantName)) {
-      markPlantMissing();
-      return;
-    }
-    setPlantError(false);
     await runCheck(photos);
   }
 
-  async function runCheck(batch: PreparedPhoto[]) {
-    const named = parseFarmerPlant(plantName);
-    if (!named) {
-      markPlantMissing();
-      return;
-    }
+  /** Photo-only by default. `namedPlant` is set only by the result's correction re-run. */
+  async function runCheck(batch: PreparedPhoto[], namedPlant?: string) {
     const ticket = runRef.current;
-    setProgressStep(1);
+
     setPhase("analyzing");
     setResult(null);
     setError(null);
@@ -193,18 +154,13 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           width: batch[0]?.width,
           height: batch[0]?.height,
           context: { ...emptyFarmerContext(), notes: context.notes },
-          plantName: named,
+          ...(namedPlant ? { plantName: namedPlant } : {}),
           plantId: savedPlant?.id,
         }),
       });
       const body = (await response.json()) as AnalyzeResult & { error?: string };
       if (ticket !== runRef.current) return;
       if (!response.ok) {
-        if (body.error === "missing_plant") {
-          markPlantMissing();
-          setError(text.plantNameMissing);
-          return;
-        }
         setPhase("error");
         setError(
           body.error === "unsupported_image" || body.error === "image_too_large"
@@ -218,18 +174,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       setShowMasks(true);
       setResult(body);
       window.requestAnimationFrame(() => {
-        document.getElementById("result")?.scrollIntoView({
+        document.getElementById("diagnosis-card")?.scrollIntoView({
           block: "start",
           behavior: prefersReducedMotion() ? "auto" : "smooth",
         });
       });
       if (body.plantId) setMemoryRefresh((count) => count + 1);
-      if (body.contextAsk) {
-        setContextOpen(true);
-        window.requestAnimationFrame(() => {
-          document.getElementById("home-context")?.scrollIntoView({ block: "nearest" });
-        });
-      }
       setPreview(batch[frame]?.dataUrl ?? batch[0]?.dataUrl ?? null);
       setPhase("ready");
       const thumbnail = await makeThumbnail(batch[0]?.dataUrl ?? "");
@@ -250,22 +200,32 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
   function restore(entry: HistoryEntry) {
     setResult(entry.result);
-    if (entry.result.farmerPlant) setPlantName(entry.result.farmerPlant);
-    if (entry.result.contextAsk) setContextOpen(true);
     setPreview(entry.thumbnail);
     setPhotos([]);
     setFrame(0);
     setError(null);
     setPhase("ready");
     window.requestAnimationFrame(() => {
-      document.getElementById("result")?.scrollIntoView({
+      document.getElementById("diagnosis-card")?.scrollIntoView({
         block: "start",
         behavior: prefersReducedMotion() ? "auto" : "smooth",
       });
     });
   }
 
+  const [clearArmed, setClearArmed] = useState(false);
+  useEffect(() => {
+    if (!clearArmed) return;
+    const timer = window.setTimeout(() => setClearArmed(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [clearArmed]);
+
   function clearHistory() {
+    if (!clearArmed) {
+      setClearArmed(true);
+      return;
+    }
+    setClearArmed(false);
     clearHistoryStore();
   }
 
@@ -292,10 +252,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     setResult(null);
     setError(null);
     setContext(emptyFarmerContext());
-    setContextOpen(false);
-    setPlantName(savedPlant?.name ?? "");
-    setPlantError(false);
-    setProgressStep(0);
+
     if (cameraRef.current) cameraRef.current.value = "";
     if (libraryRef.current) libraryRef.current.value = "";
     if (addRef.current) addRef.current.value = "";
@@ -315,13 +272,13 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   function rescan() {
     reset();
     window.requestAnimationFrame(() => {
-      document.getElementById("new-check")?.scrollIntoView({ block: "start", behavior: "smooth" });
+      document.getElementById("photo-stage")?.scrollIntoView({ block: "start", behavior: "smooth" });
       cameraRef.current?.click();
     });
   }
 
   const busy = phase === "preparing" || phase === "analyzing";
-  const sessionLive = Boolean(plantName.trim() || context.notes.trim() || photos.length > 0 || preview || result || error);
+  const sessionLive = Boolean(context.notes.trim() || photos.length > 0 || preview || result || error);
 
   return (
     <SiteChrome pad={(photos.length > 0 && !busy && !result) || (!preview && !busy && (!plants || savedPlant)) ? "pb-36 lg:pb-12" : "pb-12"}>
@@ -337,9 +294,11 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           </>
         ) : (
           <>
-            <p className="max-w-2xl font-serif text-2xl leading-snug text-paper sm:text-3xl">
-              {text.lede.split(". ")[0]}
-              {text.lede.includes(". ") ? <span className="text-mute">. {text.lede.split(". ").slice(1).join(". ")}</span> : null}
+            <h1 className="max-w-2xl text-3xl leading-tight tracking-[-0.01em] text-paper sm:text-4xl">
+              {text.lede.split(". ")[0]}.
+            </h1>
+            <p className="mt-3 max-w-xl font-sans text-lg leading-7 text-mute">
+              {text.lede.split(". ").slice(1).join(". ")}
             </p>
           </>
         )}
@@ -347,7 +306,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           <button
             type="button"
             onClick={replayIntro}
-            className="press mt-4 min-h-11 rounded-full px-3 text-sm font-semibold text-leaf"
+            className="press mt-4 inline-flex min-h-12 items-center rounded-full border border-leaf/50 px-5 text-base font-semibold text-paper hover:border-leaf"
           >
             {words.howItWorks}
           </button>
@@ -366,7 +325,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       <div className={`mt-6 lg:mt-8 lg:grid lg:items-start lg:gap-6 ${plants && !result && !busy ? "lg:max-w-4xl lg:grid-cols-1" : "lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]"}`}>
       <div
         id="left-column"
-        className={`flex min-w-0 flex-col gap-6 lg:rounded-[32px] lg:border lg:border-white/[0.09] lg:bg-card lg:p-6 lg:shadow-[0_24px_60px_-36px_rgba(0,0,0,0.85)] ${
+        className={`flex min-w-0 flex-col gap-6 ${
           preview && (busy || result) ? "lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto" : ""
         }`}
       >
@@ -385,61 +344,9 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
       {!plants || savedPlant ? (
       <>
-      <section id="new-check" className="rounded-[28px] border border-leaf/40 bg-card p-5 sm:p-6">
-        <p className="eyebrow text-leaf">01</p>
-        <h2 className="mt-1 font-serif text-2xl leading-tight text-paper">{text.newCheck}</h2>
-        {savedPlant ? <p className="mt-1 text-sm leading-6 text-mute">{savedPlant.name}</p> : null}
-      <div id="home-plant-name" className={`mt-4 ${plantError ? "rounded-[28px] border border-beet bg-beet/10 p-3 sm:p-4" : ""}`}>
-        <label htmlFor="plant-name" className={`block text-base font-semibold ${plantError ? "text-beet" : "text-paper"}`}>
-          {text.plantNameLabel}
-        </label>
-        <input
-          ref={plantRef}
-          id="plant-name"
-          name="plantName"
-          value={plantName}
-          required
-          autoComplete="off"
-          placeholder={text.plantNamePlaceholder}
-          aria-invalid={plantError || undefined}
-          aria-describedby={plantError ? "plant-name-hint plant-name-error" : "plant-name-hint"}
-          onChange={(event) => {
-            setPlantName(event.target.value);
-            if (parseFarmerPlant(event.target.value)) setPlantError(false);
-          }}
-          className={`mt-2 min-h-14 w-full rounded-2xl border px-4 text-base text-paper placeholder:text-mute ${
-            plantError ? "border-beet bg-beet/15 ring-2 ring-beet" : "border-white/[0.18] bg-field"
-          }`}
-        />
-        <p id="plant-name-hint" className={`mt-2 text-sm leading-6 sm:text-base ${plantError ? "text-paper" : "text-mute"}`}>
-          {text.plantNameHint}
-        </p>
-        {plantError ? (
-          <p id="plant-name-error" className="mt-2 text-base font-semibold leading-6 text-beet" role="alert">
-            {text.plantNameMissing}
-          </p>
-        ) : null}
-      </div>
-      </section>
-
-      <ContextForm
-        text={text}
-        locale={locale}
-        context={context}
-        onChange={setContext}
-        disabled={busy}
-        open={contextOpen}
-        onOpenChange={setContextOpen}
-        canUpdate={Boolean(result) && photos.length > 0}
-        onUpdate={() => {
-          if (photos.length > 0) void runCheck(photos);
-        }}
-        ask={result?.contextAsk ?? null}
-      />
-
       <section
         id="photo-stage"
-        className={`rounded-[28px] border bg-card p-5 shadow ${preview ? "lg:order-first" : ""}-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 ${dragging ? "border-leaf bg-leaf/10" : "border-white/[0.09] lg:hover:border-leaf/60"}`}
+        className={`transition-colors duration-500 ease-out-soft ${dragging ? "rounded-xl bg-leaf/10" : ""}`}
         onDragOver={(event) => {
           event.preventDefault();
           if (!busy) setDragging(true);
@@ -469,31 +376,45 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             scanning={phase === "analyzing"}
           />
         ) : (
-          <div id="empty-state" className="flex min-h-72 flex-col items-center justify-center rounded-[24px] border border-dashed border-leaf/40 bg-field px-6 py-10 text-center">
+          <div id="empty-state" className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-leaf/40 px-6 py-10 text-center">
             <EmptyIllustration />
-            <p className="mt-4 font-serif text-3xl leading-[1.04] tracking-[-0.01em]">
+            <p className="mt-4 text-3xl leading-[1.04] tracking-[-0.01em]">
               {words.emptyTitle}
             </p>
             <p className="mt-3 max-w-xs text-base leading-6 text-mute">{words.emptyTip}</p>
+            <p className="mt-1 max-w-xs text-sm leading-6 text-mute">{text.photoOnlyHint}</p>
             <button
               type="button"
               disabled={busy}
               onClick={() => cameraRef.current?.click()}
-              className="lift mt-5 min-h-14 rounded-full bg-leaf px-6 text-base font-semibold text-paper"
+              className="lift mt-5 min-h-14 rounded-[10px] bg-sun px-6 text-base font-semibold text-ink"
             >
               {history.length > 0 ? words.emptyCtaAgain : words.emptyCta}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => libraryRef.current?.click()}
+              className="press mt-3 min-h-12 rounded-full border border-ink/20 px-5 text-base font-semibold text-paper disabled:opacity-60"
+            >
+              {text.upload}
             </button>
             <p className="mt-3 hidden text-sm font-semibold text-leaf lg:block">{text.dropPhoto}</p>
           </div>
         )}
-        {result && !busy && result.masks.length > 0 && preview ? <MaskToggle showMasks={showMasks} onChange={setShowMasks} words={words} /> : null}
+        {result && !busy && result.masks.length > 0 && preview ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <MaskToggle showMasks={showMasks} onChange={setShowMasks} words={words} />
+            {showMasks ? <p className="mt-3 text-sm leading-6 text-mute">{words.maskLegend}</p> : null}
+          </div>
+        ) : null}
 
         <div className={`mt-4 grid-cols-2 gap-3 ${preview ? "grid" : "hidden lg:grid"}`}>
           <button
             type="button"
             disabled={busy}
             onClick={() => cameraRef.current?.click()}
-            className="press min-h-14 rounded-full bg-soil px-3 text-base font-semibold leading-tight text-paper transition-colors hover:bg-leaf disabled:opacity-60"
+            className="press min-h-14 rounded-[10px] bg-leaf px-3 text-base font-semibold leading-tight text-cream transition-colors hover:bg-sun hover:text-ink disabled:opacity-60"
           >
             {text.capture}
           </button>
@@ -501,7 +422,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             type="button"
             disabled={busy}
             onClick={() => libraryRef.current?.click()}
-            className="press min-h-14 rounded-full border border-white/[0.09] bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-clay hover:text-clay disabled:opacity-60"
+            className="press min-h-14 rounded-full border border-ink/10 bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-sun hover:text-sun disabled:opacity-60"
           >
             {text.upload}
           </button>
@@ -580,14 +501,23 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           <button
             type="button"
             onClick={() => addRef.current?.click()}
-            className="press mt-3 min-h-14 w-full rounded-full border border-white/[0.09] bg-field px-4 text-base font-semibold text-paper"
+            className="press mt-3 min-h-14 w-full rounded-full border border-ink/10 bg-field px-4 text-base font-semibold text-paper"
           >
             {text.addAngle}
           </button>
         ) : null}
-        {phase === "analyzing" ? <ScanStatus words={words} /> : phase === "preparing" ? <CheckProgress text={text} step={progressStep} /> : null}
+        {phase === "analyzing" ? (
+          <ScanStatus words={words} />
+        ) : phase === "preparing" ? (
+          <div id="check-preparing" className="mt-4 rounded-lg border border-sun/50 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
+            <p className="tick-label text-2xl font-semibold leading-tight text-paper">{words.preparing}</p>
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-ink/10" aria-hidden="true">
+              <span className="bedsense-indeterminate block h-full w-1/2 rounded-[10px] bg-sun" />
+            </div>
+          </div>
+        ) : null}
         {error ? (
-          <p className="mt-3 text-base leading-6 text-beet" role="alert">
+          <p className="mt-3 text-base leading-6 text-danger" role="alert">
             {error}
           </p>
         ) : null}
@@ -608,11 +538,12 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           </div>
         ) : null}
       </section>
+
       </>
       ) : null}
       </div>
 
-      <div className="mt-8 flex min-w-0 flex-col gap-5 lg:mt-0 lg:h-full">
+      <div className="mt-8 flex min-w-0 flex-col gap-8 lg:mt-0 lg:h-full">
       {phase === "analyzing" ? <ResultSkeleton /> : null}
       {result && !busy ? (
         <div className="space-y-4">
@@ -625,6 +556,20 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             onRescan={rescan}
             onNewCheck={startFresh}
             onOpenProfile={() => router.push("/plants")}
+            contextSlot={photos.length > 0 ? (
+              <ContextForm
+                text={text}
+                locale={locale}
+                context={context}
+                onChange={setContext}
+                disabled={busy}
+                canUpdate={photos.length > 0}
+                onUpdate={() => {
+                  if (photos.length > 0) void runCheck(photos);
+                }}
+                ask={result.contextAsk ?? null}
+              />
+            ) : undefined}
             onThread={(thread) => {
               setResult((current) => (current && current.id === result.id ? { ...current, thread } : current));
               const entry = history.find((item) => item.id === result.id);
@@ -632,23 +577,33 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
                 writeHistory(rememberCheck(history, { ...entry, result: { ...entry.result, thread } }));
               }
             }}
+            onCorrect={photos.length > 0 ? (name) => void runCheck(photos, name) : undefined}
           />
         </div>
       ) : null}
 
       {plants ? null : (
-      <section className="rounded-[28px] border border-onion/30 bg-card p-5 sm:p-6 lg:flex-1">
+      <section className="lg:flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-serif text-2xl leading-[1.04] tracking-[-0.01em] sm:text-3xl">{text.history}</h2>
+          <h2 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] sm:text-3xl">{text.history}</h2>
           {history.length > 0 ? (
-            <button type="button" onClick={clearHistory} className="min-h-11 px-2 text-base font-semibold text-leaf">
-              {text.clear}
+            <button
+              type="button"
+              onClick={clearHistory}
+              aria-live="polite"
+              className={`press min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold ${
+                clearArmed
+                  ? "border-danger bg-danger text-cream"
+                  : "border-danger/50 bg-danger/10 text-danger hover:bg-danger/20"
+              }`}
+            >
+              {clearArmed ? text.clearConfirm : text.clear}
             </button>
           ) : null}
         </div>
         {history.length === 0 ? <p className="mt-2 text-base leading-6 text-mute">{text.historyEmpty}</p> : null}
         {history.length > 0 ? <p className="mt-2 text-sm leading-6 text-mute">{text.historyHold}</p> : null}
-        <ul className="mt-4 flex gap-3 overflow-x-auto pb-1 lg:grid lg:grid-cols-2 lg:overflow-visible">
+        <ul className="mt-4 flex gap-3 overflow-x-auto p-1 pb-2 [mask-image:linear-gradient(to_right,black_88%,transparent_100%)] lg:grid lg:grid-cols-2 lg:overflow-visible lg:[mask-image:none]">
           {history.slice(0, HISTORY_LIMIT).map((entry) => (
             <li key={entry.id} className="shrink-0">
               <RecentCheck
@@ -672,23 +627,39 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         </ul>
       </section>
       )}
+
+      {result && !busy ? (
+        <div className="space-y-5">
+          <aside>
+            <h3 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] text-paper">{text.askAgronomist}</h3>
+            <p className="mt-2 text-base leading-7 text-paper/85">{result.agronomistCallout}</p>
+          </aside>
+          <div>
+            <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-mute">{text.beforeYouAct}</h3>
+            <p className="mt-2 text-sm leading-6 text-mute">{result.disclaimer}</p>
+          </div>
+        </div>
+      ) : null}
       </div>
       </div>
 
       {!preview && !busy && (!plants || savedPlant) ? (
-        <div id="mobile-action-bar" className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.09] bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
+        <div id="mobile-action-bar" className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-page/95 pt-3  backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
           <div className="mx-auto grid w-full max-w-xl grid-cols-2 gap-3 px-4 sm:px-6">
-            <button type="button" onClick={() => cameraRef.current?.click()} className="press min-h-14 rounded-full bg-leaf px-3 text-base font-semibold text-paper">
+            <button type="button" onClick={() => cameraRef.current?.click()} className="press min-h-14 rounded-[10px] bg-leaf px-3 text-base font-semibold text-cream">
               {text.capture}
             </button>
-            <button type="button" onClick={() => libraryRef.current?.click()} className="press min-h-14 rounded-full border border-white/[0.18] bg-field px-3 text-base font-semibold text-paper">
+            <button type="button" onClick={() => libraryRef.current?.click()} className="press min-h-14 rounded-full border border-ink/20 bg-field px-3 text-base font-semibold text-paper">
               {text.upload}
             </button>
           </div>
         </div>
       ) : null}
       {photos.length > 0 && !busy && !result ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/[0.09] bg-page/95 pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.45)] backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-page/95 pt-3  backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <p className="mx-auto mb-2 w-full max-w-xl px-4 text-sm leading-6 text-mute sm:px-6 lg:max-w-6xl lg:px-8" role="status">
+            {words.journeyPhoto(photos.length)}
+          </p>
           <div className="mx-auto flex w-full max-w-xl gap-3 px-4 sm:px-6 lg:max-w-6xl lg:px-8">
             <button
               type="button"
@@ -700,7 +671,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             <button
               type="button"
               onClick={() => void submitPrepared()}
-              className="press min-h-14 w-full rounded-full bg-leaf px-4 text-base font-semibold tracking-tight text-paper lg:max-w-[28rem]"
+              className="press min-h-14 w-full rounded-[10px] bg-sun px-4 text-base font-semibold tracking-tight text-ink shadow-[0_10px_24px_-10px_rgba(245,184,0,0.8)] lg:max-w-[28rem]"
             >
               {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
             </button>
@@ -719,7 +690,9 @@ function ResultCard({
   onRescan,
   onNewCheck,
   onOpenProfile,
+  contextSlot,
   onThread,
+  onCorrect,
 }: {
   locale: Locale;
   result: AnalyzeResult;
@@ -728,7 +701,11 @@ function ResultCard({
   onRescan: () => void;
   onNewCheck: () => void;
   onOpenProfile: () => void;
+  /** Context addition for this check (notes + update), rendered under the diagnosis. */
+  contextSlot?: React.ReactNode;
   onThread: (thread: AskTurn[]) => void;
+  /** Re-run the staged photos with a farmer-given name. Absent when no photos are staged (restored checks). */
+  onCorrect?: (name: string) => void;
 }) {
   // Stored results keep the language they were made in. Fixed copy follows the toggle.
   const result = useMemo(() => relocalizeResult(stored, locale), [stored, locale]);
@@ -738,6 +715,8 @@ function ResultCard({
   const [saved, setSaved] = useState(false);
   const [guestAsk, setGuestAsk] = useState(false);
   const [guestDismissed, setGuestDismissed] = useState(false);
+  const [correctOpen, setCorrectOpen] = useState(false);
+  const [correctName, setCorrectName] = useState("");
   useEffect(() => {
     if (filed) buzz();
   }, [filed]);
@@ -758,31 +737,29 @@ function ResultCard({
   const showGuest = !filed && signedIn === false && !guestDismissed && (guestAsk || !result.qualityHold);
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
-  let step = 1;
-  const standsStep = String(step++).padStart(2, "0");
-  const causeStep = (result.likelyCauses?.length ?? 0) > 0 ? String(step++).padStart(2, "0") : undefined;
-  const mitigateStep = (result.mitigations?.length ?? 0) > 0 ? String(step++).padStart(2, "0") : undefined;
-  const checkStep = String(step).padStart(2, "0");
+  const [detailOpen, setDetailOpen] = useState(true);
   return (
-    <section id="result" className="space-y-4 lg:space-y-5" aria-live="polite">
+    <section id="result" className="space-y-6 lg:space-y-7" aria-live="polite">
       {result.qualityNote ? (
-        <p id="quality-note" className="rounded-2xl bg-[#f6b23a] px-4 py-3 text-base font-semibold leading-6 text-ink" role="status">
+        <p id="quality-note" className="rounded-lg bg-sun px-4 py-3 text-base font-semibold leading-6 text-ink" role="status">
           {result.qualityNote}
         </p>
       ) : null}
       {result.qualityHold ? (
         <div id="quality-hold" className="rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-5 py-5" role="status">
-          <p className="font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-ink sm:text-3xl">{result.qualityMessage}</p>
+          <p className="text-2xl leading-[1.04] tracking-[-0.01em] text-ink sm:text-3xl">{result.qualityMessage}</p>
         </div>
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
       {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
-      <div id="diagnosis-card" className={`rise rounded-[32px] border border-white/[0.18] ${severityBorder(severity)} bg-card p-5 shadow-[0_30px_60px_-36px_rgba(0,0,0,0.9)] sm:p-6`}>
+      {result.plantMismatch ? (
+        <p id="plant-mismatch" className="rounded-lg border border-sun/60 bg-sun/15 px-4 py-3 text-base font-semibold leading-6 text-paper" role="status">
+          {text.plantMismatchNote(result.farmerPlant, result.detectedPlant)}
+        </p>
+      ) : null}
+      <div id="diagnosis-card" className={`rise scroll-mt-4 rounded-xl border border-ink/20 ${severityBorder(severity)} bg-card p-5 sm:p-6`}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           {severity ? <SeverityLine severity={severity} words={words} /> : <p className="eyebrow text-mute">{words.diagnosis}</p>}
-          <span className="eyebrow text-mute/70">
-            {result.mode === "mock" ? text.modeMock : text.modeLive}
-          </span>
         </div>
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <h2 className="min-w-0 font-serif text-3xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-4xl">
@@ -794,13 +771,66 @@ function ResultCard({
             {result.likelyCauses?.[0] ? <span className="mt-2 block text-xl leading-snug text-mute sm:text-2xl">{result.likelyCauses[0]}</span> : null}
           </h2>
           <p className="shrink-0 sm:text-right">
-            <span className="eyebrow block text-dusk">{text.confidence}</span>
+            <span className="eyebrow block text-mute">{text.confidence}</span>
             <span className="text-base font-semibold">{text.levelLabel(result.confidence)}</span>
             <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-white/15">
               <span className="block h-full origin-left bg-leaf" style={{ width: `${score}%` }} />
             </span>
           </p>
         </div>
+        {onCorrect ? (
+          <div className="mt-4">
+            {correctOpen ? (
+              <form
+                className="flex flex-wrap items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const name = parseFarmerPlant(correctName);
+                  if (name) onCorrect(name);
+                }}
+              >
+                <label htmlFor="correct-plant-name" className="w-full text-sm font-semibold text-paper">
+                  {text.correctPlantLabel}
+                </label>
+                <input
+                  id="correct-plant-name"
+                  value={correctName}
+                  autoFocus
+                  autoComplete="off"
+                  placeholder={text.correctPlantPlaceholder}
+                  onChange={(event) => setCorrectName(event.target.value)}
+                  className="min-h-12 min-w-0 flex-1 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
+                />
+                <button
+                  type="submit"
+                  disabled={!parseFarmerPlant(correctName)}
+                  className="press min-h-12 shrink-0 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream disabled:opacity-60"
+                >
+                  {text.correctPlantRun}
+                </button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setCorrectOpen(true)} className="min-h-11 text-sm font-semibold text-leaf hover:underline">
+                {text.correctPlantPrompt}
+              </button>
+            )}
+          </div>
+        ) : null}
+        {result.actions.length > 0 ? (
+          <div className="mt-5 rounded-lg border border-leaf/40 bg-leaf/10 px-4 py-3">
+            <p className="eyebrow text-leaf">{words.firstAction}</p>
+            <ol className="mt-2 space-y-2">
+              {result.actions.map((action, index) => (
+                <li key={action} className="flex items-start gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] bg-leaf text-sm text-cream">
+                    {index + 1}
+                  </span>
+                  <span className={`leading-7 text-paper ${index === 0 ? "text-lg font-semibold" : "text-base"}`}>{action}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
         <div className="mt-5 flex flex-wrap items-center gap-2">
           {saved ? (
             <SavedBurst label={words.savedToProfile} />
@@ -816,12 +846,12 @@ function ResultCard({
               id="save-to-profile"
               type="button"
               onClick={save}
-              className="lift min-h-12 rounded-full bg-leaf px-5 text-base font-semibold text-paper"
+              className="lift min-h-12 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream"
             >
               {words.saveToProfile}
             </button>
           )}
-          <button id="rescan" type="button" onClick={onRescan} className="lift min-h-12 rounded-full border border-white/[0.18] px-4 text-base font-semibold text-paper">
+          <button id="rescan" type="button" onClick={onRescan} className="lift min-h-12 rounded-full border border-ink/20 px-4 text-base font-semibold text-paper">
             {words.rescan}
           </button>
           <button type="button" onClick={onNewCheck} className="press min-h-12 rounded-full px-3 text-base font-semibold text-mute hover:text-paper">
@@ -831,16 +861,30 @@ function ResultCard({
       </div>
       {showGuest && (guestAsk || filed === false) ? <GuestSavePrompt words={words} onDismiss={() => setGuestDismissed(true)} /> : null}
 
-      <section id="result-stands-out" style={{ animationDelay: "120ms" }} className="rise overflow-hidden rounded-[28px] border border-[#c8881a]/60 bg-card shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)]">
-        <div className="border-b border-[#c8881a]/40 bg-[#f8e7c4] px-4 py-4 text-ink sm:px-5">
-          <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-ink/60">{standsStep}</p>
-          <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.01em] sm:text-3xl">{text.observations}</h3>
-        </div>
-        <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
+      {contextSlot}
+
+      <button
+        type="button"
+        aria-expanded={detailOpen}
+        onClick={() => setDetailOpen((open) => !open)}
+        className="press flex min-h-12 w-full items-center justify-between rounded-full border border-ink/20 px-5 text-base font-semibold text-paper"
+      >
+        {detailOpen ? words.lessDetail : words.moreDetail}
+        <span aria-hidden="true" className="text-leaf">{detailOpen ? "–" : "+"}</span>
+      </button>
+
+      {detailOpen ? (
+      <>
+      <section id="result-stands-out" style={{ animationDelay: "120ms" }} className="rise">
+        <h3 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{text.observations}</h3>
+        <div className="mt-4 space-y-4">
           {result.masks.length === 0 ? <p className="text-base leading-6 text-mute">{text.noMasks}</p> : null}
           <ul className="space-y-3">
-            {result.observations.map((item) => (
-              <li key={item} className="border-l-4 border-[#e0941a] bg-field px-4 py-3 text-base leading-7 text-paper">
+            {result.observations.map((item, index) => (
+              <li
+                key={item}
+                className={`border-l-4 border-sun px-4 py-1 text-paper ${index === 0 ? "text-lg leading-8" : "text-base leading-7"}`}
+              >
                 {item}
               </li>
             ))}
@@ -850,59 +894,35 @@ function ResultCard({
 
       {pair ? (
         <div className="grid gap-4 xl:grid-cols-2">
-          <AdviceList step={causeStep} id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
-          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} words={words} checklist />
+          <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
+          <AdviceList id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
         </div>
       ) : (
         <>
-          <AdviceList step={causeStep} id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
-          <AdviceList step={mitigateStep} id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} words={words} checklist />
+          <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
+          <AdviceList id="result-mitigation" title={text.mitigations} hint={text.mitigationsHint} items={result.mitigations ?? []} />
         </>
       )}
 
-      <div id="result-checks" style={{ animationDelay: "280ms" }} className="rise rounded-[28px] border border-white/[0.09] bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] sm:p-5">
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-clay">{checkStep}</p>
-        <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{text.actions}</h3>
-        <p className="mt-2 text-base leading-6 text-mute">{text.actionsHint}</p>
-        <ol className="mt-4 space-y-3">
-          {result.actions.map((action, index) => (
-            <li key={action} className="flex items-start gap-3 rounded-2xl border border-white/[0.09] bg-field px-3 py-3 sm:px-4 sm:py-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-soil font-serif text-xl text-paper">
-                {index + 1}
-              </span>
-              <span className="pt-1.5 text-base leading-7">{action}</span>
-            </li>
-          ))}
-        </ol>
-        {result.needsInfo ? (
-          <p className="mt-4 rounded-2xl border border-beet/40 bg-beet/10 px-4 py-3 text-base leading-6 text-paper" role="status">
-            {text.needsInfoNote}
-          </p>
-        ) : null}
-        {result.contextAsk ? (
-          <p className="mt-4 rounded-2xl border border-beet/40 bg-beet/10 px-4 py-3 text-base leading-6 text-paper" role="status">
-            <span className="block font-semibold text-beet">{result.needsInfo ? text.needsInfoLabel : text.contextAskLabel}</span>
-            {result.contextAsk}
-          </p>
-        ) : null}
-        <FollowUpChat locale={locale} text={text} result={result} onThread={onThread} />
+      {result.needsInfo ? (
+      <div id="result-checks" style={{ animationDelay: "280ms" }} className="rise">
+        <p className="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-base leading-6 text-paper" role="status">
+          {text.needsInfoNote}
+        </p>
       </div>
+      ) : null}
+      </>
+      ) : null}
       </div>
       )}
 
-      {result.chemicals ? <ChemicalCard text={text} advice={result.chemicals} /> : null}
+      <div className="border-t border-ink/10 pb-4">
+        <FollowUpChat locale={locale} text={text} result={result} onThread={onThread} />
+      </div>
 
-      <aside className="rounded-[28px] border border-beet/40 bg-beet/10 px-4 py-4 sm:px-5">
-        <h3 className="font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-beet">{text.askAgronomist}</h3>
-        <p className="mt-2 text-base leading-7 text-paper">{result.agronomistCallout}</p>
-      </aside>
+      {result.chemicals ? <ChemicalCard text={text} words={words} advice={result.chemicals} /> : null}
 
       {result.note === "local-fallback" ? <p className="text-base leading-6 text-mute">{text.backupNote}</p> : null}
-
-      <div>
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-dusk">{text.beforeYouAct}</h3>
-        <p className="mt-2 text-base leading-7 text-paper/85">{result.disclaimer}</p>
-      </div>
     </section>
   );
 }
@@ -976,8 +996,8 @@ function FollowUpChat({
   }
 
   return (
-    <div className="mt-5 border-t border-white/[0.09] pt-4">
-      <h4 className="font-serif text-xl leading-tight text-paper">{text.askTitle}</h4>
+    <div className="mt-5 border-t border-ink/10 pt-4">
+      <h4 className="font-semibold text-xl leading-tight text-paper">{text.askTitle}</h4>
       <p className="mt-1 text-sm leading-6 text-mute">{text.askHint}</p>
       {thread.length > 0 ? (
         <ul className="mt-3 space-y-2">
@@ -986,8 +1006,8 @@ function FollowUpChat({
               key={`${index}-${turn.text.slice(0, 24)}`}
               className={
                 turn.role === "farmer"
-                  ? "rounded-2xl border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper"
-                  : "rounded-2xl border border-white/[0.09] bg-field px-4 py-3 text-base leading-6 text-paper"
+                  ? "rounded-lg border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper"
+                  : "rounded-lg border border-ink/10 bg-field px-4 py-3 text-base leading-6 text-paper"
               }
             >
               {turn.text}
@@ -997,12 +1017,12 @@ function FollowUpChat({
       ) : null}
       {demo ? <p className="mt-2 text-sm leading-6 text-mute">{text.askDemoNote}</p> : null}
       {limited ? (
-        <p className="mt-2 text-sm leading-6 text-beet" role="alert">
+        <p className="mt-2 text-sm leading-6 text-danger" role="alert">
           {text.askRateLimited}
         </p>
       ) : null}
       {failed ? (
-        <p className="mt-2 text-sm leading-6 text-beet" role="alert">
+        <p className="mt-2 text-sm leading-6 text-danger" role="alert">
           {text.askFailed}
         </p>
       ) : null}
@@ -1021,13 +1041,13 @@ function FollowUpChat({
               void ask();
             }
           }}
-          className="min-h-12 flex-1 rounded-2xl border border-white/[0.18] bg-field px-4 py-3 text-base leading-6 text-paper placeholder:text-mute disabled:opacity-60"
+          className="min-h-12 flex-1 rounded-lg border border-ink/20 bg-field px-4 py-3 text-base leading-6 text-paper placeholder:text-mute disabled:opacity-60"
         />
         <button
           type="button"
           disabled={busy || limited || draft.trim().length === 0}
           onClick={() => void ask()}
-          className="press min-h-12 shrink-0 rounded-full bg-leaf px-5 text-base font-semibold text-paper disabled:opacity-60"
+          className="press min-h-12 shrink-0 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream disabled:opacity-60"
         >
           {busy ? text.askThinking : text.askSend}
         </button>
@@ -1036,95 +1056,48 @@ function FollowUpChat({
   );
 }
 
-function CheckProgress({ text, step }: { text: Copy; step: number }) {
-  const clamped = Math.min(2, Math.max(0, step));
-  return (
-    <div id="check-progress" className="mt-4 rounded-[28px] border-2 border-beet bg-[#fff4dc] px-4 py-5 text-ink shadow-sm" role="status" aria-live="polite" aria-busy="true">
-      <div className="flex items-center gap-3">
-        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
-          <span className="absolute inset-0 animate-spin rounded-full border-2 border-beet/25 border-t-beet" />
-          <span className="h-2.5 w-2.5 rounded-full bg-beet" />
-        </span>
-        <span>
-          <span className="block font-serif text-2xl leading-tight text-soil">{text.progressTitle}</span>
-          <span className="mt-1 block text-base leading-6 text-ink/70">{text.progressHint}</span>
-        </span>
-      </div>
-      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sand">
-        <div className="bedsense-indeterminate h-full w-1/2 rounded-full bg-beet" />
-      </div>
-      <ol className="mt-4 space-y-2">
-        {text.progressSteps.map((label, index) => {
-          const state = index < clamped ? "done" : index === clamped ? "active" : "wait";
-          return (
-            <li key={label} className="flex min-h-11 items-center gap-3 text-base" aria-current={state === "active" ? "step" : undefined}>
-              <span
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  state === "wait" ? "bg-ink/10 text-ink/50" : "bg-soil text-paper"
-                } ${state === "active" ? "animate-pulse" : ""}`}
-              >
-                {index + 1}
-              </span>
-              <span className={state === "wait" ? "text-ink/45" : "font-semibold"}>{label}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-}
-
 function AdviceList({
   id,
-  step,
   title,
   hint,
   items,
-  words,
-  checklist = false,
 }: {
   id: string;
-  step?: string;
   title: string;
   hint: string;
   items: readonly string[];
-  words?: UiWords;
-  checklist?: boolean;
 }) {
   if (items.length === 0) return null;
   return (
-    <div id={id} style={{ animationDelay: "200ms" }} className="rise rounded-[28px] border border-white/[0.09] bg-card p-4 shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)] transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-5 lg:hover:border-leaf/50 lg:hover:shadow-[0_0_40px_-16px_rgba(31,157,85,0.45)]">
-      {step ? <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-clay">{step}</p> : null}
-      <h3 className="mt-1 font-serif text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{title}</h3>
+    <div id={id} style={{ animationDelay: "200ms" }} className="rise">
+      <h3 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{title}</h3>
       <p className="mt-2 text-base leading-6 text-mute">{hint}</p>
-      {checklist && words ? (
-        <Checklist id={`${id}-list`} items={items} words={words} />
-      ) : (
-        <ul className="mt-4 space-y-3">
-          {items.map((item, index) => (
-            <li key={item} style={{ animationDelay: `${240 + index * 100}ms` }} className="rise rounded-[20px] border border-white/[0.09] bg-field px-4 py-3 text-base leading-7">
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="mt-4 divide-y divide-ink/10">
+        {items.map((item, index) => (
+          <li key={item} style={{ animationDelay: `${240 + index * 100}ms` }} className="rise flex gap-3 py-3 text-base leading-7 first:pt-0">
+            <span aria-hidden="true" className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-[10px] bg-leaf" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) {
+function ChemicalCard({ text, words, advice }: { text: Copy; words: UiWords; advice: ChemicalAdvice }) {
+  const [shopsOpen, setShopsOpen] = useState(false);
   return (
     <div className="space-y-4">
-      <div id="result-chemicals" className="rounded-[28px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
+      <div id="result-chemicals">
         <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{text.chemicalsTitle}</h3>
         <p className="mt-2 text-base leading-7">
           <span className="font-semibold">{text.chemicalsSuspect}. </span>
           {advice.suspect}
         </p>
         <p className="mt-2 text-base leading-7 text-paper/85">{advice.verifyNote}</p>
-        <ul className="mt-4 space-y-3">
+        <ul className="mt-4 divide-y divide-ink/10">
           {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-2xl border border-white/[0.09] bg-field px-4 py-3">
+            <li key={product.activeIngredient} className="py-3 first:pt-0">
               <p className="text-base font-semibold">{product.activeIngredient}</p>
               <p className="text-sm leading-6 text-mute">{product.productClass}</p>
               <p className="mt-1 text-base leading-7">{product.useNote}</p>
@@ -1133,22 +1106,33 @@ function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) 
         </ul>
       </div>
 
-      <div id="result-shops" className="rounded-[28px] border border-leaf/30 bg-card px-4 py-5 sm:px-5">
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{text.chemicalsWhere}</h3>
+      <div id="result-shops" className="border-t border-ink/10 pt-4">
+        <button
+          type="button"
+          aria-expanded={shopsOpen}
+          onClick={() => setShopsOpen((open) => !open)}
+          className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
+        >
+          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{words.shopsDetail}</span>
+          <span aria-hidden="true" className="text-leaf">{shopsOpen ? "–" : "+"}</span>
+        </button>
+        {shopsOpen ? (
+        <>
         <ul className="mt-3 space-y-3">
           {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-2xl border border-white/[0.09] bg-field px-4 py-3">
+            <li key={product.activeIngredient} className="rounded-lg border border-ink/10 bg-field px-4 py-3">
               <p className="text-base font-semibold">{product.activeIngredient}</p>
               {product.offers.length === 0 ? <p className="mt-1 text-base leading-6">{text.chemicalsNoShop}</p> : null}
               <ul className="mt-2 space-y-2">
                 {orderedOffers(product.offers).map((offer) => (
-                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl border border-white/[0.09] bg-card px-3 py-3 text-base leading-6">
-                    <span className="font-semibold text-[#f6b23a]">{text.quality[offer.quality]}</span>
-                    <span className="text-mute"> · {offer.brand} · {offer.pack}</span>
-                    <span className="mt-0.5 block">
+                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl border border-ink/10 bg-card px-3 py-3 text-base leading-6">
+                    <span className="block text-lg font-semibold text-paper">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
+                    <span className="mt-0.5 block font-semibold">
                       {offer.shopName} · {offer.shopKind} · {offer.place}
                     </span>
-                    <span className="mt-0.5 block font-semibold">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
+                    <span className="mt-0.5 block text-sm text-mute">
+                      <span className="font-semibold text-sun">{text.quality[offer.quality]}</span> · {offer.brand} · {offer.pack}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -1156,6 +1140,8 @@ function ChemicalCard({ text, advice }: { text: Copy; advice: ChemicalAdvice }) 
           ))}
         </ul>
         <p className="mt-3 text-base leading-6 text-mute">{advice.priceNote}</p>
+        </>
+        ) : null}
       </div>
     </div>
   );
@@ -1176,8 +1162,6 @@ function ContextForm({
   context,
   onChange,
   disabled,
-  open,
-  onOpenChange,
   canUpdate,
   onUpdate,
   ask,
@@ -1187,72 +1171,46 @@ function ContextForm({
   context: FarmerContext;
   onChange: (next: FarmerContext) => void;
   disabled: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   canUpdate: boolean;
   onUpdate: () => void;
   ask: string | null;
 }) {
-  const preview = context.notes.replace(/\s+/g, " ").trim();
-  const filled = preview.length > 0;
-  const previewText = preview.length > 90 ? `${preview.slice(0, 89).trimEnd()}…` : preview;
   return (
-    <section id="home-context" className="rounded-[28px] border border-clay/40 bg-card p-5 transition-[border-color,box-shadow] duration-500 ease-out-soft sm:p-6 lg:hover:border-clay">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="context-panel"
-        onClick={() => onOpenChange(!open)}
-        className="flex min-h-12 w-full items-center justify-between gap-3 text-left"
-      >
-        <span className="min-w-0">
-          <span id="context-title" className="block text-base font-semibold">
-            {text.contextTitle}
-          </span>
-          {open ? null : (
-            <span className="mt-1 block text-base leading-6 text-mute">{filled ? previewText : text.contextHint}</span>
-          )}
-        </span>
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-clay/40 bg-clay/15 text-lg font-semibold text-clay">
-          {open ? "–" : "+"}
-        </span>
-      </button>
+    <section id="home-context" className="border-t border-ink/10 pt-5">
       {ask ? (
-        <p className="mt-3 rounded-2xl border border-beet/40 bg-beet/10 px-4 py-3 text-base leading-6 text-paper" role="status">
-          <span className="block font-semibold text-beet">{text.contextAskLabel}</span>
+        <p className="mb-3 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-base leading-6 text-paper" role="status">
+          <span className="block text-sm font-semibold text-mute">{UI[locale].contextFromCheck}</span>
           {ask}
         </p>
       ) : null}
-      {open ? (
-        <div id="context-panel" className="mt-4 space-y-3">
-          <textarea
-            id="context-notes"
-            value={context.notes}
-            disabled={disabled}
-            rows={4}
-            maxLength={NOTES_LIMIT}
-            placeholder={text.contextHint}
-            aria-labelledby="context-title"
-            aria-describedby="context-guide"
-            onChange={(event) => onChange({ ...emptyFarmerContext(), notes: event.target.value })}
-            className="min-h-32 w-full rounded-2xl border border-white/[0.18] bg-field px-4 py-3 text-base leading-7 font-normal text-paper placeholder:text-mute"
-          />
-          <p id="context-guide" className="text-base leading-7 text-mute">
-            {text.contextGuide}
-          </p>
-          <VoiceContext text={text} locale={locale} context={context} onChange={onChange} disabled={disabled} />
-          {canUpdate ? (
-            <button
-              type="button"
-              disabled={disabled || contextIsEmpty(context)}
-              onClick={onUpdate}
-              className="press min-h-14 w-full rounded-full bg-leaf px-4 text-base font-semibold text-paper disabled:opacity-60"
-            >
-              {text.contextUpdate}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      <div id="context-panel" className="space-y-3">
+        <textarea
+          id="context-notes"
+          value={context.notes}
+          disabled={disabled}
+          rows={4}
+          maxLength={NOTES_LIMIT}
+          placeholder={text.contextHint}
+          aria-label={text.contextHint}
+          aria-describedby="context-guide"
+          onChange={(event) => onChange({ ...emptyFarmerContext(), notes: event.target.value })}
+          className="min-h-32 w-full rounded-lg border border-ink/20 bg-field px-4 py-3 text-base leading-7 font-normal text-paper placeholder:text-mute"
+        />
+        <p id="context-guide" className="text-base leading-7 text-mute">
+          {text.contextGuide}
+        </p>
+        <VoiceContext text={text} locale={locale} context={context} onChange={onChange} disabled={disabled} />
+        {canUpdate ? (
+          <button
+            type="button"
+            disabled={disabled || contextIsEmpty(context)}
+            onClick={onUpdate}
+            className="press min-h-14 w-full rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60"
+          >
+            {text.contextUpdate}
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -1336,13 +1294,13 @@ function RecentCheck({
 
   if (confirm) {
     return (
-      <div role="alertdialog" aria-label={ask} className="flex w-44 flex-col justify-between gap-3 rounded-[28px] border border-beet/50 bg-card p-3 lg:w-full">
+      <div role="alertdialog" aria-label={ask} className="flex w-44 flex-col justify-between gap-3 rounded-xl border border-danger/50 bg-card p-3 lg:w-full">
         <p className="text-sm leading-5 text-paper">{ask}</p>
         <div className="grid grid-cols-1 gap-2">
-          <button type="button" autoFocus onClick={() => setConfirm(false)} className="min-h-11 rounded-xl bg-soil px-3 text-sm font-semibold text-paper">
+          <button type="button" autoFocus onClick={() => setConfirm(false)} className="min-h-11 rounded-xl bg-leaf px-3 text-sm font-semibold text-cream">
             {keepLabel}
           </button>
-          <button type="button" onClick={onDelete} className="min-h-11 rounded-xl border border-beet/60 px-3 text-sm font-semibold text-beet lg:min-h-8 lg:px-2 lg:text-xs">
+          <button type="button" onClick={onDelete} className="min-h-11 rounded-xl border border-danger/60 px-3 text-sm font-semibold text-danger lg:min-h-8 lg:px-2 lg:text-xs">
             {deleteLabel}
           </button>
         </div>
@@ -1372,14 +1330,14 @@ function RecentCheck({
           }
           onOpen();
         }}
-        className={`w-full touch-manipulation overflow-hidden rounded-[28px] border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-onion lg:group-hover:border-clay" : "border-white/[0.09] lg:group-hover:border-leaf/50"}`}
+        className={`w-full touch-manipulation overflow-hidden rounded-xl border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-sun lg:group-hover:border-sun" : "border-ink/10 lg:group-hover:border-leaf/50"}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={entry.thumbnail} alt="" className="h-28 w-full object-cover" />
-        <span className="block px-3 py-3 text-sm font-semibold leading-5 text-paper">
+        <span className="block px-4 py-4 text-sm font-semibold leading-5 text-paper">
           {label}
           <span className="mt-1 block font-normal text-mute">{confidence}</span>
-          {current ? <span className="mt-1 hidden font-serif text-sm text-onion lg:group-hover:block">{currentLabel}</span> : null}
+          {current ? <span className="mt-1 hidden text-sm text-sun lg:group-hover:block">{currentLabel}</span> : null}
         </span>
       </button>
       <button

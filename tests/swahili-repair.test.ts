@@ -192,25 +192,23 @@ describe("Swahili repair across the reading", () => {
       new Request("http://localhost/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: pngDataUrl(), locale: "sw", plantName: "  " }),
+        body: JSON.stringify({ locale: "sw" }),
       }),
     );
     expect(sw.status).toBe(400);
     const swBody = (await sw.json()) as { error: string; message: string };
-    expect(swBody.error).toBe("missing_plant");
-    expect(swBody.message).toContain("Taja mmea");
+    expect(swBody.error).toBe("bad_request");
+    expect(swBody.message).toContain("Tuma picha");
 
-    vi.stubEnv("MOCK_META", "1");
     const en = await POST(
       new Request("http://localhost/api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: pngDataUrl(), plantName: "  " }),
+        body: JSON.stringify({}),
       }),
     );
     const enBody = (await en.json()) as { error: string; message: string };
-    expect(enBody.error).toBe("missing_plant");
-    expect(enBody.message).toBe("Name the plant in the photo.");
-    vi.unstubAllEnvs();
+    expect(enBody.error).toBe("bad_request");
+    expect(enBody.message).toBe("Send a photo as a data URL.");
   });
 });

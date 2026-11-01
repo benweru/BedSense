@@ -6,7 +6,7 @@ import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { holdFor, qualityMessageFor, qualityNoteFor } from "@/lib/quality-copy";
 import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
-import { adviseBed } from "@/lib/server/muse";
+import { adviseBed, plantNameMismatch } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
 import { isSoftPhoto, isUnsureRead, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
 import { memoryPromptBlock } from "@/lib/memory";
@@ -42,6 +42,12 @@ export async function analyzeBedPhoto(input: AnalyzeInput, store: PlantMemorySto
     : null;
   const { result, photo } = await runAnalysis(input, memoryInput);
   if (!memory || !plantId) return result;
+  // Photo-only filing: the check belongs to the saved plant only when the plant
+  // in the photo is that plant. A different detected plant stays a standalone
+  // check — never silently misfiled under the wrong plant's history.
+  if (plantNameMismatch(memory.plant.name, result.detectedPlant, result.plantMismatch)) {
+    return result.progress ? { ...result, progress: null } : result;
+  }
   const filed: AnalyzeResult = { ...result, plantId };
   if (!filed.qualityHold) {
     await store.save(plantId, filed, photo).catch((error: unknown) => {
@@ -70,8 +76,9 @@ async function runAnalysis(
 
   const locale = normalizeLocale(input.locale);
   const context = parseFarmerContext(input.context);
-  const farmerPlant = parseFarmerPlant(input.plantName);
-  if (!farmerPlant) throw new AnalyzeError("missing_plant");
+  // Photo-only: the name is optional. It arrives only from a correction re-run
+  // or an API caller that still sends one; the model names the plant otherwise.
+  const farmerPlant = parseFarmerPlant(input.plantName) ?? "";
   const size = resolveSize(first.size, clampDeclaredSize(input.width, input.height));
   const createdAt = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -230,6 +237,7 @@ async function runAnalysis(
     primaryCrop: focus.primaryCrop,
     detectedPlant: advice.detectedPlant,
     farmerPlant,
+    plantMismatch: advice.plantMismatch,
     contextAsk: advice.contextAsk,
     needsInfo: advice.needsInfo,
     contextUsed: !contextIsEmpty(context),

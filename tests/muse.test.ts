@@ -4,7 +4,7 @@ import { emptyFarmerContext } from "@/lib/context";
 import { copy } from "@/lib/copy";
 import { AnalyzeError } from "@/lib/types";
 import { chatMuseModels, parseSse, postMeta, triageModelIds } from "@/lib/server/meta";
-import { adviseBed, chatOutputText, marksSummary, readModelDraft } from "@/lib/server/muse";
+import { adviseBed, chatOutputText, marksSummary, plantNameMismatch, readModelDraft } from "@/lib/server/muse";
 
 const triage = {
   detectedPlant: "chili",
@@ -139,6 +139,22 @@ describe("Muse stream parsing", () => {
   });
 });
 
+describe("plantNameMismatch", () => {
+  it("flags different plants, by flag or by name", () => {
+    expect(plantNameMismatch("Banana", "Avocado", undefined)).toBe(true);
+    expect(plantNameMismatch("Banana", "Banana", true)).toBe(true);
+    expect(plantNameMismatch("tomato", "kale", undefined)).toBe(true);
+  });
+
+  it("never flags spelling variants or fuller names of the same plant", () => {
+    expect(plantNameMismatch("chilli", "Chili", undefined)).toBe(false);
+    expect(plantNameMismatch("pilipili", "Chili", undefined)).toBe(false);
+    expect(plantNameMismatch("tomato", "Tomato plant", undefined)).toBe(false);
+    expect(plantNameMismatch("Banana", "Banana", undefined)).toBe(false);
+    expect(plantNameMismatch("Banana", "", undefined)).toBe(false);
+  });
+});
+
 describe("adviseBed", () => {
   it("accepts a CRLF Muse stream as a real answer, with causes and symptom checks", async () => {
     const raw = sseBody(JSON.stringify(triage), "\r\n");
@@ -160,6 +176,26 @@ describe("adviseBed", () => {
     expect(result.actions).not.toEqual([...copy.en.fallbackActions]);
     expect(result.actions.join(" ").toLowerCase()).toMatch(/chili|mite/);
     expect(result.chemicals).toBeNull();
+  });
+
+  it("flags a mismatch and follows the plant in the photo, not the typed name", async () => {
+    const avocado = { ...triage, detectedPlant: "Avocado", plantMismatch: true };
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(() => jsonResponse({ choices: [{ message: { content: JSON.stringify(avocado) } }] })),
+    );
+    const result = await adviseBed({ ...bedOptions(), farmerPlant: "Banana", primaryCrop: null });
+    expect(result.detectedPlant).toBe("Avocado");
+    expect(result.plantMismatch).toBe(true);
+  });
+
+  it("does not flag a mismatch when the model names the farmer's plant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(() => jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] })),
+    );
+    const result = await adviseBed(bedOptions());
+    expect(result.plantMismatch).toBe(false);
   });
 
   it("retries a fast rate limit on the same model before using the backup", async () => {

@@ -22,7 +22,7 @@ export function SiteChrome({ children, pad }: { children: ReactNode; pad?: strin
             <button
               type="button"
               onClick={() => router.back()}
-              className="min-h-11 rounded-full px-3 text-sm font-semibold text-mute hover:bg-white/5 hover:text-paper"
+              className="min-h-11 rounded-full px-3 text-sm font-semibold text-mute hover:bg-ink/5 hover:text-paper"
             >
               {text.back}
             </button>
@@ -32,31 +32,27 @@ export function SiteChrome({ children, pad }: { children: ReactNode; pad?: strin
           </Link>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <div role="group" aria-label={text.language} className="flex rounded-full border border-white/[0.09] bg-card p-1">
-            {(["en", "sw"] as const).map((code) => (
-              <button
-                key={code}
-                type="button"
-                aria-pressed={locale === code}
-                onClick={() => writeLocale(code as Locale)}
-                className={`min-h-11 min-w-11 rounded-full px-3 text-sm font-semibold ${locale === code ? "bg-soil text-paper" : "text-paper hover:text-leaf"}`}
-              >
-                {code === "en" ? "EN" : "SW"}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => writeLocale((locale === "en" ? "sw" : "en") as Locale)}
+            aria-label={text.language}
+            className="press min-h-11 rounded-full border border-ink/10 bg-card px-4 text-sm font-semibold text-paper hover:text-leaf"
+          >
+            {locale === "en" ? "SW" : "EN"}
+          </button>
           <Link
             href="/profile"
             aria-label={text.profile}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border hover:border-leaf hover:text-leaf ${pathname === "/profile" ? "border-leaf text-leaf" : "border-white/[0.09] text-paper"}`}
+            className={`press flex min-h-11 items-center gap-2 rounded-full border px-3 hover:border-leaf hover:text-leaf ${pathname === "/profile" ? "border-leaf text-leaf" : "border-ink/10 text-paper"}`}
           >
             <ProfileIcon />
+            <span className="hidden text-sm font-semibold sm:inline">{text.profile}</span>
           </Link>
         </div>
       </header>
       {children}
-      <footer className="mt-10 space-y-2 text-sm leading-6 text-mute">
-        <p>{text.kicker}</p>
+      <footer className="mt-10 space-y-1 text-center text-sm leading-6 text-mute">
+        <p className="eyebrow">{text.kicker}</p>
         <p>{text.footer}</p>
       </footer>
     </div>

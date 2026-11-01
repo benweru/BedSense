@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Severity } from "@/lib/severity";
 import { INTRO_KEY, UI, type UiWords } from "@/lib/ui-copy";
+import { writeLocale } from "@/lib/phone-store";
 import type { Locale } from "@/lib/types";
 
 export function prefersReducedMotion(): boolean {
@@ -15,20 +16,44 @@ export function prefersReducedMotion(): boolean {
 export function ScanStatus({ words }: { words: UiWords }) {
   const [step, setStep] = useState(0);
   useEffect(() => {
-    const timer = window.setInterval(() => setStep((current) => Math.min(current + 1, words.scanSteps.length - 1)), 2200);
+    const timer = window.setInterval(() => setStep((current) => Math.min(current + 1, words.scanSteps.length - 1)), 2600);
     return () => window.clearInterval(timer);
   }, [words.scanSteps.length]);
   return (
-    <div id="check-progress" className="mt-4 rounded-[24px] hairline surface-3 px-4 py-4" role="status" aria-live="polite" aria-busy="true">
-      <p className="eyebrow text-beet">{words.scanEyebrow}</p>
-      <p key={step} className="tick-label mt-1 font-serif text-2xl leading-tight text-paper">
+    <div id="check-progress" className="mt-4 rounded-lg border border-sun/50 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
+      <p key={step} className="tick-label text-2xl font-semibold leading-tight text-paper">
         {words.scanSteps[step]}
       </p>
-      <div className="mt-3 h-px w-full overflow-hidden bg-white/10" aria-hidden="true">
-        <span
-          className="block h-full origin-left bg-beet"
-          style={{ transform: `scaleX(${(step + 1) / words.scanSteps.length})`, transition: "transform 600ms cubic-bezier(.22,1,.36,1)" }}
-        />
+      <ol className="mt-4 space-y-2.5">
+        {words.scanSteps.map((label, index) => {
+          const state = index < step ? "done" : index === step ? "current" : "next";
+          return (
+            <li key={label} className={`flex items-center gap-3 text-base leading-6 ${state === "next" ? "text-mute/70" : "text-paper"}`}>
+              <span
+                aria-hidden="true"
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                  state === "done"
+                    ? "border-leaf bg-leaf text-cream"
+                    : state === "current"
+                      ? "border-sun bg-sun/20"
+                      : "border-ink/20"
+                }`}
+              >
+                {state === "done" ? (
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : state === "current" ? (
+                  <span className="scan-pulse block h-2.5 w-2.5 rounded-[10px] bg-sun" />
+                ) : null}
+              </span>
+              <span className={state === "current" ? "font-semibold" : ""}>{label.replace(/…$/, "")}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-ink/10" aria-hidden="true">
+        <span className="bedsense-indeterminate block h-full w-1/2 rounded-[10px] bg-sun" />
       </div>
     </div>
   );
@@ -38,12 +63,12 @@ export function ScanStatus({ words }: { words: UiWords }) {
 export function ResultSkeleton() {
   return (
     <div className="space-y-4" aria-hidden="true">
-      <div className="rounded-[28px] hairline surface-2 p-5 sm:p-6">
+      <div className="rounded-xl hairline surface-2 p-5 sm:p-6">
         <div className="skeleton h-3 w-32" />
         <div className="skeleton mt-4 h-9 w-3/4" />
         <div className="skeleton mt-3 h-4 w-1/2" />
       </div>
-      <div className="rounded-[28px] hairline surface-2 p-5 sm:p-6">
+      <div className="rounded-xl hairline surface-2 p-5 sm:p-6">
         <div className="skeleton h-6 w-40" />
         {[0, 1, 2].map((row) => (
           <div key={row} className="skeleton mt-3 h-14 w-full" />
@@ -55,8 +80,8 @@ export function ResultSkeleton() {
 
 const TONE: Record<Severity, string> = {
   healthy: "border-l-leaf",
-  watch: "border-l-clay",
-  act: "border-l-[#b4545a]",
+  watch: "border-l-sun",
+  act: "border-l-danger",
 };
 
 /** Left-border tone for the diagnosis card. */
@@ -73,42 +98,6 @@ export function SeverityLine({ severity, words }: { severity: Severity; words: U
   );
 }
 
-/** Tappable steps, staggered in at 100ms. Local only: ticking a step changes nothing on the server. */
-export function Checklist({ id, items, words }: { id: string; items: readonly string[]; words: UiWords }) {
-  const [done, setDone] = useState<number[]>([]);
-  if (items.length === 0) return null;
-  return (
-    <>
-      <p className="mt-2 text-sm leading-6 text-mute">{words.checklist}</p>
-      <ul id={id} className="mt-3 space-y-2.5">
-        {items.map((item, index) => {
-          const on = done.includes(index);
-          return (
-            <li key={item} className="rise" style={{ animationDelay: `${240 + index * 100}ms` }}>
-              <button
-                type="button"
-                aria-pressed={on}
-                onClick={() => setDone((current) => (on ? current.filter((value) => value !== index) : [...current, index]))}
-                className={`lift flex min-h-14 w-full items-start gap-3 rounded-[20px] border px-4 py-3 text-left text-base leading-7 ${
-                  on ? "border-leaf/60 bg-leaf/15 text-paper/70" : "border-white/[0.09] bg-field text-paper"
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${on ? "border-leaf bg-leaf text-page" : "border-white/[0.18]"}`}
-                >
-                  {on ? <CheckMark /> : null}
-                </span>
-                <span className={on ? "line-through decoration-leaf/70" : ""}>{item}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </>
-  );
-}
-
 export function CheckMark({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
@@ -120,7 +109,7 @@ export function CheckMark({ className = "h-3.5 w-3.5" }: { className?: string })
 /** Leaf sprouting into a check. Shown once on save; static under reduced motion. */
 export function SavedBurst({ label }: { label: string }) {
   return (
-    <span className="pop inline-flex items-center gap-2 text-base font-semibold text-[#8ee6b0]" role="status">
+    <span className="pop inline-flex items-center gap-2 text-base font-semibold text-leaf" role="status">
       <svg viewBox="0 0 32 32" className="sprout h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
         <path d="M16 28V14" strokeLinecap="round" />
         <path d="M16 16c0-6 4-9 10-9 0 6-4 9-10 9z" strokeLinejoin="round" />
@@ -142,11 +131,11 @@ export function buzz() {
 
 export function GuestSavePrompt({ words, onDismiss }: { words: UiWords; onDismiss: () => void }) {
   return (
-    <div id="guest-save" className="rise rounded-[28px] border border-leaf/40 bg-leaf/10 p-5" role="region" aria-label={words.guestAsk}>
-      <p className="font-serif text-2xl leading-tight text-paper">{words.guestAsk}</p>
+    <div id="guest-save" className="rise rounded-xl border border-leaf/40 bg-leaf/10 p-5" role="region" aria-label={words.guestAsk}>
+      <p className="text-2xl leading-tight text-paper">{words.guestAsk}</p>
       <p className="mt-2 text-base leading-6 text-mute">{words.guestLead}</p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/profile" className="press inline-flex min-h-12 items-center rounded-full bg-leaf px-5 text-base font-semibold text-paper">
+        <Link href="/profile" className="press inline-flex min-h-12 items-center rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream">
           {words.guestYes}
         </Link>
         <button type="button" onClick={onDismiss} className="press min-h-12 rounded-full px-4 text-base font-semibold text-mute hover:text-paper">
@@ -170,7 +159,7 @@ export function MaskToggle({ showMasks, onChange, words }: { showMasks: boolean;
           type="button"
           aria-pressed={showMasks === option.on}
           onClick={() => onChange(option.on)}
-          className={`press min-h-11 rounded-full px-4 text-sm font-semibold ${showMasks === option.on ? "bg-soil text-paper" : "text-mute hover:text-paper"}`}
+          className={`press min-h-11 rounded-full px-4 text-sm font-semibold ${showMasks === option.on ? "bg-leaf text-paper" : "text-mute hover:text-paper"}`}
         >
           {option.label}
         </button>
@@ -229,11 +218,12 @@ export function replayIntro(): void {
   window.dispatchEvent(new Event("bedsense-intro"));
 }
 
-/** Three-card first-visit intro, shown once. */
+/** First-visit intro, shown once. Ends with a language picker on first visit. */
 export function FirstVisitIntro({ locale }: { locale: Locale }) {
   const words = UI[locale];
   const seen = useSyncExternalStore(subscribeIntro, introSeen, () => true);
   const [card, setCard] = useState(0);
+  const [picking, setPicking] = useState(false);
   if (seen) return null;
   const finish = () => {
     try {
@@ -243,15 +233,42 @@ export function FirstVisitIntro({ locale }: { locale: Locale }) {
     }
     window.dispatchEvent(new Event("bedsense-intro"));
   };
+  const choose = (next: Locale) => {
+    writeLocale(next);
+    finish();
+  };
   const item = words.intro[card];
   const last = card === words.intro.length - 1;
   return createPortal(
-    <div id="first-visit-intro" className="fade-in fixed inset-0 z-40 flex items-end justify-center bg-page/80 p-4 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label={item.title}>
-      <div key={card} className="rise w-full max-w-md rounded-[32px] hairline-strong surface-2 bg-card p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.9)]">
+    <div id="first-visit-intro" className="fade-in fixed inset-0 z-40 flex items-end justify-center bg-page/80 p-4 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label={picking ? "Choose your language" : item.title}>
+      {picking ? (
+        <div className="rise w-full max-w-md rounded-xl hairline-strong surface-2 bg-card p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] ">
+          <p className="eyebrow text-leaf">Language · Lugha</p>
+          <h2 className="font-semibold mt-2 text-4xl leading-[1.04] text-paper">
+            Choose your language<span className="text-mute">.</span>
+          </h2>
+          <p className="mt-3 text-base leading-7 text-mute">
+            Chagua lugha yako.
+            <span className="mt-1 block text-sm leading-6">Change it any time with the EN / SW button at the top · Badilisha wakati wowote kwa kitufe cha EN / SW kilicho juu.</span>
+          </p>
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <button type="button" autoFocus onClick={() => choose("en")} className="press min-h-14 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream">
+              English
+            </button>
+            <button type="button" onClick={() => choose("sw")} className="press min-h-14 rounded-[10px] bg-sun px-5 text-base font-semibold text-ink">
+              Kiswahili
+            </button>
+          </div>
+          <button type="button" onClick={finish} className="press mt-4 min-h-12 w-full rounded-full px-4 text-base font-semibold text-mute hover:text-paper">
+            {words.skip}
+          </button>
+        </div>
+      ) : (
+      <div key={card} className="rise w-full max-w-md rounded-xl hairline-strong surface-2 bg-card p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] ">
         <p className="eyebrow text-leaf">
           {String(card + 1).padStart(2, "0")} / {String(words.intro.length).padStart(2, "0")}
         </p>
-        <h2 className="mt-2 font-serif text-4xl leading-[1.04] text-paper">
+        <h2 className="font-semibold mt-2 text-4xl leading-[1.04] text-paper">
           {item.title}
           <span className="text-mute">.</span>
         </h2>
@@ -266,13 +283,14 @@ export function FirstVisitIntro({ locale }: { locale: Locale }) {
           <button
             type="button"
             autoFocus
-            onClick={() => (last ? finish() : setCard(card + 1))}
-            className="press min-h-12 rounded-full bg-leaf px-5 text-base font-semibold text-paper"
+            onClick={() => (last ? setPicking(true) : setCard(card + 1))}
+            className="press min-h-12 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream"
           >
             {last ? words.start : words.next}
           </button>
         </div>
       </div>
+      )}
     </div>,
     document.body,
   );

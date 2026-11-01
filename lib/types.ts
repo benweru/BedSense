@@ -110,6 +110,8 @@ export type AnalyzeResult = {
   detectedPlant: string;
   /** Free-text name the farmer typed before the check. */
   farmerPlant: string;
+  /** True when the photo clearly shows a different plant than the farmer named. The reading follows the photo. */
+  plantMismatch?: boolean;
   contextAsk: string | null;
   /** True when a symptom is visible but the evidence does not yet separate the causes, so no chemical is named. */
   needsInfo?: boolean;
@@ -194,7 +196,7 @@ export type HistoryEntry = {
 };
 
 export class AnalyzeError extends Error {
-  readonly code: "bad_request" | "unsupported_image" | "image_too_large" | "missing_key" | "missing_plant" | "muse_unavailable" | "upstream";
+  readonly code: "bad_request" | "unsupported_image" | "image_too_large" | "missing_key" | "muse_unavailable" | "upstream";
 
   constructor(code: AnalyzeError["code"]) {
     super(code);
