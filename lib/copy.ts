@@ -92,8 +92,21 @@ export type Copy = {
   contextHint: string;
   contextGuide: string;
   contextAskLabel: string;
+  needsInfoLabel: string;
   contextUpdate: string;
   contextAskDefault: string;
+  followUpSpray: string;
+  followUpMitigation: string;
+  followUpNeedsInfo: string;
+  needsInfoNote: string;
+  askTitle: string;
+  askHint: string;
+  askPlaceholder: string;
+  askSend: string;
+  askThinking: string;
+  askFailed: string;
+  askUnavailable: string;
+  askDemoNote: string;
   contextNoted: string;
   contextFields: {
     stage: string;
@@ -248,8 +261,26 @@ const en: Copy = {
   contextGuide:
     "Optional. Add plant age, practices, sprays, fertilizer, water, weather, or known issues. You can also ask a question, such as whether to water today.",
   contextAskLabel: "A clearer check would use this",
+  needsInfoLabel: "Not enough to name a treatment yet — this check still needs",
   contextUpdate: "Update the check",
   contextAskDefault: "If you know it, add the plant’s age and when you last watered.",
+  followUpSpray:
+    "Before you buy: have you already sprayed or fed this plant, and do you have a sprayer? Add what you used, or take this photo to an agrovet to match the product.",
+  followUpMitigation:
+    "To narrow this down: add a close photo of the underside of one affected leaf, plus the plant’s age and when you last watered or sprayed.",
+  followUpNeedsInfo:
+    "This photo does not separate the likely causes yet, so no chemical is named. Add a close photo of the underside of one affected leaf from another angle, plus the plant’s age and anything already sprayed or fed, then run the check again.",
+  needsInfoNote:
+    "No chemical is named yet because this photo does not separate the likely causes. The checks below gather what is missing; the safe steps above can start now.",
+  askTitle: "Ask about this feedback",
+  askHint: "Questions about this check only. Asking does not re-run the check or use another photo.",
+  askPlaceholder: "e.g. Can I use ash instead of a spray?",
+  askSend: "Ask",
+  askThinking: "Thinking…",
+  askFailed: "That question did not go through. Try again.",
+  askUnavailable:
+    "Muse is not available for questions right now. The checks above still stand; show this photo to an agrovet for more.",
+  askDemoNote: "Demo answer from this check. Live answers need a model key.",
   contextNoted: "The notes you added are part of this check.",
   contextFields: {
     stage: "Plant age or stage",
@@ -426,8 +457,26 @@ const sw: Copy = {
   contextGuide:
     "Si lazima. Andika umri wa mmea, unavyoutunza, dawa, mbolea, maji, hali ya hewa au matatizo uliyoona. Unaweza pia kuuliza swali, kama vile kama umwagilie leo.",
   contextAskLabel: "Haya yangesaidia ukaguzi kuwa sahihi zaidi",
+  needsInfoLabel: "Bado haitoshi kutaja matibabu — ukaguzi huu bado unahitaji",
   contextUpdate: "Sasisha ukaguzi",
   contextAskDefault: "Kama unajua, andika umri wa mmea na mara ya mwisho ulipomwagilia.",
+  followUpSpray:
+    "Kabla ya kununua: je, tayari umenyunyizia au kuweka mbolea kwenye mmea huu, na una kifaa cha kunyunyizia? Andika ulichotumia, au peleka picha hii kwa agrovet ili dawa ilingane.",
+  followUpMitigation:
+    "Kupunguza uwezekano: ongeza picha ya karibu ya upande wa chini wa jani moja lililoathirika, pamoja na umri wa mmea na mara ya mwisho ulipomwagilia au kunyunyizia.",
+  followUpNeedsInfo:
+    "Picha hii bado haitenganishi sababu zinazowezekana, kwa hiyo hakuna dawa iliyotajwa. Ongeza picha ya karibu ya upande wa chini wa jani moja lililoathirika kutoka upande mwingine, pamoja na umri wa mmea na dawa au mbolea yoyote uliyotumia, kisha kagua tena.",
+  needsInfoNote:
+    "Hakuna dawa iliyotajwa bado kwa sababu picha hii haitenganishi sababu zinazowezekana. Ukaguzi ulio hapa chini unakusanya kinachokosekana; hatua salama zilizo juu zinaweza kuanza sasa.",
+  askTitle: "Uliza kuhusu maoni haya",
+  askHint: "Maswali kuhusu ukaguzi huu pekee. Kuuliza hakurudii ukaguzi wala kutumia picha nyingine.",
+  askPlaceholder: "mf. Naweza kutumia majivu badala ya dawa?",
+  askSend: "Uliza",
+  askThinking: "Inafikiria…",
+  askFailed: "Swali hilo halikupita. Jaribu tena.",
+  askUnavailable:
+    "Muse haipatikani kwa maswali kwa sasa. Ukaguzi ulio juu bado unafaa; mwonyeshe agrovet picha hii kwa zaidi.",
+  askDemoNote: "Jibu la onyesho kutoka ukaguzi huu. Majibu ya moja kwa moja yanahitaji ufunguo wa modeli.",
   contextNoted: "Maelezo yako yametumika kwenye ukaguzi huu.",
   contextFields: {
     stage: "Umri au hatua ya mmea",

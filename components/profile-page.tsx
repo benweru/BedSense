@@ -13,14 +13,14 @@ export function ProfilePage() {
   const locale = useLocale();
   const text = copy[locale];
   const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
   const supabase = browserSupabase();
+  // Without a Supabase project there is no account to load, so the page is
+  // ready at once; with one, wait for the first auth answer so the signed-out
+  // form does not flash before a signed-in user is known.
+  const [ready, setReady] = useState(() => supabase === null);
 
   useEffect(() => {
-    if (!supabase) {
-      setReady(true);
-      return;
-    }
+    if (!supabase) return;
     void supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
       setReady(true);
