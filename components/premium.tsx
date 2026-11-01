@@ -20,13 +20,13 @@ export function ScanStatus({ words }: { words: UiWords }) {
   }, [words.scanSteps.length]);
   return (
     <div id="check-progress" className="mt-4 rounded-[24px] hairline surface-3 px-4 py-4" role="status" aria-live="polite" aria-busy="true">
-      <p className="eyebrow text-leaf">{words.scanEyebrow}</p>
+      <p className="eyebrow text-beet">{words.scanEyebrow}</p>
       <p key={step} className="tick-label mt-1 font-serif text-2xl leading-tight text-paper">
         {words.scanSteps[step]}
       </p>
       <div className="mt-3 h-px w-full overflow-hidden bg-white/10" aria-hidden="true">
         <span
-          className="block h-full origin-left bg-leaf"
+          className="block h-full origin-left bg-beet"
           style={{ transform: `scaleX(${(step + 1) / words.scanSteps.length})`, transition: "transform 600ms cubic-bezier(.22,1,.36,1)" }}
         />
       </div>

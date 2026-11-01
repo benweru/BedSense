@@ -16,6 +16,7 @@ import {
   SeverityLine,
   severityBorder,
   buzz,
+  prefersReducedMotion,
 } from "@/components/premium";
 import { PlantMemory, PlantsHomeCard, ProgressNote, type SavedPlant } from "@/components/plant-memory";
 import { SiteChrome } from "@/components/site-chrome";
@@ -100,6 +101,18 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     if (phase !== "analyzing") return;
     const timer = window.setTimeout(() => setProgressStep(2), 4000);
     return () => window.clearTimeout(timer);
+  }, [phase]);
+
+  // Keep the running check in view: the progress card sits below the photo strip, off-screen on phones.
+  useEffect(() => {
+    if (phase !== "preparing" && phase !== "analyzing") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("check-progress")?.scrollIntoView({
+        block: "nearest",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [phase]);
 
   function markPlantMissing() {
@@ -312,8 +325,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           </>
         ) : (
           <>
-            <p className="eyebrow text-leaf">{locale === "sw" ? "Ukaguzi wa kitalu" : "Farm bed check"}</p>
-            <p className="mt-2 max-w-2xl font-serif text-2xl leading-snug text-paper sm:text-3xl">
+            <p className="max-w-2xl font-serif text-2xl leading-snug text-paper sm:text-3xl">
               {text.lede.split(". ")[0]}
               {text.lede.includes(". ") ? <span className="text-mute">. {text.lede.split(". ").slice(1).join(". ")}</span> : null}
             </p>
@@ -1004,11 +1016,11 @@ function FollowUpChat({
 function CheckProgress({ text, step }: { text: Copy; step: number }) {
   const clamped = Math.min(2, Math.max(0, step));
   return (
-    <div id="check-progress" className="mt-4 rounded-[28px] border-2 border-[#c56a00] bg-[#fff4dc] px-4 py-5 text-ink shadow-sm" role="status" aria-live="polite" aria-busy="true">
+    <div id="check-progress" className="mt-4 rounded-[28px] border-2 border-beet bg-[#fff4dc] px-4 py-5 text-ink shadow-sm" role="status" aria-live="polite" aria-busy="true">
       <div className="flex items-center gap-3">
         <span className="relative flex h-11 w-11 shrink-0 items-center justify-center" aria-hidden="true">
-          <span className="absolute inset-0 animate-spin rounded-full border-2 border-[#f0d7a4] border-t-[#c56a00]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[#c56a00]" />
+          <span className="absolute inset-0 animate-spin rounded-full border-2 border-beet/25 border-t-beet" />
+          <span className="h-2.5 w-2.5 rounded-full bg-beet" />
         </span>
         <span>
           <span className="block font-serif text-2xl leading-tight text-soil">{text.progressTitle}</span>
@@ -1016,7 +1028,7 @@ function CheckProgress({ text, step }: { text: Copy; step: number }) {
         </span>
       </div>
       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sand">
-        <div className="bedsense-indeterminate h-full w-1/2 rounded-full bg-[#e0941a]" />
+        <div className="bedsense-indeterminate h-full w-1/2 rounded-full bg-beet" />
       </div>
       <ol className="mt-4 space-y-2">
         {text.progressSteps.map((label, index) => {
@@ -1307,7 +1319,7 @@ function RecentCheck({
           <button type="button" autoFocus onClick={() => setConfirm(false)} className="min-h-11 rounded-xl bg-soil px-3 text-sm font-semibold text-paper">
             {keepLabel}
           </button>
-          <button type="button" onClick={onDelete} className="min-h-11 rounded-xl border border-beet/60 px-3 text-sm font-semibold text-beet">
+          <button type="button" onClick={onDelete} className="min-h-11 rounded-xl border border-beet/60 px-3 text-sm font-semibold text-beet lg:min-h-8 lg:px-2 lg:text-xs">
             {deleteLabel}
           </button>
         </div>
@@ -1350,7 +1362,7 @@ function RecentCheck({
       <button
         type="button"
         onClick={() => setConfirm(true)}
-        className="absolute top-2 right-2 hidden min-h-11 rounded-xl bg-page/90 px-3 text-sm font-semibold text-paper lg:inline-flex lg:items-center lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100"
+        className="absolute top-2 right-2 hidden min-h-11 rounded-xl bg-page/90 px-3 text-sm font-semibold text-paper lg:inline-flex lg:min-h-8 lg:items-center lg:px-2 lg:text-xs lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100"
       >
         {deleteLabel}
       </button>
