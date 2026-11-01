@@ -41,6 +41,12 @@ describe("readApiKey", () => {
     stubChunks([]);
     expect(readApiKey()).toBe(COMPLETE);
   });
+
+  it("strips an auth-scheme prefix a paste can carry", () => {
+    vi.stubEnv("MODEL_API_KEY", `Bearer ${COMPLETE}`);
+    stubChunks([]);
+    expect(readApiKey()).toBe(COMPLETE);
+  });
 });
 
 describe("isMockMode", () => {

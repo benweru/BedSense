@@ -64,12 +64,16 @@ export function readApiKey(): string | null {
   return readChunkedApiKey();
 }
 
-/** A dashboard paste can carry its quotes with it; the key inside is what Meta expects. */
+/** A dashboard paste can carry its quotes or an auth-scheme prefix with it; the key inside is what Meta expects. */
 function unquote(value: string): string {
-  if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
-    return value.slice(1, -1).trim();
+  let cleaned = value;
+  if (
+    cleaned.length >= 2 &&
+    ((cleaned.startsWith('"') && cleaned.endsWith('"')) || (cleaned.startsWith("'") && cleaned.endsWith("'")))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
   }
-  return value;
+  return cleaned.replace(/^bearer\s+/i, "");
 }
 
 function readChunkedApiKey(): string | null {

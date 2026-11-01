@@ -375,6 +375,35 @@ describe("adviseBed", () => {
     expect(chatlessCatalogs).toBe(2);
     expect(chatlessTried).toEqual(["muse-spark-1.3-contributor"]);
     expect(chatless.model).toBe("muse-spark-1.3-contributor");
+  });
+
+  it("calls the known ids when the catalog read itself is rejected, and still stops when the key is rejected", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const tried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) {
+          return jsonResponse({ error: { code: "unauthorized" } }, 401);
+        }
+        const body = JSON.parse(String(init.body)) as { model?: string };
+        tried.push(body.model ?? "");
+        return jsonResponse({ choices: [{ message: { content: JSON.stringify(triage) } }] });
+      }),
+    );
+    const recovered = await adviseBed(bedOptions());
+    expect(tried).toEqual(["muse-spark-1.3-contributor"]);
+    expect(recovered.model).toBe("muse-spark-1.3-contributor");
+    expect(recovered.triageSource).toBe("muse");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/models")) return jsonResponse({ error: { code: "unauthorized" } }, 401);
+        return jsonResponse({ error: { code: "unauthorized" } }, 401);
+      }),
+    );
+    await expect(adviseBed(bedOptions())).rejects.toMatchObject({ code: "muse_unavailable" });
 
     const fallbackTried: string[] = [];
     vi.stubGlobal(
