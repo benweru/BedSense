@@ -817,7 +817,7 @@ function Timeline({
             </button>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 text-sm font-semibold text-mute hover:text-beet">
+          <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 text-sm font-semibold text-beet hover:underline">
             {words.deletePlant}
           </button>
         )}

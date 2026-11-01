@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Severity } from "@/lib/severity";
 import { INTRO_KEY, UI, type UiWords } from "@/lib/ui-copy";
@@ -19,13 +20,13 @@ export function ScanStatus({ words }: { words: UiWords }) {
   }, [words.scanSteps.length]);
   return (
     <div id="check-progress" className="mt-4 rounded-[24px] hairline surface-3 px-4 py-4" role="status" aria-live="polite" aria-busy="true">
-      <p className="eyebrow text-leaf">{words.scanEyebrow}</p>
+      <p className="eyebrow text-beet">{words.scanEyebrow}</p>
       <p key={step} className="tick-label mt-1 font-serif text-2xl leading-tight text-paper">
         {words.scanSteps[step]}
       </p>
       <div className="mt-3 h-px w-full overflow-hidden bg-white/10" aria-hidden="true">
         <span
-          className="block h-full origin-left bg-leaf"
+          className="block h-full origin-left bg-beet"
           style={{ transform: `scaleX(${(step + 1) / words.scanSteps.length})`, transition: "transform 600ms cubic-bezier(.22,1,.36,1)" }}
         />
       </div>
@@ -234,7 +235,7 @@ export function FirstVisitIntro({ locale }: { locale: Locale }) {
   };
   const item = words.intro[card];
   const last = card === words.intro.length - 1;
-  return (
+  return createPortal(
     <div id="first-visit-intro" className="fade-in fixed inset-0 z-40 flex items-end justify-center bg-page/80 p-4 backdrop-blur-sm sm:items-center" role="dialog" aria-modal="true" aria-label={item.title}>
       <div key={card} className="rise w-full max-w-md rounded-[32px] hairline-strong surface-2 bg-card p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_40px_80px_-30px_rgba(0,0,0,0.9)]">
         <p className="eyebrow text-leaf">
@@ -262,7 +263,8 @@ export function FirstVisitIntro({ locale }: { locale: Locale }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
