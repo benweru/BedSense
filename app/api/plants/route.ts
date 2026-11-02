@@ -1,5 +1,7 @@
+import { nextRecheckAt, resolveRecheckDays } from "@/lib/memory";
 import { badRequest, failed, isoDate, readJson, requireSession, text } from "@/lib/server/plant-api";
 import { PLANT_COLUMNS, plantFromRow } from "@/lib/server/plant-store";
+import type { AnalyzeResult } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,12 +11,21 @@ export async function GET(): Promise<Response> {
   const session = await requireSession();
   if (session instanceof Response) return session;
   const { client } = session;
-  const { data, error } = await client.from("plants").select(`${PLANT_COLUMNS},checks(created_at)`).order("created_at", { ascending: false });
+  const { data, error } = await client.from("plants").select(`${PLANT_COLUMNS},checks(created_at,result_json)`).order("created_at", { ascending: false });
   if (error) return failed();
   const plants = (data ?? []).map((row) => {
-    const checks = (row.checks ?? []) as { created_at: string }[];
-    const lastCheckAt = checks.map((check) => check.created_at).sort().at(-1) ?? null;
-    return { ...plantFromRow(row), lastCheckAt, checkCount: checks.length };
+    const checks = (row.checks ?? []) as { created_at: string; result_json: AnalyzeResult }[];
+    const sorted = [...checks].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const latest = sorted.at(-1) ?? null;
+    const lastCheckAt = latest?.created_at ?? null;
+    const nextAt = latest ? nextRecheckAt(latest.created_at, resolveRecheckDays(latest.result_json)) : null;
+    return {
+      ...plantFromRow(row),
+      lastCheckAt,
+      checkCount: checks.length,
+      nextRecheckAt: nextAt,
+      recheckReason: latest?.result_json.recheckReason ?? null,
+    };
   });
   return Response.json({ plants });
 }
@@ -38,5 +49,5 @@ export async function POST(request: Request): Promise<Response> {
     .select(PLANT_COLUMNS)
     .single();
   if (error || !data) return failed();
-  return Response.json({ plant: { ...plantFromRow(data), lastCheckAt: null, checkCount: 0 } }, { status: 201 });
+  return Response.json({ plant: { ...plantFromRow(data), lastCheckAt: null, checkCount: 0, nextRecheckAt: null, recheckReason: null } }, { status: 201 });
 }

@@ -143,6 +143,10 @@ export type AnalyzeResult = {
   qualityNote?: string | null;
   /** Set when the check belongs to a saved plant that already has earlier checks. */
   progress?: PlantProgress | null;
+  /** Days until change from this finding or treatment would be visible, as the model judged. */
+  recheckDays?: number | null;
+  /** Why that interval, in one short plain sentence. */
+  recheckReason?: string | null;
   /** Saved plant this check was filed under. */
   plantId?: string | null;
 };

@@ -1,4 +1,5 @@
 import { containsDosage } from "@/lib/triage";
+import { severityFor, type SeverityInput } from "@/lib/severity";
 import {
   GROWTH_TRENDS,
   type AnalyzeResult,
@@ -43,6 +44,37 @@ export function recheckDue(lastCheckAt: string | null, now: Date): boolean {
   return days !== null && days >= RECHECK_AFTER_DAYS;
 }
 
+export const RECHECK_MIN_DAYS = 1;
+export const RECHECK_MAX_DAYS = 14;
+
+/**
+ * The model's judged interval wins, clamped to a sane range. Without one,
+ * fall back by severity: a held photo retakes tomorrow, a serious finding
+ * gets eyes in 2 days, a watch in 3, a healthy plant on a weekly rhythm.
+ */
+export function resolveRecheckDays(result: SeverityInput & { recheckDays?: number | null }): number {
+  const judged = typeof result.recheckDays === "number" && Number.isFinite(result.recheckDays) ? Math.round(result.recheckDays) : null;
+  if (judged !== null) return Math.min(RECHECK_MAX_DAYS, Math.max(RECHECK_MIN_DAYS, judged));
+  if (result.qualityHold) return 1;
+  const severity = severityFor(result);
+  if (severity === "act") return 2;
+  if (severity === "watch") return 3;
+  return 7;
+}
+
+/** ISO date the next check falls due, from the check date plus its interval. */
+export function nextRecheckAt(createdAt: string, days: number): string | null {
+  const start = new Date(createdAt).getTime();
+  if (!Number.isFinite(start)) return null;
+  return new Date(start + days * DAY_MS).toISOString();
+}
+
+export function recheckDueAt(nextAt: string | null, now: Date): boolean {
+  if (!nextAt) return false;
+  const due = new Date(nextAt).getTime();
+  return Number.isFinite(due) && now.getTime() >= due;
+}
+
 export function memoryPromptBlock(
   plant: PlantRecord,
   checks: readonly MemoryCheck[],
@@ -77,6 +109,7 @@ export function memoryPromptBlock(
 
   const since = last ? practices.filter((log) => log.loggedAt >= last.createdAt) : practices;
   const recent = [...since].sort((a, b) => b.loggedAt.localeCompare(a.loggedAt)).slice(0, MEMORY_PRACTICES);
+  const treated = recent.some((log) => log.kind === "spray" || log.kind === "fertilizer");
   if (recent.length > 0) {
     lines.push("Farmer actions since the last check:");
     for (const log of recent) {
@@ -85,6 +118,11 @@ export function memoryPromptBlock(
     }
   } else {
     lines.push("- Farmer logged no actions since the last check.");
+  }
+  if (treated) {
+    lines.push(
+      "A spray or fertilizer was applied since the last check. In sinceLastCheck, say plainly whether the symptom looks better, the same, or worse since that treatment, so the farmer knows if it worked.",
+    );
   }
 
   lines.push(

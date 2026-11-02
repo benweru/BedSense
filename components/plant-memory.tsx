@@ -9,7 +9,7 @@ import { VoiceNote } from "@/components/voice-context";
 import { severityFor } from "@/lib/severity";
 import { sinceLastVisit } from "@/lib/since-last-visit";
 import { UI } from "@/lib/ui-copy";
-import { daysBetween, recheckDue } from "@/lib/memory";
+import { daysBetween, recheckDue, recheckDueAt } from "@/lib/memory";
 import { writeHistory } from "@/lib/phone-store";
 import { authAction, fetchSession, onAuthChanged, type AuthUser } from "@/lib/auth-client";
 import {
@@ -24,7 +24,12 @@ import {
   type PracticeLog,
 } from "@/lib/types";
 
-export type SavedPlant = PlantRecord & { lastCheckAt: string | null; checkCount: number };
+export type SavedPlant = PlantRecord & {
+  lastCheckAt: string | null;
+  checkCount: number;
+  nextRecheckAt?: string | null;
+  recheckReason?: string | null;
+};
 
 const WORDS = {
   en: {
@@ -56,6 +61,7 @@ const WORDS = {
     save: "Save plant",
     cancel: "Cancel",
     recheckDue: "Re-check due",
+    nextCheck: (date: string) => `Next check ${date}`,
     checks: (count: number) => `${count} check${count === 1 ? "" : "s"}`,
     lastChecked: (days: number) => (days === 0 ? "Checked today" : `Last check ${days} day${days === 1 ? "" : "s"} ago`),
     never: "No checks yet",
@@ -108,6 +114,7 @@ const WORDS = {
     save: "Hifadhi mmea",
     cancel: "Ghairi",
     recheckDue: "Kagua tena sasa",
+    nextCheck: (date: string) => `Ukaguzi ujao ${date}`,
     checks: (count: number) => `Ukaguzi ${count}`,
     lastChecked: (days: number) => (days === 0 ? "Imekaguliwa leo" : `Ilikaguliwa siku ${days} zilizopita`),
     never: "Bado hakuna ukaguzi",
@@ -294,7 +301,10 @@ export function PlantMemory({
         {plants
           .filter((plant) => !selected || plant.id === selected.id)
           .map((plant, index) => {
-            const due = recheckDue(plant.lastCheckAt, new Date());
+            const due = plant.nextRecheckAt ? recheckDueAt(plant.nextRecheckAt, new Date()) : recheckDue(plant.lastCheckAt, new Date());
+            const nextDate = !due && plant.nextRecheckAt
+              ? new Intl.DateTimeFormat(locale === "sw" ? "sw-KE" : "en-GB", { weekday: "short", day: "numeric", month: "short" }).format(new Date(plant.nextRecheckAt))
+              : null;
             const days = plant.lastCheckAt ? daysBetween(plant.lastCheckAt, new Date()) : null;
             const active = selected?.id === plant.id;
             const latest = history.find((entry) => entry.result.plantId === plant.id);
@@ -337,6 +347,12 @@ export function PlantMemory({
                   <span className="mt-0.5 block text-xs leading-5 text-paper/75">
                     {health ? `${ui.severity[health]} · ` : ""}{days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
                   </span>
+                  {nextDate ? (
+                    <span className="mt-0.5 block text-xs leading-5 text-sun">
+                      {words.nextCheck(nextDate)}
+                      {plant.recheckReason ? <span className="block text-paper/75">{plant.recheckReason}</span> : null}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             );

@@ -131,6 +131,11 @@ export function buildMockResult(options: {
     disclaimer: text.disclaimer,
     agronomistCallout: text.agronomistCallout,
     note: null,
+    recheckDays: 3,
+    recheckReason:
+      options.locale === "sw"
+        ? "Onyesho: madoa mapya yangeonekana ndani ya siku chache kama ugonjwa unaenea."
+        : "Demo: new spots would show within days if the problem is still spreading.",
   };
 }
 
@@ -206,6 +211,11 @@ function issueResult(options: {
     disclaimer: text.disclaimer,
     agronomistCallout: text.agronomistCallout,
     note: null,
+    recheckDays: 3,
+    recheckReason:
+      options.locale === "sw"
+        ? "Onyesho: madoa mapya yangeonekana ndani ya siku chache kama ugonjwa unaenea."
+        : "Demo: new spots would show within days if the problem is still spreading.",
   };
 }
 
