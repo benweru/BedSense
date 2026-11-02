@@ -42,6 +42,7 @@ function fixedPairs(): Map<string, Pair> {
     addPair(table, [en.observations, en.likelyCauses, en.mitigations, en.actions, en.contextAsk, en.chemicals?.suspect], [sw.observations, sw.likelyCauses, sw.mitigations, sw.actions, sw.contextAsk, sw.chemicals?.suspect]);
   }
   addPair(table, "Demo: the plant looks about the same as the last check.", "Onyesho: mmea unaonekana sawa na ukaguzi uliopita.");
+  addPair(table, "Demo: new spots would show within days if the problem is still spreading.", "Onyesho: madoa mapya yangeonekana ndani ya siku chache kama ugonjwa unaenea.");
   fixedTable = table;
   return table;
 }
@@ -117,5 +118,6 @@ export function relocalizeResult(result: AnalyzeResult, locale: Locale): Analyze
         }
       : result.chemicals,
     progress: result.progress ? { ...result.progress, sinceLastCheck: result.progress.sinceLastCheck ? swap(result.progress.sinceLastCheck) : result.progress.sinceLastCheck } : result.progress,
+    recheckReason: result.recheckReason ? swap(result.recheckReason) : result.recheckReason,
   };
 }

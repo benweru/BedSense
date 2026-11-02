@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { daysBetween, memoryPromptBlock, parseProgress, recheckDue, seasonFor, type MemoryCheck } from "@/lib/memory";
+import { daysBetween, memoryPromptBlock, nextRecheckAt, parseProgress, recheckDue, recheckDueAt, resolveRecheckDays, seasonFor, type MemoryCheck } from "@/lib/memory";
+import { emptyConceptCounts } from "@/lib/concepts";
 import type { PlantRecord, PracticeLog } from "@/lib/types";
 
 const NOW = new Date("2026-10-29T12:00:00Z");
@@ -45,6 +46,50 @@ describe("day and season helpers", () => {
     expect(recheckDue("2026-10-28T12:00:00Z", NOW)).toBe(false);
     expect(recheckDue("2026-10-27T11:00:00Z", NOW)).toBe(true);
     expect(recheckDue(null, NOW)).toBe(false);
+  });
+});
+
+describe("adaptive recheck interval", () => {
+  const base = {
+    counts: emptyConceptCounts(),
+    likelyCauses: [] as string[],
+    mitigations: [] as string[],
+    chemicals: null,
+    confidence: "high" as const,
+    qualityHold: null,
+    progress: null,
+  };
+
+  it("uses the model's judged interval, clamped to 1-14 days", () => {
+    expect(resolveRecheckDays({ ...base, recheckDays: 5 })).toBe(5);
+    expect(resolveRecheckDays({ ...base, recheckDays: 0 })).toBe(1);
+    expect(resolveRecheckDays({ ...base, recheckDays: 30 })).toBe(14);
+    expect(resolveRecheckDays({ ...base, recheckDays: 3.6 })).toBe(4);
+  });
+
+  it("falls back by severity when the model gave no interval", () => {
+    expect(resolveRecheckDays({ ...base, qualityHold: "unclear" })).toBe(1);
+    expect(resolveRecheckDays({ ...base, likelyCauses: ["fungus"], chemicals: { suspect: "leaf spot", verifyNote: "", priceNote: "", lookup: "catalog", products: [{ activeIngredient: "mancozeb", productClass: "fungicide", useNote: "", offers: [] }] } })).toBe(2);
+    expect(resolveRecheckDays({ ...base, likelyCauses: ["aphids"] })).toBe(3);
+    expect(resolveRecheckDays({ ...base })).toBe(7);
+    expect(resolveRecheckDays({ ...base, progress: { growthTrend: "declining", flowering: null, sinceLastCheck: null } })).toBe(2);
+  });
+
+  it("computes the due date and whether it has arrived", () => {
+    const next = nextRecheckAt("2026-10-29T12:00:00Z", 3);
+    expect(next).toBe("2026-11-01T12:00:00.000Z");
+    expect(recheckDueAt(next, NOW)).toBe(false);
+    expect(recheckDueAt(next, new Date("2026-11-02T00:00:00Z"))).toBe(true);
+    expect(recheckDueAt(null, NOW)).toBe(false);
+    expect(nextRecheckAt("not a date", 3)).toBeNull();
+  });
+
+  it("asks for a treatment verdict when a spray or feed was logged since the last check", () => {
+    const sprayed: PracticeLog[] = [{ id: "a1", plantId: "p1", loggedAt: "2026-10-28T09:00:00Z", kind: "spray", note: "Sprayed the bed" }];
+    const block = memoryPromptBlock(plant, [check("2026-10-27T12:00:00Z", "spots")], sprayed, NOW);
+    expect(block).toMatch(/whether the symptom looks better, the same, or worse/);
+    const watered: PracticeLog[] = [{ id: "a2", plantId: "p1", loggedAt: "2026-10-28T09:00:00Z", kind: "watering", note: "Watered" }];
+    expect(memoryPromptBlock(plant, [check("2026-10-27T12:00:00Z", "spots")], watered, NOW)).not.toMatch(/whether the symptom looks better/);
   });
 });
 

@@ -7,7 +7,7 @@ import { parseFarmerPlant } from "@/lib/plant-name";
 import { researchActives, researchFertilizers, researchFor } from "@/lib/research";
 import { catalogChatModels, listMetaModels, MetaHttpError, MUSE_MODELS, postMeta, triageModelIds } from "@/lib/server/meta";
 import { parseProgress } from "@/lib/memory";
-import { finalizeTriage } from "@/lib/triage";
+import { containsDosage, finalizeTriage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
 import { AnalyzeError, type ChemicalAdvice, type ConceptCounts, type CropId, type FarmerContext, type Locale, type PlantProgress } from "@/lib/types";
 
@@ -38,6 +38,8 @@ export type ModelDraft = {
   growthTrend?: unknown;
   flowering?: unknown;
   sinceLastCheck?: unknown;
+  recheckDays?: unknown;
+  recheckReason?: unknown;
   plantInFrame?: unknown;
 };
 
@@ -68,6 +70,9 @@ export type TriageDraft = {
   needsInfo: boolean;
   chemicals: ChemicalAdvice | null;
   progress: PlantProgress | null;
+  /** Days until improvement or worsening would be visible, as the model judged. */
+  recheckDays: number | null;
+  recheckReason: string | null;
   /** False when the photo is not a real plant. Missing means the model did not say. */
   plantInFrame: boolean | null;
   /** Symptom class settled from the photo or the farmer's notes, when one is named. */
@@ -309,6 +314,7 @@ async function completeModel(
     needsInfo,
     chemicals,
     progress: options.wantProgress ? parseProgress(parsed) : null,
+    ...parseRecheck(parsed.recheckDays, parsed.recheckReason),
     plantInFrame: parseFlag(parsed.plantInFrame),
     issue: finalized.issue,
   };
@@ -361,6 +367,8 @@ export function localFallback(
     needsInfo,
     chemicals,
     progress: null,
+    recheckDays: null,
+    recheckReason: null,
     plantInFrame: null,
     issue: finalized.issue,
   };
@@ -405,6 +413,12 @@ function parseFlag(value: unknown): boolean | null {
   if (value === true || value === "true" || value === "yes") return true;
   if (value === false || value === "false" || value === "no") return false;
   return null;
+}
+
+function parseRecheck(value: unknown, reason: unknown): { recheckDays: number | null; recheckReason: string | null } {
+  const days = typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && Number.isFinite(Number(value)) ? Number(value) : null;
+  const text = typeof reason === "string" ? reason.replace(/[\u0000-\u001f"]+/g, " ").replace(/\s+/g, " ").trim() : "";
+  return { recheckDays: days, recheckReason: text && !containsDosage(text) ? text.slice(0, 220) : null };
 }
 
 function repairAsk(locale: Locale, ask: string | null): string | null {
@@ -532,8 +546,9 @@ export function developerPrompt(locale: Locale): string {
     ...(language === "Swahili" ? ["Use natural, everyday Kenyan Swahili a farmer would speak, not a word-for-word translation of English. Keep crop and product names farmers already use."] : []),
     "Judge plantInFrame from the photo alone, not from the plant the farmer named. Set plantInFrame to false when the photo does not show a real living plant. A screenshot, a printed picture, a drawing, a room, a person, or an object is false. A real plant is true, even when it looks unhealthy.",
     "When plantInFrame is false, leave observations, likelyCauses, mitigations, actions, and chemicals empty.",
+    "Always set recheckDays and recheckReason: how many days until improvement or worsening from this finding or treatment would be visible in a new photo, and one short plain sentence saying why. A spray or feed needs its effect window (often 3 to 5 days); a fast-spreading disease or pest may show change in 1 to 2 days; a healthy plant needs only a weekly look (7 days). Keep recheckDays between 1 and 14.",
     "Return one JSON object only, with this shape:",
-    '{"plantInFrame":true,"detectedPlant":"plant name","plantMismatch":false,"symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
+    '{"plantInFrame":true,"detectedPlant":"plant name","plantMismatch":false,"symptom":"spots","observations":["short field note","short field note"],"likelyCauses":["hypothesis","hypothesis"],"mitigations":["cultural step","cultural step"],"actions":["symptom check","symptom check","symptom check"],"confidence":"low|medium|high","confidenceScore":0.5,"contextAsk":"","sprayIndicated":true,"diseaseIndicated":true,"suspect":"leaf spot","recheckDays":3,"recheckReason":"New spots would show within days if the fungus is still spreading.","chemicals":[{"activeIngredient":"mancozeb","productClass":"fungicide","useNote":"Protectant for leaf spots. The rate must follow the product label."}]}',
     "symptom is curl, deformity, spots, wilt, yellowing, insects, or an empty string.",
     "observations has 2 or 3 items. likelyCauses and mitigations are empty only when no symptom is visible. actions has exactly 3 items. confidenceScore is from 0 to 1. chemicals has at most 2 items.",
   ].join(" ");
@@ -711,6 +726,8 @@ function draftFromRecord(record: Record<string, unknown>): ModelDraft {
     growthTrend: record.growthTrend,
     flowering: record.flowering,
     sinceLastCheck: record.sinceLastCheck,
+    recheckDays: record.recheckDays,
+    recheckReason: record.recheckReason,
     plantInFrame: record.plantInFrame,
   };
 }

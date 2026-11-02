@@ -2,7 +2,7 @@ import type { AnalyzeResult } from "@/lib/types";
 
 export type Severity = "healthy" | "watch" | "act";
 
-type SeverityInput = Pick<AnalyzeResult, "counts" | "likelyCauses" | "mitigations" | "chemicals" | "confidence" | "qualityHold" | "progress">;
+export type SeverityInput = Pick<AnalyzeResult, "counts" | "likelyCauses" | "mitigations" | "chemicals" | "confidence" | "qualityHold" | "progress">;
 
 /**
  * Map an existing check onto a three-step pill. Uses only triage data already on the result:

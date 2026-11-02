@@ -9,7 +9,7 @@ import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed, plantNameMismatch } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
 import { isSoftPhoto, isUnsureRead, judgeFrame, measureJpeg, type PhotoVerdict } from "@/lib/photo-quality";
-import { memoryPromptBlock } from "@/lib/memory";
+import { memoryPromptBlock, resolveRecheckDays } from "@/lib/memory";
 import { isUuid, supabasePlantStore, type PlantMemoryStore } from "@/lib/server/plant-store";
 import { segmentBed } from "@/lib/server/sam";
 import { AnalyzeError, type AnalyzeResult, type ConceptCounts, type CropId, type Locale, type MaskMark, type PlantProgress } from "@/lib/types";
@@ -258,6 +258,17 @@ async function runAnalysis(
     qualityNote,
     qualityBatch,
     progress: memory?.hasHistory ? advice.progress : null,
+    recheckDays: resolveRecheckDays({
+      counts,
+      likelyCauses: advice.likelyCauses,
+      mitigations: advice.mitigations,
+      chemicals: advice.chemicals,
+      confidence: advice.confidence,
+      qualityHold: null,
+      progress: memory?.hasHistory ? advice.progress : null,
+      recheckDays: advice.recheckDays,
+    }),
+    recheckReason: advice.recheckReason,
   });
 }
 
@@ -314,6 +325,8 @@ function withheldResult(options: {
     qualityMessage,
     qualityVerdicts: options.verdicts,
     qualityNote: null,
+    recheckDays: 1,
+    recheckReason: null,
   };
 }
 
