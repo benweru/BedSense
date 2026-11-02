@@ -16,7 +16,8 @@ export async function fetchSession(): Promise<AuthSession> {
   }
 }
 
-export async function authAction(body: Record<string, unknown>): Promise<boolean> {
+/** HTTP status of the call, or 0 when it never reached the server. */
+export async function authAction(body: Record<string, unknown>): Promise<number> {
   try {
     const response = await fetch("/api/auth", {
       method: "POST",
@@ -24,9 +25,9 @@ export async function authAction(body: Record<string, unknown>): Promise<boolean
       body: JSON.stringify(body),
     });
     if (response.ok) notifyAuthChanged();
-    return response.ok;
+    return response.status;
   } catch {
-    return false;
+    return 0;
   }
 }
 

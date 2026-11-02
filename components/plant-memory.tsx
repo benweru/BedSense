@@ -47,6 +47,7 @@ const WORDS = {
     signOut: "Sign out",
     authError: "Sign-in did not work. Check the email or number and try again.",
     authUnavailable: "Sign-in is not switched on for this site yet. Your checks still work - they are saved on this phone.",
+    authRateLimited: "Too many codes asked for just now. Wait a few minutes, then try again.",
     noPlant: "Don't save this check",
     newPlant: "New plant",
     plantName: "Plant name",
@@ -98,6 +99,7 @@ const WORDS = {
     signOut: "Ondoka",
     authError: "Imeshindwa kuingia. Hakikisha barua pepe au nambari ni sahihi, kisha jaribu tena.",
     authUnavailable: "Kuingia bado hakujawashwa kwenye tovuti hii. Ukaguzi wako unaendelea kufanya kazi - umehifadhiwa kwenye simu hii.",
+    authRateLimited: "Nambari zimeombwa mara nyingi sana sasa hivi. Subiri dakika chache, kisha jaribu tena.",
     noPlant: "Usihifadhi ukaguzi huu",
     newPlant: "Mmea mpya",
     plantName: "Jina la mmea",
@@ -411,6 +413,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
   const phone = byEmail ? null : kenyaPhone(target);
 
   useEffect(() => {
@@ -425,9 +428,11 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
     }
     setBusy(true);
     setError(false);
-    const ok = await authAction({ action: "send", ...contact });
+    setRateLimited(false);
+    const status = await authAction({ action: "send", ...contact });
     setBusy(false);
-    if (!ok) setError(true);
+    if (status === 429) setRateLimited(true);
+    else if (status !== 200) setError(true);
     else setSent(true);
   }
 
@@ -440,9 +445,11 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
     }
     setBusy(true);
     setError(false);
-    const ok = await authAction({ action: "verify", ...contact, code: code.trim() });
+    setRateLimited(false);
+    const status = await authAction({ action: "verify", ...contact, code: code.trim() });
     setBusy(false);
-    if (!ok) setError(true);
+    if (status === 429) setRateLimited(true);
+    else if (status !== 200) setError(true);
   }
 
   if (configured === false) {
@@ -515,7 +522,11 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
         >
           {byEmail ? words.usePhone : words.useEmail}
         </button>
-        {error ? (
+        {rateLimited ? (
+          <p className="text-base text-danger" role="alert">
+            {words.authRateLimited}
+          </p>
+        ) : error ? (
           <p className="text-base text-danger" role="alert">
             {words.authError}
           </p>
