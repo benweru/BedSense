@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /** Refreshes the Supabase session cookie so route handlers see a live user. */
 export async function proxy(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
   let response = NextResponse.next({ request });
   if (!url || !key) return response;
 

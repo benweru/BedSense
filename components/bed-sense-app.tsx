@@ -25,7 +25,7 @@ import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, forgetCheck, rememberCheck } from "@/lib/history";
 import { parseFarmerPlant } from "@/lib/plant-name";
 import { severityFor } from "@/lib/severity";
-import { browserSupabase } from "@/lib/supabase-browser";
+import { fetchSession, onAuthChanged } from "@/lib/auth-client";
 import { UI, type UiWords } from "@/lib/ui-copy";
 import { clearHistoryStore, useHistory, useLocale, writeHistory } from "@/lib/phone-store";
 import {
@@ -71,11 +71,9 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const words = UI[locale];
 
   useEffect(() => {
-    const supabase = browserSupabase();
-    if (!supabase) return;
-    void supabase.auth.getUser().then(({ data }) => setSignedIn(Boolean(data.user)));
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setSignedIn(Boolean(session?.user)));
-    return () => data.subscription.unsubscribe();
+    const load = () => void fetchSession().then((session) => setSignedIn(Boolean(session.user)));
+    load();
+    return onAuthChanged(load);
   }, []);
 
   const choosePlant = useCallback((plant: SavedPlant | null) => {

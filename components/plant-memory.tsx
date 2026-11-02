@@ -3,7 +3,6 @@
 import { relocalizeResult, relocalizeText } from "@/lib/relocalize";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 import { flushSync } from "react-dom";
 import { CheckMark, EmptyIllustration } from "@/components/premium";
 import { VoiceNote } from "@/components/voice-context";
@@ -12,7 +11,7 @@ import { sinceLastVisit } from "@/lib/since-last-visit";
 import { UI } from "@/lib/ui-copy";
 import { daysBetween, recheckDue } from "@/lib/memory";
 import { writeHistory } from "@/lib/phone-store";
-import { browserSupabase } from "@/lib/supabase-browser";
+import { authAction, fetchSession, onAuthChanged, type AuthUser } from "@/lib/auth-client";
 import {
   PRACTICE_KINDS,
   type GrowthTrend,
@@ -47,6 +46,7 @@ const WORDS = {
     emailSent: "We sent a code to your email.",
     signOut: "Sign out",
     authError: "Sign-in did not work. Check the email or number and try again.",
+    authUnavailable: "Sign-in is not switched on for this site yet. Your checks still work - they are saved on this phone.",
     noPlant: "Don't save this check",
     newPlant: "New plant",
     plantName: "Plant name",
@@ -97,6 +97,7 @@ const WORDS = {
     emailSent: "Tumekutumia nambari kwa barua pepe.",
     signOut: "Ondoka",
     authError: "Imeshindwa kuingia. Hakikisha barua pepe au nambari ni sahihi, kisha jaribu tena.",
+    authUnavailable: "Kuingia bado hakujawashwa kwenye tovuti hii. Ukaguzi wako unaendelea kufanya kazi - umehifadhiwa kwenye simu hii.",
     noPlant: "Usihifadhi ukaguzi huu",
     newPlant: "Mmea mpya",
     plantName: "Jina la mmea",
@@ -155,8 +156,9 @@ export function PlantsHomeCard({ locale }: { locale: Locale }) {
   const words = WORDS[locale];
   const [plants, setPlants] = useState<SavedPlant[] | null>(null);
   const [signedOut, setSignedOut] = useState(false);
+  const [configured, setConfigured] = useState<boolean | null>(null);
   useEffect(() => {
-    if (!browserSupabase()) return;
+    void fetchSession().then((session) => setConfigured(session.configured));
     void fetch("/api/plants", { cache: "no-store" })
       .then(async (response) => {
         if (response.status === 401) {
@@ -170,7 +172,7 @@ export function PlantsHomeCard({ locale }: { locale: Locale }) {
       })
       .catch(() => undefined);
   }, []);
-  if (!browserSupabase()) return null;
+  if (configured === false) return null;
   return (
     <Link href="/plants" className="lift block rounded-xl border border-leaf/40 bg-card p-5 hover:border-leaf sm:p-6">
       <h2 className="font-semibold text-2xl leading-tight text-paper">{words.view}</h2>
@@ -201,20 +203,23 @@ export function PlantMemory({
   refreshKey: number;
   disabled: boolean;
 }) {
-  const supabase = browserSupabase();
   const words = WORDS[locale];
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [configured, setConfigured] = useState<boolean | null>(null);
   const [plants, setPlants] = useState<SavedPlant[]>([]);
   const [plantsLoading, setPlantsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (!supabase) return;
-    void supabase.auth.getUser().then(({ data }) => setUser(data.user));
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => data.subscription.unsubscribe();
-  }, [supabase]);
+    const load = () =>
+      void fetchSession().then((session) => {
+        setConfigured(session.configured);
+        setUser(session.user);
+      });
+    load();
+    return onAuthChanged(load);
+  }, []);
 
   const loadPlants = useCallback(async () => {
     setPlantsLoading(true);
@@ -250,7 +255,7 @@ export function PlantMemory({
     else onSelect(plant);
   };
 
-  if (!supabase) return null;
+  if (configured === false) return null;
 
   if (!user) return <SignIn words={words} />;
 
@@ -262,7 +267,7 @@ export function PlantMemory({
           type="button"
           onClick={() => {
             onSelect(null);
-            void supabase.auth.signOut();
+            void authAction({ action: "signout" });
           }}
           className="min-h-11 rounded-full px-3 text-sm font-semibold text-mute hover:text-paper"
         >
@@ -399,7 +404,7 @@ export function AccountSignIn({ locale, heading = true }: { locale: Locale; head
 }
 
 function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) {
-  const supabase = browserSupabase();
+  const [configured, setConfigured] = useState<boolean | null>(null);
   const [byEmail, setByEmail] = useState(false);
   const [target, setTarget] = useState("");
   const [code, setCode] = useState("");
@@ -408,8 +413,11 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   const [error, setError] = useState(false);
   const phone = byEmail ? null : kenyaPhone(target);
 
+  useEffect(() => {
+    void fetchSession().then((session) => setConfigured(session.configured));
+  }, []);
+
   async function send() {
-    if (!supabase) return;
     const contact = byEmail ? (target.includes("@") ? { email: target.trim() } : null) : phone ? { phone } : null;
     if (!contact) {
       setError(true);
@@ -417,23 +425,35 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
     }
     setBusy(true);
     setError(false);
-    const { error: failure } = await supabase.auth.signInWithOtp({ ...contact, options: { shouldCreateUser: true } });
+    const ok = await authAction({ action: "send", ...contact });
     setBusy(false);
-    if (failure) setError(true);
+    if (!ok) setError(true);
     else setSent(true);
   }
 
   async function verify() {
-    if (!supabase || !code.trim()) return;
+    if (!code.trim()) return;
+    const contact = byEmail ? { email: target.trim() } : phone ? { phone } : null;
+    if (!contact) {
+      setError(true);
+      return;
+    }
     setBusy(true);
     setError(false);
-    const { error: failure } = byEmail
-      ? await supabase.auth.verifyOtp({ email: target.trim(), token: code.trim(), type: "email" })
-      : phone
-        ? await supabase.auth.verifyOtp({ phone, token: code.trim(), type: "sms" })
-        : { error: new Error("phone") };
+    const ok = await authAction({ action: "verify", ...contact, code: code.trim() });
     setBusy(false);
-    if (failure) setError(true);
+    if (!ok) setError(true);
+  }
+
+  if (configured === false) {
+    return (
+      <section id="plant-memory">
+        {heading ? <h2 className="font-semibold text-2xl leading-tight text-paper">{words.title}</h2> : null}
+        <p className="mt-2 text-base leading-6 text-mute" role="status">
+          {words.authUnavailable}
+        </p>
+      </section>
+    );
   }
 
   return (

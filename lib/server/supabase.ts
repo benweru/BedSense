@@ -3,13 +3,13 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export function supabaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
 }
 
 /** Request-scoped client. Row-level security limits every query to the signed-in farmer. */
 export async function serverSupabase(): Promise<SupabaseClient | null> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
   if (!url || !key) return null;
   const store = await cookies();
   return createServerClient(url, key, {

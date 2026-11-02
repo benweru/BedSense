@@ -1,0 +1,48 @@
+import { badRequest, failed, readJson, text } from "@/lib/server/plant-api";
+import { serverSupabase, sessionUser, supabaseConfigured } from "@/lib/server/supabase";
+
+/** Auth state for the browser. The Supabase key never leaves the server. */
+export async function GET(): Promise<Response> {
+  if (!supabaseConfigured()) return Response.json({ configured: false, user: null });
+  const session = await sessionUser();
+  const user = session?.user;
+  return Response.json({
+    configured: true,
+    user: user ? { email: user.email ?? null, phone: user.phone ?? null } : null,
+  });
+}
+
+export async function POST(request: Request): Promise<Response> {
+  if (!supabaseConfigured()) return Response.json({ error: "not_configured" }, { status: 503 });
+  const body = await readJson(request);
+  if (!body) return badRequest();
+  const action = text(body.action, 16);
+  const client = await serverSupabase();
+  if (!client) return failed();
+
+  if (action === "signout") {
+    await client.auth.signOut();
+    return Response.json({ ok: true });
+  }
+
+  const email = text(body.email, 254);
+  const phone = text(body.phone, 32);
+  const contact = email ? { email } : phone ? { phone } : null;
+  if (!contact) return badRequest();
+
+  if (action === "send") {
+    const { error } = await client.auth.signInWithOtp({ ...contact, options: { shouldCreateUser: true } });
+    return error ? failed() : Response.json({ ok: true });
+  }
+
+  if (action === "verify") {
+    const code = text(body.code, 16);
+    if (!code) return badRequest();
+    const { error } = email
+      ? await client.auth.verifyOtp({ email, token: code, type: "email" })
+      : await client.auth.verifyOtp({ phone: phone as string, token: code, type: "sms" });
+    return error ? failed() : Response.json({ ok: true });
+  }
+
+  return badRequest();
+}

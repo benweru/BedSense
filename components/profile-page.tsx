@@ -2,32 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 import { AccountSignIn } from "@/components/plant-memory";
 import { SiteChrome } from "@/components/site-chrome";
 import { copy } from "@/lib/copy";
 import { useLocale } from "@/lib/phone-store";
-import { browserSupabase } from "@/lib/supabase-browser";
+import { authAction, fetchSession, onAuthChanged, type AuthUser } from "@/lib/auth-client";
 
 export function ProfilePage() {
   const locale = useLocale();
   const text = copy[locale];
-  const [user, setUser] = useState<User | null>(null);
-  const supabase = browserSupabase();
-  // Without a Supabase project there is no account to load, so the page is
-  // ready at once; with one, wait for the first auth answer so the signed-out
-  // form does not flash before a signed-in user is known.
-  const [ready, setReady] = useState(() => supabase === null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!supabase) return;
-    void supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setReady(true);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => data.subscription.unsubscribe();
-  }, [supabase]);
+    const load = () =>
+      void fetchSession().then((session) => {
+        setUser(session.user);
+        setReady(true);
+      });
+    load();
+    return onAuthChanged(load);
+  }, []);
 
   const phone = user?.phone ? `+${user.phone.replace(/^\+/, "")}` : null;
   const email = user?.email ?? null;
@@ -46,7 +41,7 @@ export function ProfilePage() {
               </Link>
               <button
                 type="button"
-                onClick={() => void supabase?.auth.signOut()}
+                onClick={() => void authAction({ action: "signout" })}
                 className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream hover:bg-danger"
               >
                 {text.signOut}
