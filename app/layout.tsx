@@ -8,7 +8,7 @@ const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display", 
 export const metadata: Metadata = {
   title: "BedSense",
   description:
-    "Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.",
+    "Your plants can’t talk, but your phone can listen - photograph any plant and get quick, practical advice",
 };
 
 export const viewport: Viewport = {

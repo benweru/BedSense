@@ -295,10 +295,10 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         ) : (
           <>
             <h1 className="max-w-2xl text-3xl leading-tight tracking-[-0.01em] text-paper sm:text-4xl">
-              {text.lede.split(". ")[0]}.
+              {text.headline}
             </h1>
             <p className="mt-3 max-w-xl font-sans text-lg leading-7 text-mute">
-              {text.lede.split(". ").slice(1).join(". ")}
+              {text.subhead}
             </p>
           </>
         )}
@@ -306,7 +306,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           <button
             type="button"
             onClick={replayIntro}
-            className="press mt-4 inline-flex min-h-12 items-center rounded-full border border-leaf/50 px-5 text-base font-semibold text-paper hover:border-leaf"
+            className="press mx-auto mt-4 flex min-h-12 items-center rounded-full border border-leaf/50 px-5 text-base font-semibold text-paper hover:border-leaf sm:mx-0 sm:inline-flex"
           >
             {words.howItWorks}
           </button>
@@ -611,7 +611,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
                 label={
                   entry.result.farmerPlant ||
                   entry.result.detectedPlant ||
-                  (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.marks)
+                  (entry.result.primaryCrop ? text.concepts[entry.result.primaryCrop] : text.failedCheck)
                 }
                 confidence={text.levelLabel(entry.result.confidence)}
                 deleteLabel={text.deleteCheck}

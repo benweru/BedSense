@@ -9,7 +9,8 @@ export type PlantLineInput = {
 export type Copy = {
   kicker: string;
   title: string;
-  lede: string;
+  headline: string;
+  subhead: string;
   photoOnlyHint: string;
   correctPlantPrompt: string;
   correctPlantLabel: string;
@@ -68,6 +69,7 @@ export type Copy = {
   deleteCheckAsk: string;
   keepCheck: string;
   marks: string;
+  failedCheck: string;
   noMasks: string;
   errorGeneric: string;
   errorFormat: string;
@@ -140,8 +142,9 @@ export type Copy = {
 const en: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.",
-  photoOnlyHint: "Just add a photo — BedSense names the plant from the photo itself.",
+  headline: "Your plants can’t talk, but your phone can listen",
+  subhead: "Photograph any plant and get quick, practical advice",
+  photoOnlyHint: "Just add a photo - BedSense names the plant from the photo itself.",
   correctPlantPrompt: "Not your plant? Name it",
   correctPlantLabel: "What plant is this, really?",
   correctPlantPlaceholder: "e.g. Avocado",
@@ -231,6 +234,7 @@ const en: Copy = {
   deleteCheckAsk: "Delete this recent check? It will be removed from this phone only.",
   keepCheck: "Keep",
   marks: "Marks",
+  failedCheck: "Failed check",
   noMasks: "Few marks landed in this frame. The named plant is still checked.",
   errorGeneric: "The check did not finish. Try another photo.",
   errorFormat: "This photo did not open. Take it again or choose a JPEG.",
@@ -265,7 +269,7 @@ const en: Copy = {
   contextGuide:
     "Optional. Add plant age, practices, sprays, fertilizer, water, weather, or known issues. You can also ask a question, such as whether to water today.",
   contextAskLabel: "A clearer check would use this",
-  needsInfoLabel: "Not enough to name a treatment yet — this check still needs",
+  needsInfoLabel: "Not enough to name a treatment yet - this check still needs",
   contextUpdate: "Update the check",
   contextAskDefault: "If you know it, add the plant’s age and when you last watered.",
   followUpSpray:
@@ -283,7 +287,7 @@ const en: Copy = {
   askThinking: "Thinking…",
   askFailed: "That question did not go through. Try again.",
   askRateLimited:
-    "That is a lot of questions at once. Give it a few seconds, then ask again — your check above has not changed.",
+    "That is a lot of questions at once. Give it a few seconds, then ask again - your check above has not changed.",
   askUnavailable:
     "Muse is not available for questions right now. The checks above still stand; show this photo to an agrovet for more.",
   askDemoNote: "Demo answer from this check. Live answers need a model key.",
@@ -326,7 +330,7 @@ const en: Copy = {
       },
       counts,
       "No plants were marked in this frame.",
-      "In this frame —",
+      "In this frame -",
     ),
   plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
     const named = detectedPlant?.trim() || (primaryCrop === "onion" ? "Onion" : primaryCrop === "beetroot" ? "Beetroot" : primaryCrop === "chili" ? "Chili" : "");
@@ -346,8 +350,9 @@ const en: Copy = {
 const sw: Copy = {
   kicker: "Meta Global AI Developer Hackathon · Indie · Build for Your World",
   title: "BedSense",
-  lede: "Piga picha, jua tatizo. Piga picha ya mmea wako upate hatua rahisi za kuchukua leo.",
-  photoOnlyHint: "Ongeza picha tu — BedSense hutaja mmea kutoka kwenye picha yenyewe.",
+  headline: "Piga picha, jua tatizo",
+  subhead: "Piga picha ya mmea wako upate hatua rahisi za kuchukua leo",
+  photoOnlyHint: "Ongeza picha tu - BedSense hutaja mmea kutoka kwenye picha yenyewe.",
   correctPlantPrompt: "Si mmea wako? Utaje",
   correctPlantLabel: "Mmea huu ni upi hasa?",
   correctPlantPlaceholder: "mf. Parachichi",
@@ -432,6 +437,7 @@ const sw: Copy = {
   deleteCheckAsk: "Futa ukaguzi huu? Utafutwa kwenye simu hii pekee.",
   keepCheck: "Usifute",
   marks: "Alama",
+  failedCheck: "Ukaguzi umeshindwa",
   noMasks: "Hakuna alama nyingi kwenye picha hii. Bado tunakagua mmea uliotaja.",
   errorGeneric: "Ukaguzi haukukamilika. Jaribu picha nyingine.",
   errorFormat: "Picha hii haikufunguka. Piga picha tena au chagua JPEG.",
@@ -466,7 +472,7 @@ const sw: Copy = {
   contextGuide:
     "Si lazima. Andika umri wa mmea, unavyoutunza, dawa, mbolea, maji, hali ya hewa au matatizo uliyoona. Unaweza pia kuuliza swali, kama vile kama umwagilie leo.",
   contextAskLabel: "Haya yangesaidia ukaguzi kuwa sahihi zaidi",
-  needsInfoLabel: "Bado haitoshi kutaja matibabu — ukaguzi huu bado unahitaji",
+  needsInfoLabel: "Bado haitoshi kutaja matibabu - ukaguzi huu bado unahitaji",
   contextUpdate: "Sasisha ukaguzi",
   contextAskDefault: "Kama unajua, andika umri wa mmea na mara ya mwisho ulipomwagilia.",
   followUpSpray:
@@ -484,7 +490,7 @@ const sw: Copy = {
   askThinking: "Inafikiria…",
   askFailed: "Swali hilo halikupita. Jaribu tena.",
   askRateLimited:
-    "Maswali ni mengi kwa wakati mmoja. Subiri sekunde chache, kisha uliza tena — ukaguzi wako ulio juu haujabadilika.",
+    "Maswali ni mengi kwa wakati mmoja. Subiri sekunde chache, kisha uliza tena - ukaguzi wako ulio juu haujabadilika.",
   askUnavailable:
     "Muse haipatikani kwa maswali kwa sasa. Ukaguzi ulio juu bado unafaa; mwonyeshe agrovet picha hii kwa zaidi.",
   askDemoNote: "Jibu la onyesho kutoka ukaguzi huu. Majibu ya moja kwa moja yanahitaji ufunguo wa modeli.",
@@ -527,7 +533,7 @@ const sw: Copy = {
       },
       counts,
       "Hakuna mimea iliyowekwa alama kwenye picha hii.",
-      "Kwenye picha hii —",
+      "Kwenye picha hii -",
     ),
   plantLine: ({ detectedPlant, cropFocus, primaryCrop }) => {
     const named =

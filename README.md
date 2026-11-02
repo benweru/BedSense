@@ -1,6 +1,6 @@
 # BedSense
 
-Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.
+Your plants can’t talk, but your phone can listen - photograph any plant and get quick, practical advice
 
 Just photograph the plant — BedSense names it from the photo. If it names the wrong plant, you can correct it on the result and re-check. You can also add one optional note: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.
 

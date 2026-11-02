@@ -95,14 +95,18 @@ describe("public project boundaries", () => {
   });
 
   it("keeps the home line short and photo-first", () => {
-    const hero = "Your plants can’t talk, but your phone can listen. Photograph any plant and get quick, practical advice.";
-    expect(copy.en.lede).toBe(hero);
-    expect(copy.en.lede.toLowerCase()).not.toContain("triage steps only");
-    expect(copy.en.lede.toLowerCase()).not.toContain("not a diagnosis");
-    expect(copy.en.lede).toContain("Your plants can’t talk, but your phone can listen");
-    expect(copy.sw.lede).toContain("Piga picha, jua tatizo");
-    expect(copy.sw.lede).not.toMatch(/Kenya/i);
-    expect(copy.sw.lede).not.toContain("Huchagui zao");
+    const hero = "Your plants can’t talk, but your phone can listen - photograph any plant and get quick, practical advice";
+    expect(`${copy.en.headline} - ${copy.en.subhead.toLowerCase()}`).toBe(hero);
+    expect(copy.en.headline).toContain("Your plants can’t talk, but your phone can listen");
+    expect(copy.en.headline).not.toContain(".");
+    expect(copy.en.subhead).not.toContain(".");
+    expect(copy.en.subhead.toLowerCase()).not.toContain("triage steps only");
+    expect(copy.en.subhead.toLowerCase()).not.toContain("not a diagnosis");
+    expect(copy.sw.headline).toContain("Piga picha, jua tatizo");
+    expect(copy.sw.headline).not.toContain(".");
+    expect(copy.sw.subhead).not.toContain(".");
+    expect(copy.sw.subhead).not.toMatch(/Kenya/i);
+    expect(copy.sw.subhead).not.toContain("Huchagui zao");
     expect(copy.en.actions.toLowerCase()).toContain("three next checks");
     expect(copy.en.actionsHint.toLowerCase()).toContain("not a diagnosis");
     expect(copy.en.photoOnlyHint.toLowerCase()).toContain("photo");
