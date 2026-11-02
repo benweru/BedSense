@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Severity } from "@/lib/severity";
@@ -127,23 +126,6 @@ export function buzz() {
   } catch {
     /* vibration is optional */
   }
-}
-
-export function GuestSavePrompt({ words, onDismiss }: { words: UiWords; onDismiss: () => void }) {
-  return (
-    <div id="guest-save" className="rise rounded-xl border border-leaf/40 bg-leaf/10 p-5" role="region" aria-label={words.guestAsk}>
-      <p className="text-2xl leading-tight text-paper">{words.guestAsk}</p>
-      <p className="mt-2 text-base leading-6 text-mute">{words.guestLead}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/profile" className="press inline-flex min-h-12 items-center rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream">
-          {words.guestYes}
-        </Link>
-        <button type="button" onClick={onDismiss} className="press min-h-12 rounded-full px-4 text-base font-semibold text-mute hover:text-paper">
-          {words.guestNo}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 /** Original vs masked photo toggle. */

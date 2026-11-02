@@ -7,7 +7,6 @@ import { MaskCanvas } from "@/components/mask-canvas";
 import {
   EmptyIllustration,
   FirstVisitIntro,
-  GuestSavePrompt,
   MaskToggle,
   ResultSkeleton,
   SavedBurst,
@@ -381,8 +380,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             <p className="mt-4 text-3xl leading-[1.04] tracking-[-0.01em]">
               {words.emptyTitle}
             </p>
-            <p className="mt-3 max-w-xs text-base leading-6 text-mute">{words.emptyTip}</p>
-            <p className="mt-1 max-w-xs text-sm leading-6 text-mute">{text.photoOnlyHint}</p>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-mute">{text.photoOnlyHint}</p>
             <button
               type="button"
               disabled={busy}
@@ -629,16 +627,11 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       )}
 
       {result && !busy ? (
-        <div className="space-y-5">
-          <aside>
-            <h3 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] text-paper">{text.askAgronomist}</h3>
-            <p className="mt-2 text-base leading-7 text-paper/85">{result.agronomistCallout}</p>
-          </aside>
-          <div>
-            <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-mute">{text.beforeYouAct}</h3>
-            <p className="mt-2 text-sm leading-6 text-mute">{result.disclaimer}</p>
-          </div>
-        </div>
+        <aside className="rounded-lg border border-dashed border-ink/25 bg-field px-4 py-3 font-serif italic">
+          <p className="text-sm font-semibold not-italic uppercase tracking-[0.12em] text-mute">{text.askAgronomist}</p>
+          <p className="mt-1 text-sm leading-6 text-paper/85">{result.agronomistCallout}</p>
+          <p className="mt-2 text-sm leading-6 text-mute">{text.beforeYouAct}: {result.disclaimer}</p>
+        </aside>
       ) : null}
       </div>
       </div>
@@ -713,28 +706,20 @@ function ResultCard({
   const severity = severityFor(result);
   const filed = Boolean(result.plantId);
   const [saved, setSaved] = useState(false);
-  const [guestAsk, setGuestAsk] = useState(false);
-  const [guestDismissed, setGuestDismissed] = useState(false);
   const [correctOpen, setCorrectOpen] = useState(false);
   const [correctName, setCorrectName] = useState("");
   useEffect(() => {
     if (filed) buzz();
   }, [filed]);
   function save() {
-    if (filed) {
+    if (filed || !signedIn) {
       onOpenProfile();
-      return;
-    }
-    if (!signedIn) {
-      setGuestAsk(true);
-      setGuestDismissed(false);
       return;
     }
     buzz();
     setSaved(true);
     window.setTimeout(onOpenProfile, 650);
   }
-  const showGuest = !filed && signedIn === false && !guestDismissed && (guestAsk || !result.qualityHold);
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
   const [detailOpen, setDetailOpen] = useState(true);
@@ -859,8 +844,6 @@ function ResultCard({
           </button>
         </div>
       </div>
-      {showGuest && (guestAsk || filed === false) ? <GuestSavePrompt words={words} onDismiss={() => setGuestDismissed(true)} /> : null}
-
       {contextSlot}
 
       <button
@@ -1075,7 +1058,7 @@ function AdviceList({
       <ul className="mt-4 divide-y divide-ink/10">
         {items.map((item, index) => (
           <li key={item} style={{ animationDelay: `${240 + index * 100}ms` }} className="rise flex gap-3 py-3 text-base leading-7 first:pt-0">
-            <span aria-hidden="true" className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-[10px] bg-leaf" />
+            <span aria-hidden="true" className="mt-0 shrink-0 font-semibold text-leaf">-</span>
             <span>{item}</span>
           </li>
         ))}
