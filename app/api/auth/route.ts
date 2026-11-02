@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (action === "send") {
     const { error } = await client.auth.signInWithOtp({ ...contact, options: { shouldCreateUser: true } });
-    return error ? failed() : Response.json({ ok: true });
+    return error ? Response.json({ error: "upstream", status: error.status ?? 0 }, { status: 502 }) : Response.json({ ok: true });
   }
 
   if (action === "verify") {
@@ -41,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
     const { error } = email
       ? await client.auth.verifyOtp({ email, token: code, type: "email" })
       : await client.auth.verifyOtp({ phone: phone as string, token: code, type: "sms" });
-    return error ? failed() : Response.json({ ok: true });
+    return error ? Response.json({ error: "upstream", status: error.status ?? 0 }, { status: 502 }) : Response.json({ ok: true });
   }
 
   return badRequest();
