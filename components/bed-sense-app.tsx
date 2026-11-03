@@ -2,6 +2,7 @@
 
 import { relocalizeResult } from "@/lib/relocalize";
 import { buildShareIntent, selectShareSummary } from "@/lib/share";
+import { watcherChecksFor, watchTimeline, type WatcherVerdict } from "@/lib/watcher";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
@@ -550,6 +551,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             key={result.id}
             locale={locale}
             result={result}
+            history={history}
             words={words}
             signedIn={signedIn}
             onRescan={rescan}
@@ -679,6 +681,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 function ResultCard({
   locale,
   result: stored,
+  history,
   words,
   signedIn,
   onRescan,
@@ -690,6 +693,7 @@ function ResultCard({
 }: {
   locale: Locale;
   result: AnalyzeResult;
+  history: readonly HistoryEntry[];
   words: UiWords;
   signedIn: boolean | null;
   onRescan: () => void;
@@ -723,6 +727,11 @@ function ResultCard({
   }
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
+  const plantLabel = result.farmerPlant || result.detectedPlant;
+  const verdict = useMemo(
+    () => watchTimeline(watcherChecksFor(history, plantLabel), plantLabel, new Date()),
+    [history, plantLabel],
+  );
   const [detailOpen, setDetailOpen] = useState(true);
   return (
     <section id="result" className="space-y-6 lg:space-y-7" aria-live="polite">
@@ -738,6 +747,7 @@ function ResultCard({
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
       {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
+      {verdict.kind !== "ok" ? <WatcherCard locale={locale} verdict={verdict} /> : null}
       {result.plantMismatch ? (
         <p id="plant-mismatch" className="rounded-lg border border-sun/60 bg-sun/15 px-4 py-3 text-base font-semibold leading-6 text-paper" role="status">
           {text.plantMismatchNote(result.farmerPlant, result.detectedPlant)}
@@ -919,6 +929,45 @@ function ResultCard({
         </a>
       </div>
     </section>
+  );
+}
+
+const WATCHER_WORDS = {
+  en: {
+    worseningTitle: "Getting worse",
+    worseningBody: (plant: string, streak: number) =>
+      `The last ${streak} check${streak === 1 ? "" : "s"} trend${streak === 1 ? "s" : ""} down for ${plant}. Take today's worst leaf to an agrovet.`,
+    overdueTitle: "Overdue for a re-check",
+    overdueBody: (plant: string, days: number) =>
+      `${plant} was last checked ${days} days ago. A fresh photo shows whether the advice helped.`,
+  },
+  sw: {
+    worseningTitle: "Inazidi kuwa mbaya",
+    worseningBody: (plant: string, streak: number) =>
+      `Ukaguzi ${streak} wa mwisho unaelekea chini kwa ${plant}. Peleka jani baya la leo kwa agrovet.`,
+    overdueTitle: "Umechelewa kufanya ukaguzi",
+    overdueBody: (plant: string, days: number) =>
+      `${plant} ilikaguliwa mara ya mwisho siku ${days} zilizopita. Picha mpya inaonyesha kama ushauri ulisaidia.`,
+  },
+} as const;
+
+/** The progress-watcher's verdict, volunteered by the system. Rendered only when there is something to say. */
+function WatcherCard({ locale, verdict }: { locale: Locale; verdict: Exclude<WatcherVerdict, { kind: "ok" }> }) {
+  const words = WATCHER_WORDS[locale];
+  const worsening = verdict.kind === "worsening";
+  return (
+    <div
+      id="watcher-card"
+      role="status"
+      className={`rounded-lg border px-4 py-3 ${worsening ? "border-danger/40 bg-danger/10" : "border-sun/60 bg-sun/15"}`}
+    >
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">
+        {worsening ? words.worseningTitle : words.overdueTitle}
+      </p>
+      <p className="mt-1 text-base leading-7 text-paper [overflow-wrap:anywhere]">
+        {worsening ? words.worseningBody(verdict.plant, verdict.streak) : words.overdueBody(verdict.plant, verdict.daysSince)}
+      </p>
+    </div>
   );
 }
 
