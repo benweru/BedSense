@@ -41,6 +41,9 @@ function fixedPairs(): Map<string, Pair> {
     const sw = scene("sw");
     addPair(table, [en.observations, en.likelyCauses, en.mitigations, en.actions, en.contextAsk, en.chemicals?.suspect], [sw.observations, sw.likelyCauses, sw.mitigations, sw.actions, sw.contextAsk, sw.chemicals?.suspect]);
   }
+  for (const hold of Object.keys(copy.en.qualitySteps) as (keyof typeof copy.en.qualitySteps)[]) {
+    addPair(table, copy.en.qualitySteps[hold], copy.sw.qualitySteps[hold]);
+  }
   addPair(table, "Demo: the plant looks about the same as the last check.", "Onyesho: mmea unaonekana sawa na ukaguzi uliopita.");
   addPair(table, "Demo: new spots would show within days if the problem is still spreading.", "Onyesho: madoa mapya yangeonekana ndani ya siku chache kama ugonjwa unaenea.");
   fixedTable = table;

@@ -508,7 +508,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           </button>
         ) : null}
         {phase === "analyzing" ? (
-          <ScanStatus words={words} />
+          <ScanStatus words={words} count={photos.length} />
         ) : phase === "preparing" ? (
           <div id="check-preparing" className="mt-4 rounded-lg border border-sun/50 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
             <p className="tick-label text-2xl font-semibold leading-tight text-paper">{words.preparing}</p>
@@ -754,8 +754,21 @@ function ResultCard({
         </p>
       ) : null}
       {result.qualityHold ? (
-        <div id="quality-hold" className="rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-5 py-5" role="status">
-          <p className="text-2xl leading-[1.04] tracking-[-0.01em] text-ink sm:text-3xl">{result.qualityMessage}</p>
+        <div className="space-y-4">
+          <div id="quality-hold" className="rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-5 py-5" role="status">
+            <p className="text-2xl leading-[1.04] tracking-[-0.01em] text-ink sm:text-3xl">{result.qualityMessage}</p>
+          </div>
+          <div id="hold-steps" className="rounded-xl border border-ink/20 bg-card p-5 sm:p-6">
+            <h3 className="eyebrow text-leaf">{words.firstAction}</h3>
+            <ol className="mt-3 space-y-2">
+              {result.actions.filter(Boolean).map((step, index) => (
+                <li key={index} className="flex gap-3 text-base leading-6 text-paper">
+                  <span aria-hidden="true" className="font-mono text-sm font-semibold text-leaf">{index + 1}</span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">

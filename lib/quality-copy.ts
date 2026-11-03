@@ -30,3 +30,8 @@ export function qualityNoteFor(locale: Locale, batch: QualityBatch | null | unde
   if (!batch || batch.skipped.length === 0) return null;
   return copy[locale].qualityBatch(batch.kept, batch.skipped);
 }
+
+/** Three retake steps for this hold, so a failed check guides instead of dead-ending. */
+export function holdStepsFor(locale: Locale, hold: QualityHold): [string, string, string] {
+  return copy[locale].qualitySteps[hold];
+}

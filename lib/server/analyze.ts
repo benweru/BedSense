@@ -4,7 +4,7 @@ import { copy, normalizeLocale } from "@/lib/copy";
 import { chooseCropFocus } from "@/lib/crop-focus";
 import { clampDeclaredSize, decodeDataUrl, type ImageSize } from "@/lib/image";
 import { parseFarmerPlant } from "@/lib/plant-name";
-import { holdFor, qualityMessageFor, qualityNoteFor } from "@/lib/quality-copy";
+import { holdFor, holdStepsFor, qualityMessageFor, qualityNoteFor } from "@/lib/quality-copy";
 import { buildMockResult, scenarioForPlant } from "@/lib/server/mock";
 import { adviseBed, plantNameMismatch } from "@/lib/server/muse";
 import { isMockMode, readApiKey } from "@/lib/server/meta";
@@ -315,7 +315,7 @@ function withheldResult(options: {
     observations: [],
     likelyCauses: [],
     mitigations: [],
-    actions: ["", "", ""],
+    actions: holdStepsFor(options.locale, qualityHold),
     confidence: "low",
     confidenceScore: 0,
     disclaimer: text.disclaimer,
