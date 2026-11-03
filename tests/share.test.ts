@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { analyzeBedPhoto } from "@/lib/server/analyze";
-import { SHARE_SITE_URL, selectShareSummary } from "@/lib/share";
+import { buildShareIntent, SHARE_SITE_URL, selectShareSummary } from "@/lib/share";
 import { pngDataUrl } from "@/tests/sam-fixture";
 
 afterEach(() => {
@@ -31,5 +31,28 @@ describe("share summary", () => {
 
   it("points at the public site, overridable per deploy", () => {
     expect(SHARE_SITE_URL).toBe("https://bedsense.vercel.app");
+  });
+
+  it("builds an encoded X intent that round-trips", () => {
+    const summary = { plant: "Tomato & friends", finding: "Madoa ya njano? Yes & no", action: "Ondoa majani 100%" };
+    for (const locale of ["en", "sw"] as const) {
+      const href = buildShareIntent(locale, summary);
+      expect(href.startsWith("https://x.com/intent/post?")).toBe(true);
+      const params = new URL(href).searchParams;
+      expect(params.get("url")).toBe("https://bedsense.vercel.app");
+      const text = params.get("text") ?? "";
+      expect(text).toContain("Tomato & friends");
+      expect(text.length).toBeLessThanOrEqual(240);
+    }
+    const sw = new URL(buildShareIntent("sw", summary)).searchParams.get("text") ?? "";
+    expect(sw.startsWith("Ukaguzi wa")).toBe(true);
+  });
+
+  it("truncates long summaries to one post", () => {
+    const summary = { plant: "Kale", finding: "spot ".repeat(100), action: "water ".repeat(100) };
+    const text = new URL(buildShareIntent("en", summary)).searchParams.get("text") ?? "";
+    expect(text.length).toBeLessThanOrEqual(240);
+    expect(text.endsWith("…")).toBe(true);
+    expect(text).toContain("Kale");
   });
 });

@@ -17,6 +17,7 @@ export type Copy = {
   correctPlantPlaceholder: string;
   correctPlantRun: string;
   newCheck: string;
+  shareResult: string;
   capture: string;
   upload: string;
   checkPhoto: string;
@@ -150,6 +151,7 @@ const en: Copy = {
   correctPlantPlaceholder: "e.g. Avocado",
   correctPlantRun: "Check again",
   newCheck: "New check",
+  shareResult: "Share this check",
   capture: "Take a photo",
   upload: "Choose a photo",
   checkPhoto: "Check this plant",
@@ -358,6 +360,7 @@ const sw: Copy = {
   correctPlantPlaceholder: "mf. Parachichi",
   correctPlantRun: "Kagua tena",
   newCheck: "Ukaguzi mpya",
+  shareResult: "Shiriki ukaguzi huu",
   capture: "Piga picha",
   upload: "Chagua picha",
   checkPhoto: "Kagua mmea huu",

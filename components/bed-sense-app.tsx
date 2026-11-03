@@ -1,6 +1,7 @@
 "use client";
 
 import { relocalizeResult } from "@/lib/relocalize";
+import { buildShareIntent, selectShareSummary } from "@/lib/share";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
@@ -906,6 +907,17 @@ function ResultCard({
       {result.chemicals ? <ChemicalCard text={text} words={words} advice={result.chemicals} /> : null}
 
       {result.note === "local-fallback" ? <p className="text-base leading-6 text-mute">{text.backupNote}</p> : null}
+
+      <div>
+        <a
+          href={buildShareIntent(locale, selectShareSummary(result))}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-12 items-center rounded-2xl border border-white/15 px-5 text-base font-semibold text-paper"
+        >
+          {text.shareResult}
+        </a>
+      </div>
     </section>
   );
 }
