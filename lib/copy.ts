@@ -89,6 +89,7 @@ export type Copy = {
   account: string;
   signedOut: string;
   signOut: string;
+  savedOnPhone: string;
   concepts: Record<ConceptId, string>;
   unknownPlant: string;
   dropPhoto: string;
@@ -262,6 +263,7 @@ const en: Copy = {
   account: "Account",
   signedOut: "You are not signed in.",
   signOut: "Sign out",
+  savedOnPhone: "Saved on this phone",
   concepts: {
     onion: "Onion",
     beetroot: "Beetroot",
@@ -472,6 +474,7 @@ const sw: Copy = {
   account: "Akaunti",
   signedOut: "Hujaingia.",
   signOut: "Ondoka",
+  savedOnPhone: "Imehifadhiwa kwenye simu hii",
   concepts: {
     onion: "Kitunguu",
     beetroot: "Beetroot",

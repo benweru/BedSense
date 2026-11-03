@@ -39,18 +39,20 @@ export function ProfilePage() {
         <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-mute">{text.account}</h2>
         {!ready ? null : user ? (
           <>
-            <p className="mt-3 text-2xl text-paper">{phone || email}</p>
+            <p className="mt-3 text-2xl text-paper">{user.is_anonymous ? text.savedOnPhone : phone || email}</p>
             <div className="mt-6 flex flex-col gap-3">
               <Link href="/plants" className="flex min-h-12 items-center rounded-lg border border-ink/10 px-4 text-base font-semibold text-paper hover:border-leaf hover:text-leaf">
                 {locale === "sw" ? "Mimea yangu" : "My plants"}
               </Link>
-              <button
-                type="button"
-                onClick={() => void supabase?.auth.signOut()}
-                className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream hover:bg-danger"
-              >
-                {text.signOut}
-              </button>
+              {user.is_anonymous ? null : (
+                <button
+                  type="button"
+                  onClick={() => void supabase?.auth.signOut()}
+                  className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream hover:bg-danger"
+                >
+                  {text.signOut}
+                </button>
+              )}
             </div>
           </>
         ) : (
