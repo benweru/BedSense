@@ -579,6 +579,15 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
                 writeHistory(rememberCheck(history, { ...entry, result: { ...entry.result, thread } }));
               }
             }}
+            entry={history.find((item) => item.id === result.id) ?? null}
+            onFiled={(plantId) => {
+              setResult((current) => (current && current.id === result.id ? { ...current, plantId } : current));
+              const entry = history.find((item) => item.id === result.id);
+              if (entry) {
+                writeHistory(rememberCheck(history, { ...entry, result: { ...entry.result, plantId } }));
+              }
+              setMemoryRefresh((count) => count + 1);
+            }}
             onCorrect={photos.length > 0 ? (name) => void runCheck(photos, name) : undefined}
           />
         </div>
@@ -690,6 +699,8 @@ function ResultCard({
   onOpenProfile,
   contextSlot,
   onThread,
+  entry,
+  onFiled,
   onCorrect,
 }: {
   locale: Locale;
@@ -703,6 +714,10 @@ function ResultCard({
   /** Context addition for this check (notes + update), rendered under the diagnosis. */
   contextSlot?: React.ReactNode;
   onThread: (thread: AskTurn[]) => void;
+  /** This check's history entry, whose thumbnail becomes the plant photo on save. */
+  entry: HistoryEntry | null;
+  /** Called with the new plant id once the check is filed server-side. */
+  onFiled: (plantId: string) => void;
   /** Re-run the staged photos with a farmer-given name. Absent when no photos are staged (restored checks). */
   onCorrect?: (name: string) => void;
 }) {
@@ -712,19 +727,46 @@ function ResultCard({
   const severity = severityFor(result);
   const filed = Boolean(result.plantId);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [correctOpen, setCorrectOpen] = useState(false);
   const [correctName, setCorrectName] = useState("");
   useEffect(() => {
     if (filed) buzz();
   }, [filed]);
-  function save() {
-    if (filed || !signedIn) {
+  async function save() {
+    if (filed) {
       onOpenProfile();
       return;
     }
-    buzz();
-    setSaved(true);
-    window.setTimeout(onOpenProfile, 650);
+    if (!signedIn) {
+      // Signed-out farmers sign in first; the check stays in recent checks.
+      onOpenProfile();
+      return;
+    }
+    if (!entry) {
+      setSaveError(true);
+      return;
+    }
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const response = await fetch("/api/plants/from-check", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ result: stored, thumbnail: entry.thumbnail }),
+      });
+      if (!response.ok) throw new Error("save_failed");
+      const body = (await response.json()) as { plant: SavedPlant };
+      buzz();
+      setSaved(true);
+      onFiled(body.plant.id);
+      window.setTimeout(onOpenProfile, 650);
+    } catch {
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+    }
   }
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
@@ -867,12 +909,18 @@ function ResultCard({
             <button
               id="save-to-profile"
               type="button"
-              onClick={save}
-              className="lift min-h-12 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream"
+              onClick={() => void save()}
+              disabled={saving}
+              className="lift min-h-12 rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream disabled:opacity-60"
             >
-              {words.saveToProfile}
+              {saving ? words.savingToProfile : words.saveToProfile}
             </button>
           )}
+          {saveError ? (
+            <p className="w-full text-base text-danger" role="alert">
+              {words.saveFailed}
+            </p>
+          ) : null}
           <button id="rescan" type="button" onClick={onRescan} className="lift min-h-12 rounded-full border border-ink/20 px-4 text-base font-semibold text-paper">
             {words.rescan}
           </button>
