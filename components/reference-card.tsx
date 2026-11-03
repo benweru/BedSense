@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Copy } from "@/lib/copy";
+import { matchResearch } from "@/lib/research";
 
 export type ReferencePhase = { kind: "empty" } | { kind: "loading" } | { kind: "error" } | { kind: "ready"; image: string };
 
@@ -19,7 +20,7 @@ export function ReferenceCard({
   symptom: string | null;
   text: Copy;
 }) {
-  const grounded = Boolean(suspect && symptom);
+  const grounded = Boolean(suspect && symptom && matchResearch(suspect));
   const [phase, setPhase] = useState<ReferencePhase>(() => (grounded ? { kind: "loading" } : { kind: "empty" }));
   const [attempt, setAttempt] = useState(0);
   function retry() {
@@ -27,7 +28,7 @@ export function ReferenceCard({
     setAttempt((value) => value + 1);
   }
   useEffect(() => {
-    if (!suspect || !symptom) return;
+    if (!suspect || !symptom || !matchResearch(suspect)) return;
     let live = true;
     (async () => {
       try {
@@ -49,7 +50,7 @@ export function ReferenceCard({
       live = false;
     };
   }, [plant, suspect, symptom, attempt]);
-  if (!suspect || !symptom) return null;
+  if (!suspect || !symptom || !matchResearch(suspect)) return null;
   return <ReferenceLook text={text} suspect={suspect} phase={phase} onRetry={retry} />;
 }
 

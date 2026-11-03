@@ -150,6 +150,66 @@ describe("reference illustration endpoint", () => {
     expect((await limited.json()).error).toBe("rate_limited");
   });
 
+  it("rejects an unknown suspect without calling the model", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const calls = stubResponses(() => imageResponse(PNG));
+    const response = await POST(illustrateRequest({ ...input, suspect: "purple hairy dragon" }));
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe("bad_request");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("canonicalizes an alias to the known suspect name in the prompt", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const calls = stubResponses(() => imageResponse(PNG));
+    const response = await POST(illustrateRequest({ ...input, suspect: "Alternaria solani on the lower leaves" }));
+    expect(response.status).toBe(200);
+    const sent = calls[0]?.body as { input: string };
+    expect(sent.input).toContain("early blight");
+    expect(sent.input).not.toContain("Alternaria");
+  });
+
+  it("serves static mock art in demo mode with no key and no network", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    vi.stubEnv("MODEL_API_KEY", "");
+    const calls = stubResponses(() => imageResponse(PNG));
+    const response = await POST(illustrateRequest(input));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.demo).toBe(true);
+    expect(body.model).toBe("mock-reference-art");
+    expect(body.mime).toBe("image/svg+xml");
+    expect(body.image.startsWith("data:image/svg+xml;base64,")).toBe(true);
+    const svg = Buffer.from(String(body.image).split(",")[1], "base64").toString("utf8");
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("ellipse");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("serves distinct art per problem kind", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    vi.stubEnv("MODEL_API_KEY", "");
+    stubResponses(() => imageResponse(PNG));
+    const pest = await POST(illustrateRequest({ ...input, suspect: "thrips" }));
+    const deficiency = await POST(illustrateRequest({ ...input, suspect: "nitrogen deficiency" }));
+    const pestImage = (await pest.json()).image as string;
+    const deficiencyImage = (await deficiency.json()).image as string;
+    expect(pestImage).not.toBe(deficiencyImage);
+    expect(pestImage).toContain("data:image/svg+xml");
+    expect(deficiencyImage).toContain("data:image/svg+xml");
+  });
+
+  it("holds the guardrail in demo mode too", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(illustrateRequest({ ...input, suspect: "purple hairy dragon" }));
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe("bad_request");
+  });
+
   it("reports muse_unavailable when the image model is not on the key", async () => {
     vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("MODEL_API_KEY", "k".repeat(40));

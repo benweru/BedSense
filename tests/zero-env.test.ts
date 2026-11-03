@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST as analyzePOST } from "@/app/api/analyze/route";
 import { POST as askPOST } from "@/app/api/ask/route";
 import { GET as diagGET } from "@/app/api/diag/route";
+import { POST as illustratePOST } from "@/app/api/illustrate/route";
 import { GET as plantsGET } from "@/app/api/plants/route";
 import { serverSupabase, sessionUser, supabaseConfigured } from "@/lib/server/supabase";
 import { browserSupabase } from "@/lib/supabase-browser";
@@ -78,6 +79,27 @@ describe("zero-env API routes", () => {
     expect(body.ok).toBe(false);
     expect(body.reason).toBe("missing_key");
     expect(JSON.stringify(body)).not.toContain("sk-");
+  });
+
+  it("answers /api/illustrate with mock art and empty env", async () => {
+    clearEnv();
+    const fetchMock = vi.fn(() => {
+      throw new Error("network");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await illustratePOST(
+      post("http://localhost/api/illustrate", {
+        plant: "Tomato",
+        suspect: "early blight",
+        symptom: "dark ringed spots on the lower leaves",
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { demo: boolean; mime: string; image: string };
+    expect(body.demo).toBe(true);
+    expect(body.mime).toBe("image/svg+xml");
+    expect(body.image.startsWith("data:image/svg+xml;base64,")).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("answers /api/diag with JSON when the catalog read fails", async () => {

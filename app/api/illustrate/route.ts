@@ -27,7 +27,7 @@ export async function POST(request: Request): Promise<Response> {
       suspect: input.suspect,
       symptom: input.symptom,
     });
-    return Response.json({ ...result, demo: false });
+    return Response.json(result);
   } catch (error) {
     if (error instanceof IllustrateError) return jsonError(error.code);
     return jsonError("upstream");

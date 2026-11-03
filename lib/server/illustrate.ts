@@ -1,4 +1,6 @@
-import { MetaHttpError, postMeta, readApiKey } from "@/lib/server/meta";
+import { MetaHttpError, isMockMode, postMeta, readApiKey } from "@/lib/server/meta";
+import { referenceArt } from "@/lib/reference-art";
+import { researchFor } from "@/lib/research";
 
 /**
  * Muse Image "what to look for" reference illustrations. Grounded in the
@@ -7,6 +9,8 @@ import { MetaHttpError, postMeta, readApiKey } from "@/lib/server/meta";
  * this module builds and sends the prompt and returns the image bytes.
  */
 export const MUSE_IMAGE_MODEL = "muse-image-1.0";
+/** Served instead of a generation in demo mode. The card labels it as an illustration either way. */
+export const MOCK_REFERENCE_MODEL = "mock-reference-art";
 
 export class IllustrateError extends Error {
   readonly code: "bad_request" | "missing_key" | "muse_unavailable" | "rate_limited" | "upstream";
@@ -26,6 +30,7 @@ export type ReferenceImage = {
   image: string;
   mime: string;
   model: string;
+  demo: boolean;
 };
 
 export async function illustrateReference(input: {
@@ -38,10 +43,17 @@ export async function illustrateReference(input: {
   const symptom = cleanText(input.symptom, SYMPTOM_LIMIT);
   // The illustration is only ever grounded in a named suspect and a visible symptom.
   if (!suspect || !symptom) throw new IllustrateError("bad_request");
+  // Guardrail: generation prompts only ever name a known suspect, never free-form user imagery.
+  const entry = researchFor(suspect, null);
+  if (!entry) throw new IllustrateError("bad_request");
+  if (isMockMode()) {
+    const art = referenceArt(entry.kind);
+    return { ...art, model: MOCK_REFERENCE_MODEL, demo: true };
+  }
   const apiKey = readApiKey();
   if (!apiKey) throw new IllustrateError("missing_key");
 
-  const prompt = referencePrompt(plant || "crop plant", suspect, symptom);
+  const prompt = referencePrompt(plant || "crop plant", entry.aliases[0] ?? suspect, symptom);
   let payload: unknown;
   try {
     const response = await postMeta("/responses", { model: MUSE_IMAGE_MODEL, input: prompt }, apiKey, 55_000);
@@ -55,7 +67,7 @@ export async function illustrateReference(input: {
   const bytes = Buffer.from(result, "base64");
   if (bytes.length === 0) throw new IllustrateError("upstream");
   const mime = sniffMime(bytes);
-  return { image: `data:${mime};base64,${result}`, mime, model: MUSE_IMAGE_MODEL };
+  return { image: `data:${mime};base64,${result}`, mime, model: MUSE_IMAGE_MODEL, demo: false };
 }
 
 /** Flat educational diagram, never a photograph: markings stay comparable to the farmer's leaf. */

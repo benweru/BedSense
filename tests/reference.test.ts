@@ -17,6 +17,11 @@ describe("reference illustration section", () => {
     expect(
       renderToStaticMarkup(createElement(ReferenceCard, { plant: "Tomato", suspect: "early blight", symptom: null, text })),
     ).toBe("");
+    expect(
+      renderToStaticMarkup(
+        createElement(ReferenceCard, { plant: "Tomato", suspect: "purple hairy dragon", symptom: "spots", text }),
+      ),
+    ).toBe("");
   });
 
   it("shows a loading skeleton that still carries the not-your-plant label", () => {
