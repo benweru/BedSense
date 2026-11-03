@@ -118,6 +118,13 @@ export type Copy = {
   decisionOverdue: (suggestion: string) => string;
   decisionPhotoRequested: (reason: string) => string;
   decisionPhotoAnswered: (detail: string) => string;
+  refTitle: string;
+  refNotPlant: string;
+  refCaption: (suspect: string) => string;
+  refAlt: (suspect: string) => string;
+  refDrawing: string;
+  refFailed: string;
+  refRetry: string;
   contextNoted: string;
   contextFields: {
     stage: string;
@@ -305,6 +312,13 @@ const en: Copy = {
   decisionOverdue: (suggestion) => `Re-check overdue → suggested: ${suggestion}`,
   decisionPhotoRequested: (reason) => `Evidence stale → asked for a fresh photo (${reason}).`,
   decisionPhotoAnswered: () => "Fresh photo received → answered from the new photo.",
+  refTitle: "What to look for",
+  refNotPlant: "Reference illustration — not your plant.",
+  refCaption: (suspect) => `How ${suspect} markings can look. Compare with your leaf.`,
+  refAlt: (suspect) => `Reference illustration of ${suspect} markings`,
+  refDrawing: "Drawing the reference…",
+  refFailed: "The reference illustration is unavailable right now.",
+  refRetry: "Try again",
   contextNoted: "The notes you added are part of this check.",
   contextFields: {
     stage: "Plant age or stage",
@@ -515,6 +529,13 @@ const sw: Copy = {
   decisionOverdue: (suggestion) => `Ukaguzi umechelewa → pendekezo: ${suggestion}`,
   decisionPhotoRequested: (reason) => `Ushahidi umepitwa na wakati → niliomba picha mpya (${reason}).`,
   decisionPhotoAnswered: () => "Picha mpya imepokelewa → jibu linatokana na picha mpya.",
+  refTitle: "Angalia alama hizi",
+  refNotPlant: "Mchoro wa mfano — si mmea wako.",
+  refCaption: (suspect) => `Jinsi alama za ${suspect} zinavyoweza kuonekana. Linganisha na jani lako.`,
+  refAlt: (suspect) => `Mchoro wa mfano wa alama za ${suspect}`,
+  refDrawing: "Inachora mfano…",
+  refFailed: "Mchoro wa mfano haupatikani kwa sasa.",
+  refRetry: "Jaribu tena",
   contextNoted: "Maelezo yako yametumika kwenye ukaguzi huu.",
   contextFields: {
     stage: "Umri au hatua ya mmea",

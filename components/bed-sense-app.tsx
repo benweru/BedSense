@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatThread } from "@/components/chat-thread";
+import { ReferenceCard } from "@/components/reference-card";
 import { threadWithDecision } from "@/lib/decisions";
 import { relocalizeResult } from "@/lib/relocalize";
 import { buildShareIntent, selectShareSummary } from "@/lib/share";
@@ -919,6 +920,12 @@ function ResultCard({
         </p>
       </div>
       ) : null}
+      <ReferenceCard
+        plant={plantLabel}
+        suspect={result.chemicals?.suspect ?? null}
+        symptom={result.observations[0] ?? null}
+        text={text}
+      />
       </>
       ) : null}
       </div>
