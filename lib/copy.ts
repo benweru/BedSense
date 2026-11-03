@@ -29,6 +29,7 @@ export type Copy = {
   qualityNotPlant: string;
   qualityUnclear: string;
   qualityMixed: string;
+  qualitySteps: Record<"too_far" | "unclear" | "harsh_light" | "mixed" | "not_plant", [string, string, string]>;
   qualityHarshLight: (frames: number[], total: number) => string;
   qualityBatch: (kept: number[], skipped: { frame: number; lighting: boolean }[]) => string;
   hint: string;
@@ -45,7 +46,6 @@ export type Copy = {
   actionsHint: string;
   progressTitle: string;
   progressHint: string;
-  progressSteps: [string, string, string];
   chemicalsTitle: string;
   chemicalsSuspect: string;
   chemicalsWhere: string;
@@ -176,6 +176,13 @@ const en: Copy = {
   qualityNotPlant: "We couldn't find a plant in this photo. Take a picture of the plant or bed you want checked.",
   qualityUnclear: "This photo is not clearly in view. Hold the phone steady and fill the frame with the plant.",
   qualityMixed: "Move closer and take a clearer photo. These ones are too far away or not clearly in view.",
+  qualitySteps: {
+    too_far: ["Move closer until one plant fills the frame", "Keep the whole leaf and stem in view", "Hold the phone steady and tap the leaf to focus"],
+    unclear: ["Hold the phone steady with both hands", "Tap the leaf on screen to focus", "Wipe the lens and retake in good light"],
+    harsh_light: ["Shade the leaf with your body or hand", "Retake in softer light, morning or late afternoon", "Keep the whole leaf in view, without glare"],
+    mixed: ["Retake the unclear photos closer", "Fill the frame with one plant", "Hold steady and tap the leaf to focus"],
+    not_plant: ["Photograph a real, living plant in the bed", "Fill the frame with its leaves", "Take it in daylight, close up"],
+  },
   qualityHarshLight: (frames, total) => {
     const subject =
       total === 1 ? "the image" : frames.length === 1 ? `image ${frames[0]}` : `images ${frames.join(" and ")}`;
@@ -221,7 +228,6 @@ const en: Copy = {
   actionsHint: "Practical things to look at or do next on this plant. Not a diagnosis or a spray rate.",
   progressTitle: "Checking this photo",
   progressHint: "The bed is being read. Keep this screen open.",
-  progressSteps: ["Preparing the photo", "Reading the bed", "Writing causes and next steps"],
   chemicalsTitle: "Chemicals and fertilizer to consider",
   chemicalsSuspect: "Suspected problem",
   chemicalsWhere: "Where to buy in Kenya",
@@ -398,6 +404,13 @@ const sw: Copy = {
   qualityNotPlant: "Hatukuona mmea kwenye picha hii. Piga picha ya mmea au kitalu unachotaka kukagua.",
   qualityUnclear: "Picha hii haiko wazi. Shika simu bila kutikisika, na mmea ujae kwenye picha.",
   qualityMixed: "Sogea karibu upige picha iliyo wazi zaidi. Picha hizi ziko mbali sana au hazionekani vizuri.",
+  qualitySteps: {
+    too_far: ["Sogea karibu hadi mmea mmoja ujae kwenye picha", "Hakikisha jani lote na shina vinaonekana", "Shika simu bila kutikisika na uguse jani ili ilenge"],
+    unclear: ["Shika simu kwa mikono miwili bila kutikisika", "Gusa jani kwenye skrini ili ilenge", "Futa lenzi na upige tena kwenye mwanga mzuri"],
+    harsh_light: ["Funika jani kwa mwili au mkono wako", "Piga tena kwenye mwanga laini, asubuhi au jioni", "Hakikisha jani lote linaonekana bila mwangaza mkali"],
+    mixed: ["Piga tena picha zisizo wazi ukiwa karibu zaidi", "Jaza picha kwa mmea mmoja", "Shika simu vizuri na uguse jani ili ilenge"],
+    not_plant: ["Piga picha ya mmea halisi ulio hai kwenye kitalu", "Jaza picha kwa majani yake", "Piga mchana, ukiwa karibu"],
+  },
   qualityHarshLight: (frames, total) => {
     const subject = total === 1 ? "picha hii" : `picha ${frames.join(" na ")}`;
     return `${subject.charAt(0).toUpperCase()}${subject.slice(1)} haina mwanga mzuri. Tafadhali piga au pakia picha yenye mwanga mzuri zaidi.`;
@@ -438,7 +451,6 @@ const sw: Copy = {
   actionsHint: "Mambo ya kuangalia au kufanya kwenye mmea huu. Si jibu la uhakika wala kipimo cha dawa.",
   progressTitle: "Inakagua picha hii",
   progressHint: "Tunakagua picha. Usifunge ukurasa huu.",
-  progressSteps: ["Inaandaa picha", "Inakagua kitalu", "Inaandika sababu na hatua"],
   chemicalsTitle: "Dawa na mbolea unazoweza kutumia",
   chemicalsSuspect: "Tatizo linaloshukiwa",
   chemicalsWhere: "Unapoweza kununua Kenya",

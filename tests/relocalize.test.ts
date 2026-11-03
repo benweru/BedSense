@@ -33,6 +33,12 @@ describe("language toggle on a shown result", () => {
     expect(relocalizeResult(en, "sw").qualityMessage).toBe(copy.sw.qualityUnclear);
   });
 
+  it("swaps the retake steps on a held check", () => {
+    const sw = { ...held("sw", "too_far", ["too_far"]), actions: [...copy.sw.qualitySteps.too_far] as [string, string, string] };
+    expect(relocalizeResult(sw, "en").actions).toEqual(copy.en.qualitySteps.too_far);
+    expect(relocalizeResult({ ...sw, locale: "en" as const, actions: [...copy.en.qualitySteps.too_far] as [string, string, string] }, "sw").actions).toEqual(copy.sw.qualitySteps.too_far);
+  });
+
   it("rebuilds the harsh light and mixed messages from frame codes", () => {
     const sw = held("sw", "mixed", ["too_far", "harsh_light"]);
     expect(relocalizeResult(sw, "en").qualityMessage).toBe(qualityMessageFor("en", "mixed", ["too_far", "harsh_light"]));

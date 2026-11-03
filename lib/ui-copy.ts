@@ -5,7 +5,9 @@ export const INTRO_KEY = "bedsense.intro.v1";
 
 export const UI = {
   en: {
-    scanSteps: ["Reading your photo…", "Checking the plant and weeds…", "Writing causes and next steps…"] as const,
+    readingPhoto: "Reading your photo…",
+    readingPhotos: (count: number) => `Reading your ${count} photos…`,
+    stillReading: "Still reading - this can take up to a minute",
     severity: { healthy: "Healthy", watch: "Watch", act: "Needs attention" } as Record<Severity, string>,
     severityLine: { healthy: "Looks healthy", watch: "Keep an eye on it", act: "Needs attention" } as Record<Severity, string>,
     diagnosis: "Diagnosis",
@@ -50,7 +52,9 @@ export const UI = {
     openProfile: "Open profile",
   },
   sw: {
-    scanSteps: ["Inasoma picha yako…", "Inakagua mmea na magugu…", "Inaandika sababu na hatua…"] as const,
+    readingPhoto: "Inasoma picha yako…",
+    readingPhotos: (count: number) => `Inasoma picha zako ${count}…`,
+    stillReading: "Bado inasoma - inaweza kuchukua hadi dakika moja",
     severity: { healthy: "Mzima", watch: "Fuatilia", act: "Unahitaji uangalizi" } as Record<Severity, string>,
     severityLine: { healthy: "Unaonekana mzima", watch: "Endelea kuufuatilia", act: "Unahitaji uangalizi" } as Record<Severity, string>,
     diagnosis: "Matokeo",

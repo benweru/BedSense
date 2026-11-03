@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import jpeg from "jpeg-js";
 import { POST } from "@/app/api/analyze/route";
 import { copy } from "@/lib/copy";
+import { holdStepsFor } from "@/lib/quality-copy";
 import { isExtremeLight, judgeFrame, measureJpeg } from "@/lib/photo-quality";
 import { BUTTON_OUTPUT, pngDataUrl } from "@/tests/sam-fixture";
 
@@ -10,6 +11,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("retake steps per hold kind", () => {
+  it("gives three specific steps for every kind in both languages", () => {
+    for (const locale of ["en", "sw"] as const) {
+      for (const hold of ["too_far", "unclear", "harsh_light", "mixed", "not_plant"] as const) {
+        const steps = holdStepsFor(locale, hold);
+        expect(steps).toHaveLength(3);
+        expect(steps.every((step) => step.length > 10)).toBe(true);
+      }
+    }
+    expect(holdStepsFor("en", "too_far")[0]).toMatch(/closer/i);
+    expect(holdStepsFor("en", "not_plant")[0]).toMatch(/living plant/i);
+  });
 });
 
 describe("photo quality gate", () => {
@@ -47,6 +62,7 @@ describe("photo quality gate", () => {
     const body = await response.json();
     expect(body.qualityHold).toBe("too_far");
     expect(body.qualityMessage).toBe(copy.en.qualityTooFar);
+    expect(body.actions).toEqual(copy.en.qualitySteps.too_far);
     expect(body.likelyCauses).toEqual([]);
     expect(body.observations).toEqual([]);
     expect(body.models.muse).toBeNull();

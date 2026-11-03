@@ -11,46 +11,21 @@ export function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
-/** Ticks through the three scan labels while SAM and Muse run. */
-export function ScanStatus({ words }: { words: UiWords }) {
-  const [step, setStep] = useState(0);
+/** One honest line while SAM and Muse run: no stages are claimed, only time actually waited. */
+export function ScanStatus({ words, count = 1 }: { words: UiWords; count?: number }) {
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    const timer = window.setInterval(() => setStep((current) => Math.min(current + 1, words.scanSteps.length - 1)), 2600);
+    const started = Date.now();
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 500);
     return () => window.clearInterval(timer);
-  }, [words.scanSteps.length]);
+  }, []);
   return (
     <div id="check-progress" className="mt-4 rounded-lg border border-sun/50 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
-      <p key={step} className="tick-label text-2xl font-semibold leading-tight text-paper">
-        {words.scanSteps[step]}
+      <p className="text-2xl font-semibold leading-tight text-paper">
+        {count > 1 ? words.readingPhotos(count) : words.readingPhoto}
+        {elapsed >= 3 ? <span className="ml-2 align-middle font-mono text-sm font-medium text-mute">{elapsed}s</span> : null}
       </p>
-      <ol className="mt-4 space-y-2.5">
-        {words.scanSteps.map((label, index) => {
-          const state = index < step ? "done" : index === step ? "current" : "next";
-          return (
-            <li key={label} className={`flex items-center gap-3 text-base leading-6 ${state === "next" ? "text-mute/70" : "text-paper"}`}>
-              <span
-                aria-hidden="true"
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                  state === "done"
-                    ? "border-leaf bg-leaf text-cream"
-                    : state === "current"
-                      ? "border-sun bg-sun/20"
-                      : "border-ink/20"
-                }`}
-              >
-                {state === "done" ? (
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true">
-                    <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : state === "current" ? (
-                  <span className="scan-pulse block h-2.5 w-2.5 rounded-[10px] bg-sun" />
-                ) : null}
-              </span>
-              <span className={state === "current" ? "font-semibold" : ""}>{label.replace(/…$/, "")}</span>
-            </li>
-          );
-        })}
-      </ol>
+      {elapsed >= 15 ? <p className="mt-1 text-base leading-6 text-mute">{words.stillReading}</p> : null}
       <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-ink/10" aria-hidden="true">
         <span className="bedsense-indeterminate block h-full w-1/2 rounded-[10px] bg-sun" />
       </div>
