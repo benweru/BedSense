@@ -36,6 +36,45 @@ describe("recent checks", () => {
     expect(forgetCheck(history, "missing")).toHaveLength(2);
   });
 
+  it("backfills product links on checks saved before links existed", () => {
+    const legacy = entry("old");
+    legacy.result = {
+      ...legacy.result,
+      chemicals: {
+        suspect: "bacterial spot",
+        verifyNote: "Check with an agrovet.",
+        priceNote: "Example bands.",
+        lookup: "catalog",
+        products: [
+          {
+            activeIngredient: "Copper oxychloride",
+            productClass: "fungicide",
+            useNote: "Follow the label.",
+            offers: [
+              {
+                quality: "economy",
+                brand: "Copper oxychloride 50 WP",
+                pack: "500 g",
+                shopName: "Independent agrovet",
+                shopKind: "agrovet shop",
+                place: "Nyeri",
+                priceMinKes: 400,
+                priceMaxKes: 750,
+              },
+            ],
+          },
+        ],
+      },
+    } as AnalyzeResult;
+    // Simulate storage written before productLink existed.
+    const raw = JSON.stringify([legacy]).replace(/"productLink":\{[^}]*\},?/g, "");
+    const parsed = parseHistory(raw);
+    const offer = parsed[0]?.result.chemicals?.products[0]?.offers[0];
+    expect(offer?.productLink.curated).toBe(false);
+    expect(offer?.productLink.url).toContain(encodeURIComponent("Copper oxychloride 50 WP"));
+    expect(offer?.productLink.url).toContain("Kenya");
+  });
+
   it("drops corrupt storage", () => {
     expect(parseHistory("not-json")).toEqual([]);
     expect(parseHistory(JSON.stringify([{ id: 1 }]))).toEqual([]);

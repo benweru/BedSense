@@ -1300,6 +1300,7 @@ function ChemicalCard({ text, words, advice }: { text: Copy; words: UiWords; adv
                     <span className="mt-0.5 block text-sm text-mute">
                       <span className="font-semibold text-sun">{text.quality[offer.quality]}</span> · {offer.brand} · {offer.pack}
                     </span>
+                    {offer.productLink?.url ? (
                     <a
                       href={offer.productLink.url}
                       target="_blank"
@@ -1308,6 +1309,7 @@ function ChemicalCard({ text, words, advice }: { text: Copy; words: UiWords; adv
                     >
                       {offer.productLink.curated ? text.productLinkView : text.productLinkSearch}
                     </a>
+                    ) : null}
                   </li>
                 ))}
               </ul>

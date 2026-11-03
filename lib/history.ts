@@ -1,3 +1,4 @@
+import { searchUrlFor } from "@/lib/agrovet-catalog";
 import type { AnalyzeResult, HistoryEntry } from "@/lib/types";
 
 export const HISTORY_KEY = "bedsense.checks.v1";
@@ -17,10 +18,26 @@ export function parseHistory(raw: string | null): HistoryEntry[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isHistoryEntry).slice(0, HISTORY_LIMIT);
+    return parsed.filter(isHistoryEntry).slice(0, HISTORY_LIMIT).map(withProductLinks);
   } catch {
     return [];
   }
+}
+
+/** Checks saved before product links existed carry offers without one. Fill the search link from the brand and pack so old results stay whole. */
+function withProductLinks(entry: HistoryEntry): HistoryEntry {
+  const chemicals = entry.result.chemicals;
+  if (!chemicals) return entry;
+  let changed = false;
+  const products = chemicals.products.map((product) => ({
+    ...product,
+    offers: product.offers.map((offer) => {
+      if (offer.productLink?.url) return offer;
+      changed = true;
+      return { ...offer, productLink: { url: searchUrlFor(offer), curated: false } };
+    }),
+  }));
+  return changed ? { ...entry, result: { ...entry.result, chemicals: { ...chemicals, products } } } : entry;
 }
 
 export function serializeHistory(entries: readonly HistoryEntry[]): string {
