@@ -22,7 +22,7 @@ describe("share summary", () => {
   it("falls back to the detected plant and empty lines on thin results", async () => {
     vi.stubEnv("MOCK_META", "1");
     const result = await analyzeBedPhoto({ image: pngDataUrl(), locale: "en", plantName: "chili" });
-    const thin = { ...result, farmerPlant: "", likelyCauses: [], observations: [], actions: [] as string[] };
+    const thin = { ...result, farmerPlant: "", likelyCauses: [], observations: [], actions: [] as unknown as [string, string, string] };
     const summary = selectShareSummary(thin);
     expect(summary.plant).toBe(result.detectedPlant);
     expect(summary.finding).toBe("");
