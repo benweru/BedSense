@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGROVET_CATALOG } from "@/lib/agrovet-catalog";
+import { AGROVET_CATALOG, searchUrlFor } from "@/lib/agrovet-catalog";
 import { adviseChemicals, liveKenyaShopOffers, matchCatalog } from "@/lib/agrovet";
 import { containsDosage } from "@/lib/triage";
 import { QUALITY_BANDS } from "@/lib/types";
@@ -59,6 +59,29 @@ describe("Kenya agrovet catalog", () => {
         chemicals: [],
       }),
     ).toBeNull();
+  });
+
+  it("gives every offer a product link: curated page when set, Kenya search otherwise", () => {
+    for (const entry of AGROVET_CATALOG) {
+      for (const offer of entry.offers) {
+        if (offer.productUrl) {
+          expect(offer.productUrl).toMatch(/^https:\/\//);
+        }
+        const url = new URL(searchUrlFor(offer));
+        expect(url.protocol).toBe("https:");
+        expect(url.searchParams.get("q")).toContain(offer.brand);
+        expect(url.searchParams.get("q")).toContain("Kenya");
+      }
+    }
+    const advice = adviseChemicals({
+      locale: "en",
+      diseaseIndicated: true,
+      suspect: "bacterial spot",
+      chemicals: [{ activeIngredient: "copper oxychloride" }],
+    });
+    const offer = advice?.products[0]?.offers[0];
+    expect(offer?.productLink.url).toContain(encodeURIComponent("Copper oxychloride 50 WP"));
+    expect(offer?.productLink.curated).toBe(false);
   });
 
   it("uses Kiswahili shop kinds from the same catalog", () => {
