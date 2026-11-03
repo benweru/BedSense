@@ -20,10 +20,11 @@ describe("one-tap sign-in", () => {
     expect(html).toContain("Tumia barua pepe badala yake");
   });
 
-  it("keeps the email code path behind the toggle", () => {
+  it("keeps the email password form behind the toggle", () => {
     const html = renderToStaticMarkup(createElement(AccountSignIn, { locale: "en" }));
-    // The email form (with its code field) only appears after tapping the toggle.
+    // The email form (with its password field) only appears after tapping the toggle.
     expect(html).not.toContain("you@email.com");
-    expect(html).not.toContain("Send code");
+    expect(html).not.toContain('type="password"');
+    expect(html).not.toContain("Continue with email");
   });
 });

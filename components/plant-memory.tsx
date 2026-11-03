@@ -36,16 +36,14 @@ const WORDS = {
     signInLead: "One tap creates your account and saves your plants on this phone. No number, no code.",
     oneTap: "Save my plants on this phone",
     onThisPhone: "Saved on this phone",
-    emailLead: "Prefer email? We will send a sign-in code to your inbox.",
+    emailLead: "Use your email with a password. One account works on any phone.",
     useEmail: "Use email instead",
     backToOneTap: "Back to one-tap save",
     email: "Email",
-    sendCode: "Send code",
-    emailCode: "Code from the email",
-    verify: "Sign in",
-    emailSent: "We sent a code to your email.",
+    password: "Password",
+    emailGo: "Continue with email",
     signOut: "Sign out",
-    authError: "Sign-in did not work. Try again.",
+    authError: "Check your email and password, then try again.",
     noPlant: "Don't save this check",
     newPlant: "New plant",
     plantName: "Plant name",
@@ -85,16 +83,14 @@ const WORDS = {
     signInLead: "Bonyeza mara moja kuunda akaunti yako na kuhifadhi mimea yako kwenye simu hii. Hakuna nambari, hakuna msimbo.",
     oneTap: "Hifadhi mimea yangu kwenye simu hii",
     onThisPhone: "Imehifadhiwa kwenye simu hii",
-    emailLead: "Unapendelea barua pepe? Tutakutumia msimbo wa kuingia.",
+    emailLead: "Tumia barua pepe yako na nywila. Akaunti moja inafanya kazi kwenye simu yoyote.",
     useEmail: "Tumia barua pepe badala yake",
     backToOneTap: "Rudi kuhifadhi kwa bonyeza moja",
     email: "Barua pepe",
-    sendCode: "Tuma nambari",
-    emailCode: "Nambari uliyotumiwa kwa barua pepe",
-    verify: "Ingia",
-    emailSent: "Tumekutumia nambari kwa barua pepe.",
+    password: "Nywila",
+    emailGo: "Endelea na barua pepe",
     signOut: "Ondoka",
-    authError: "Imeshindwa kuingia. Jaribu tena.",
+    authError: "Hakikisha barua pepe na nywila ni sahihi, kisha jaribu tena.",
     noPlant: "Usihifadhi ukaguzi huu",
     newPlant: "Mmea mpya",
     plantName: "Jina la mmea",
@@ -397,8 +393,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   const supabase = browserSupabase();
   const [byEmail, setByEmail] = useState(false);
   const [target, setTarget] = useState("");
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
+  const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
 
@@ -411,33 +406,29 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
     if (failure) setError(true);
   }
 
-  async function send() {
-    if (!supabase || !target.includes("@")) {
+  async function emailGo() {
+    if (!supabase || !target.includes("@") || secret.length < 6) {
       setError(true);
       return;
     }
     setBusy(true);
     setError(false);
-    const { error: failure } = await supabase.auth.signInWithOtp({ email: target.trim(), options: { shouldCreateUser: true } });
+    const credentials = { email: target.trim(), password: secret };
+    const signIn = await supabase.auth.signInWithPassword(credentials);
+    if (!signIn.error) {
+      setBusy(false);
+      return;
+    }
+    // Same tap creates the account for a new farmer. Needs "Confirm email" off in Supabase.
+    const signUp = await supabase.auth.signUp(credentials);
     setBusy(false);
-    if (failure) setError(true);
-    else setSent(true);
-  }
-
-  async function verify() {
-    if (!supabase || !code.trim()) return;
-    setBusy(true);
-    setError(false);
-    const { error: failure } = await supabase.auth.verifyOtp({ email: target.trim(), token: code.trim(), type: "email" });
-    setBusy(false);
-    if (failure) setError(true);
+    if (signUp.error || !signUp.data.session) setError(true);
   }
 
   function toggle() {
     setByEmail((current) => !current);
     setTarget("");
-    setCode("");
-    setSent(false);
+    setSecret("");
     setError(false);
   }
 
@@ -451,7 +442,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
             className="mt-3 flex flex-col gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              void (sent ? verify() : send());
+              void emailGo();
             }}
           >
             <label className="text-sm font-semibold text-paper" htmlFor="account-contact">
@@ -466,27 +457,29 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
               autoComplete="email"
               onChange={(event) => {
                 setTarget(event.target.value);
-                setSent(false);
                 setError(false);
               }}
               className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
             />
-            {sent ? (
-              <>
-                <p className="text-sm text-mute">{words.emailSent}</p>
-                <input
-                  aria-label={words.emailCode}
-                  placeholder={words.emailCode}
-                  value={code}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  onChange={(event) => setCode(event.target.value)}
-                  className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
-                />
-              </>
-            ) : null}
+            <label className="text-sm font-semibold text-paper" htmlFor="account-secret">
+              {words.password}
+            </label>
+            <input
+              id="account-secret"
+              type="password"
+              aria-label={words.password}
+              placeholder={words.password}
+              value={secret}
+              minLength={6}
+              autoComplete="current-password"
+              onChange={(event) => {
+                setSecret(event.target.value);
+                setError(false);
+              }}
+              className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
+            />
             <button type="submit" disabled={busy} className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
-              {sent ? words.verify : words.sendCode}
+              {words.emailGo}
             </button>
             <button type="button" onClick={toggle} className="min-h-11 text-sm font-semibold text-mute hover:text-paper">
               {words.backToOneTap}
