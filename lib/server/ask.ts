@@ -1,6 +1,7 @@
 import { copy, normalizeLocale } from "@/lib/copy";
 import { decodeDataUrl } from "@/lib/image";
 import { catalogChatModels, isMockMode, listMetaModels, MetaHttpError, MUSE_MODELS, postMeta, readApiKey, triageModelIds } from "@/lib/server/meta";
+import { completeOpenModels, isOpenModelsConfigured } from "@/lib/server/open-models";
 import { chatOutputText } from "@/lib/server/muse";
 import { containsDosage } from "@/lib/triage";
 import { repairSentence } from "@/lib/translate";
@@ -70,6 +71,8 @@ export type AskAnswer = {
   demo: boolean;
   photoRequested: boolean;
   reason: string | null;
+  /** Which engine produced this answer. The open model only fires when the Model API fails. */
+  via: "model-api" | "open-model" | "demo";
 };
 
 export async function answerFollowUp(input: {
@@ -88,16 +91,45 @@ export async function answerFollowUp(input: {
   const photo = readPhoto(input.photo);
 
   if (isMockMode()) {
-    if (photo) return { answer: localAnswer(locale, grounding, true), locale, demo: true, photoRequested: false, reason: null };
+    if (photo)
+      return { answer: localAnswer(locale, grounding, true), locale, demo: true, photoRequested: false, reason: null, via: "demo" };
     if (looksStale(question)) {
       const reason = MOCK_PHOTO_REASON[locale];
-      return { answer: copy[locale].askPhotoAsk(reason), locale, demo: true, photoRequested: true, reason };
+      return { answer: copy[locale].askPhotoAsk(reason), locale, demo: true, photoRequested: true, reason, via: "demo" };
     }
-    return { answer: localAnswer(locale, grounding, false), locale, demo: true, photoRequested: false, reason: null };
+    return { answer: localAnswer(locale, grounding, false), locale, demo: true, photoRequested: false, reason: null, via: "demo" };
   }
   const apiKey = readApiKey();
   if (!apiKey) throw new AskError("missing_key");
 
+  try {
+    return await answerViaModelApi(apiKey, locale, grounding, thread, question, photo);
+  } catch (error) {
+    // Genuine fallback, not a toggle: only a failed Model API call with an open key configured reaches the open model.
+    if (
+      error instanceof AskError &&
+      (error.code === "upstream" || error.code === "muse_unavailable") &&
+      isOpenModelsConfigured()
+    ) {
+      try {
+        const raw = await askOpenModel(locale, grounding, thread, question, photo);
+        if (raw) return settleAnswer(locale, raw, photo, "open-model");
+      } catch {
+        // The open model failed too: the original Model API failure stands.
+      }
+    }
+    throw error;
+  }
+}
+
+async function answerViaModelApi(
+  apiKey: string,
+  locale: Locale,
+  grounding: AskGrounding,
+  thread: AskTurn[],
+  question: string,
+  photo: string | null,
+): Promise<AskAnswer> {
   let models: string[];
   try {
     let listed = await listMetaModels(apiKey, 8_000);
@@ -122,18 +154,7 @@ export async function answerFollowUp(input: {
         sawLiveModel = true;
         continue;
       }
-      const requested = readPhotoRequest(answer);
-      if (!photo && requested) {
-        const asked = copy[locale].askPhotoAsk(requested);
-        // The reason is model text, so it passes through the same dosage guard as any answer.
-        if (containsDosage(asked)) return { answer: copy[locale].askUnavailable, locale, demo: false, photoRequested: false, reason: null };
-        return { answer: asked, locale, demo: false, photoRequested: true, reason: requested };
-      }
-      if (photo && requested) {
-        // MAX_PHOTO_ROUNDS is spent: a second request is answered as unavailable, never looped.
-        return { answer: copy[locale].askUnavailable, locale, demo: false, photoRequested: false, reason: null };
-      }
-      return { answer, locale, demo: false, photoRequested: false, reason: null };
+      return settleAnswer(locale, answer, photo, "model-api");
     } catch (error) {
       // A rate limit will not clear by burning the next model; report it so the farmer can wait a few seconds.
       if (error instanceof MetaHttpError && error.status === 429) throw new AskError("rate_limited");
@@ -148,6 +169,36 @@ export async function answerFollowUp(input: {
   }
   if (!sawLiveModel) throw new AskError("muse_unavailable");
   throw new AskError("upstream");
+}
+
+type AskMessage = {
+  role: "developer" | "user" | "assistant";
+  content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
+};
+
+/** One message list for both engines, so the fallback answers the same grounded question. */
+function askMessages(
+  locale: Locale,
+  grounding: AskGrounding,
+  thread: AskTurn[],
+  question: string,
+  photo: string | null,
+): AskMessage[] {
+  return [
+    { role: "developer", content: askPrompt(locale, grounding, photo !== null) },
+    ...thread.map(
+      (turn): AskMessage => ({ role: turn.role === "farmer" ? "user" : "assistant", content: turn.text }),
+    ),
+    photo
+      ? {
+          role: "user" as const,
+          content: [
+            { type: "text" as const, text: question },
+            { type: "image_url" as const, image_url: { url: photo } },
+          ],
+        }
+      : { role: "user" as const, content: question },
+  ];
 }
 
 async function askModel(
@@ -166,28 +217,48 @@ async function askModel(
       stream: true,
       // Reasoning tokens come out of this budget; the grounded prompt needs triage-sized headroom or the completion is empty.
       max_completion_tokens: 2400,
-      messages: [
-        { role: "developer", content: askPrompt(locale, grounding, photo !== null) },
-        ...thread.map((turn) => ({ role: turn.role === "farmer" ? "user" : "assistant", content: turn.text })),
-        photo
-          ? {
-              role: "user",
-              content: [
-                { type: "text", text: question },
-                { type: "image_url", image_url: { url: photo } },
-              ],
-            }
-          : { role: "user", content: question },
-      ],
+      messages: askMessages(locale, grounding, thread, question, photo),
     },
     apiKey,
     25_000,
   );
-  const raw = chatOutputText(payload).replace(/\s+/g, " ").trim().slice(0, ANSWER_LIMIT);
+  return finishAnswerText(locale, chatOutputText(payload));
+}
+
+async function askOpenModel(
+  locale: Locale,
+  grounding: AskGrounding,
+  thread: AskTurn[],
+  question: string,
+  photo: string | null,
+): Promise<string> {
+  const output = await completeOpenModels(askMessages(locale, grounding, thread, question, photo), { timeoutMs: 15_000 });
+  return finishAnswerText(locale, output);
+}
+
+function finishAnswerText(locale: Locale, output: string): string {
+  const raw = output.replace(/\s+/g, " ").trim().slice(0, ANSWER_LIMIT);
   if (!raw) return "";
   // A rate in an answer is dropped whole, never shown. The farmer still gets the label rule from the check.
   if (containsDosage(raw)) return copy[locale].askUnavailable;
   return repairSentence(locale, raw) || raw;
+}
+
+/** Tool-request parsing and dosage guards apply identically whichever engine answered. */
+function settleAnswer(locale: Locale, answer: string, photo: string | null, via: AskAnswer["via"]): AskAnswer {
+  const requested = readPhotoRequest(answer);
+  if (!photo && requested) {
+    const asked = copy[locale].askPhotoAsk(requested);
+    // The reason is model text, so it passes through the same dosage guard as any answer.
+    if (containsDosage(asked))
+      return { answer: copy[locale].askUnavailable, locale, demo: false, photoRequested: false, reason: null, via };
+    return { answer: asked, locale, demo: false, photoRequested: true, reason: requested, via };
+  }
+  if (photo && requested) {
+    // MAX_PHOTO_ROUNDS is spent: a second request is answered as unavailable, never looped.
+    return { answer: copy[locale].askUnavailable, locale, demo: false, photoRequested: false, reason: null, via };
+  }
+  return { answer, locale, demo: false, photoRequested: false, reason: null, via };
 }
 
 function askPrompt(locale: Locale, grounding: AskGrounding, hasPhoto: boolean): string {

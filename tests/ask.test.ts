@@ -328,3 +328,153 @@ describe("follow-up photo re-check tool", () => {
     expect(body.error).toBe("image_too_large");
   });
 });
+
+describe("open-model fallback", () => {
+  function stubBoth(meta: (url: string) => Response, open: (url: string, init: RequestInit) => Response) {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push(String(url));
+        if (String(url).includes("inference.baseten.co")) return open(String(url), init);
+        return meta(String(url));
+      }),
+    );
+    return calls;
+  }
+
+  function catalog(): Response {
+    return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  function chatAnswer(text: string): Response {
+    return new Response(JSON.stringify({ choices: [{ message: { content: text } }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  function failure(status: number, code: string): Response {
+    return new Response(JSON.stringify({ error: { code } }), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  it("falls back to the open model when the Model API is unreachable", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    let openModel = "";
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      (_url, init) => {
+        openModel = (JSON.parse(String(init.body)) as { model: string }).model;
+        return chatAnswer("Open answer: check the underside first.");
+      },
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain("Open answer");
+    expect(body.via).toBe("open-model");
+    expect(body.demo).toBe(false);
+    expect(openModel).toBe("meta-models/muse-spark-open-1026");
+    expect(calls.some((url) => url.includes("api.meta.ai"))).toBe(true);
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(true);
+  });
+
+  it("never touches the open model when the Model API answers", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : chatAnswer("Meta answer: check the underside.")),
+      () => chatAnswer("must not be called"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain("Meta answer");
+    expect(body.via).toBe("model-api");
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(false);
+  });
+
+  it("keeps the original failure when no open key is configured", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "");
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      () => chatAnswer("must not be called"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe("upstream");
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(false);
+  });
+
+  it("does not fall back on rate limits", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(429, "rate_limit")),
+      () => chatAnswer("must not be called"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(429);
+    const body = await response.json();
+    expect(body.error).toBe("rate_limited");
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(false);
+  });
+
+  it("falls back when the key has no Muse chat model", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(404, "model_not_found")),
+      () => chatAnswer("Open answer: show an agrovet the photo."),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain("Open answer");
+    expect(body.via).toBe("open-model");
+  });
+
+  it("reports the Model API failure when the open model fails too", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      () => failure(503, "overloaded"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe("upstream");
+  });
+
+  it("honors the photo tool loop on fallback answers", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      () => chatAnswer('{"request_photo": "a close photo of the worst leaf"}'),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(true);
+    expect(body.reason).toBe("a close photo of the worst leaf");
+    expect(body.via).toBe("open-model");
+  });
+});
