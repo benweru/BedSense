@@ -33,17 +33,20 @@ const WORDS = {
     view: "View my plants",
     oneSaved: "plant saved",
     manySaved: "plants saved",
-    signInLead: "One tap creates your account and saves your plants on this phone. No number, no code.",
-    oneTap: "Save my plants on this phone",
-    onThisPhone: "Saved on this phone",
-    emailLead: "Use your email with a password. One account works on any phone.",
+    signInLead: "Create an account with your phone number. Then save a plant and photograph it again in 2 or 3 days.",
+    phone: "Phone number",
+    phoneHint: "We send a code by SMS. A Safaricom, Airtel, or Telkom number is enough.",
     useEmail: "Use email instead",
-    backToOneTap: "Back to one-tap save",
+    usePhone: "Use a phone number",
     email: "Email",
-    password: "Password",
-    emailGo: "Continue with email",
+    sendCode: "Send code",
+    code: "Code from the SMS",
+    emailCode: "Code from the email",
+    verify: "Sign in",
+    codeSent: "We sent a code to your phone.",
+    emailSent: "We sent a code to your email.",
     signOut: "Sign out",
-    authError: "Check your email and password, then try again.",
+    authError: "Sign-in did not work. Check the email or number and try again.",
     noPlant: "Don't save this check",
     newPlant: "New plant",
     plantName: "Plant name",
@@ -80,17 +83,20 @@ const WORDS = {
     view: "Ona mimea yangu",
     oneSaved: "mmea umehifadhiwa",
     manySaved: "mimea imehifadhiwa",
-    signInLead: "Bonyeza mara moja kuunda akaunti yako na kuhifadhi mimea yako kwenye simu hii. Hakuna nambari, hakuna msimbo.",
-    oneTap: "Hifadhi mimea yangu kwenye simu hii",
-    onThisPhone: "Imehifadhiwa kwenye simu hii",
-    emailLead: "Tumia barua pepe yako na nywila. Akaunti moja inafanya kazi kwenye simu yoyote.",
+    signInLead: "Ingia kwa nambari yako ya simu. Kisha hifadhi mmea, na uupige picha tena baada ya siku 2 au 3.",
+    phone: "Nambari ya simu",
+    phoneHint: "Tutakutumia nambari kwa SMS. Laini ya Safaricom, Airtel au Telkom inafaa.",
     useEmail: "Tumia barua pepe badala yake",
-    backToOneTap: "Rudi kuhifadhi kwa bonyeza moja",
+    usePhone: "Tumia nambari ya simu",
     email: "Barua pepe",
-    password: "Nywila",
-    emailGo: "Endelea na barua pepe",
+    sendCode: "Tuma nambari",
+    code: "Nambari uliyotumiwa kwa SMS",
+    emailCode: "Nambari uliyotumiwa kwa barua pepe",
+    verify: "Ingia",
+    codeSent: "Tumekutumia nambari kwa SMS.",
+    emailSent: "Tumekutumia nambari kwa barua pepe.",
     signOut: "Ondoka",
-    authError: "Hakikisha barua pepe na nywila ni sahihi, kisha jaribu tena.",
+    authError: "Imeshindwa kuingia. Hakikisha barua pepe au nambari ni sahihi, kisha jaribu tena.",
     noPlant: "Usihifadhi ukaguzi huu",
     newPlant: "Mmea mpya",
     plantName: "Jina la mmea",
@@ -252,20 +258,16 @@ export function PlantMemory({
     <section id="plant-memory">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-semibold text-2xl leading-tight text-paper">{words.title}</h2>
-        {user.is_anonymous ? (
-          <p className="text-sm font-semibold text-mute">{words.onThisPhone}</p>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              onSelect(null);
-              void supabase.auth.signOut();
-            }}
-            className="min-h-11 rounded-full px-3 text-sm font-semibold text-mute hover:text-paper"
-          >
-            {words.signOut}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => {
+            onSelect(null);
+            void supabase.auth.signOut();
+          }}
+          className="min-h-11 rounded-full px-3 text-sm font-semibold text-mute hover:text-paper"
+        >
+          {words.signOut}
+        </button>
       </div>
       {error ? (
         <p className="mt-2 text-base text-danger" role="alert">
@@ -379,6 +381,13 @@ export function PlantMemory({
   );
 }
 
+/** Kenyan mobile numbers: 07…, 01…, 254…, or +254…. */
+function kenyaPhone(raw: string): string | null {
+  const digits = raw.replace(/[^\d]/g, "");
+  const local = digits.startsWith("254") ? digits.slice(3) : digits.startsWith("0") ? digits.slice(1) : digits;
+  return /^[17]\d{8}$/.test(local) ? `+254${local}` : null;
+}
+
 function Spinner() {
   return (
     <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-ink/20 border-t-leaf" role="status" aria-label="Loading" />
@@ -393,126 +402,105 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   const supabase = browserSupabase();
   const [byEmail, setByEmail] = useState(false);
   const [target, setTarget] = useState("");
-  const [secret, setSecret] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const phone = byEmail ? null : kenyaPhone(target);
 
-  async function oneTap() {
+  async function send() {
     if (!supabase) return;
-    setBusy(true);
-    setError(false);
-    const { error: failure } = await supabase.auth.signInAnonymously();
-    setBusy(false);
-    if (failure) setError(true);
-  }
-
-  async function emailGo() {
-    if (!supabase || !target.includes("@") || secret.length < 6) {
+    const contact = byEmail ? (target.includes("@") ? { email: target.trim() } : null) : phone ? { phone } : null;
+    if (!contact) {
       setError(true);
       return;
     }
     setBusy(true);
     setError(false);
-    const credentials = { email: target.trim(), password: secret };
-    const signIn = await supabase.auth.signInWithPassword(credentials);
-    if (!signIn.error) {
-      setBusy(false);
-      return;
-    }
-    // Same tap creates the account for a new farmer. Needs "Confirm email" off in Supabase.
-    const signUp = await supabase.auth.signUp(credentials);
+    const { error: failure } = await supabase.auth.signInWithOtp({ ...contact, options: { shouldCreateUser: true } });
     setBusy(false);
-    if (signUp.error || !signUp.data.session) setError(true);
+    if (failure) setError(true);
+    else setSent(true);
   }
 
-  function toggle() {
-    setByEmail((current) => !current);
-    setTarget("");
-    setSecret("");
+  async function verify() {
+    if (!supabase || !code.trim()) return;
+    setBusy(true);
     setError(false);
+    const { error: failure } = byEmail
+      ? await supabase.auth.verifyOtp({ email: target.trim(), token: code.trim(), type: "email" })
+      : phone
+        ? await supabase.auth.verifyOtp({ phone, token: code.trim(), type: "sms" })
+        : { error: new Error("phone") };
+    setBusy(false);
+    if (failure) setError(true);
   }
 
   return (
     <section id="plant-memory">
       {heading ? <h2 className="font-semibold text-2xl leading-tight text-paper">{words.title}</h2> : null}
-      {byEmail ? (
-        <>
-          <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.emailLead}</p>
-          <form
-            className="mt-3 flex flex-col gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void emailGo();
-            }}
-          >
-            <label className="text-sm font-semibold text-paper" htmlFor="account-contact">
-              {words.email}
-            </label>
+      <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.signInLead}</p>
+      <form
+        className="mt-3 flex flex-col gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void (sent ? verify() : send());
+        }}
+      >
+        <label className="text-sm font-semibold text-paper" htmlFor="account-contact">
+          {byEmail ? words.email : words.phone}
+        </label>
+        <input
+          id="account-contact"
+          aria-label={byEmail ? words.email : words.phone}
+          placeholder={byEmail ? "you@email.com" : "0712 345 678"}
+          value={target}
+          inputMode={byEmail ? "email" : "tel"}
+          autoComplete={byEmail ? "email" : "tel"}
+          onChange={(event) => {
+            setTarget(event.target.value);
+            setSent(false);
+            setError(false);
+          }}
+          className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
+        />
+        {byEmail ? null : <p className="text-sm leading-6 text-mute">{words.phoneHint}</p>}
+        {sent ? (
+          <>
+            <p className="text-sm text-mute">{byEmail ? words.emailSent : words.codeSent}</p>
             <input
-              id="account-contact"
-              aria-label={words.email}
-              placeholder="you@email.com"
-              value={target}
-              inputMode="email"
-              autoComplete="email"
-              onChange={(event) => {
-                setTarget(event.target.value);
-                setError(false);
-              }}
+              aria-label={byEmail ? words.emailCode : words.code}
+              placeholder={byEmail ? words.emailCode : words.code}
+              value={code}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              onChange={(event) => setCode(event.target.value)}
               className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
             />
-            <label className="text-sm font-semibold text-paper" htmlFor="account-secret">
-              {words.password}
-            </label>
-            <input
-              id="account-secret"
-              type="password"
-              aria-label={words.password}
-              placeholder={words.password}
-              value={secret}
-              minLength={6}
-              autoComplete="current-password"
-              onChange={(event) => {
-                setSecret(event.target.value);
-                setError(false);
-              }}
-              className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
-            />
-            <button type="submit" disabled={busy} className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
-              {words.emailGo}
-            </button>
-            <button type="button" onClick={toggle} className="min-h-11 text-sm font-semibold text-mute hover:text-paper">
-              {words.backToOneTap}
-            </button>
-            {error ? (
-              <p className="text-base text-danger" role="alert">
-                {words.authError}
-              </p>
-            ) : null}
-          </form>
-        </>
-      ) : (
-        <>
-          <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.signInLead}</p>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void oneTap()}
-            className="press mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60"
-          >
-            {busy ? <Spinner /> : null}
-            {words.oneTap}
-          </button>
-          <button type="button" onClick={toggle} className="mt-1 min-h-11 w-full text-sm font-semibold text-mute hover:text-paper">
-            {words.useEmail}
-          </button>
-          {error ? (
-            <p className="text-base text-danger" role="alert">
-              {words.authError}
-            </p>
-          ) : null}
-        </>
-      )}
+          </>
+        ) : null}
+        <button type="submit" disabled={busy} className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
+          {sent ? words.verify : words.sendCode}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setByEmail((current) => !current);
+            setTarget("");
+            setCode("");
+            setSent(false);
+            setError(false);
+          }}
+          className="min-h-11 text-sm font-semibold text-mute hover:text-paper"
+        >
+          {byEmail ? words.usePhone : words.useEmail}
+        </button>
+        {error ? (
+          <p className="text-base text-danger" role="alert">
+            {words.authError}
+          </p>
+        ) : null}
+      </form>
     </section>
   );
 }

@@ -16,8 +16,7 @@ Everything below was built October 26–November 4, 2026 (the October 25 commits
 - Voice notes (`POST /api/transcribe`): tap-to-talk context in English or Kiswahili.
 - Share card (`/share`) plus an X share-intent button with prefilled demo text on every result.
 - Plant memory: Supabase-backed saved plants, re-check timeline, and practice log, with Row-Level Security per farmer; the app runs signed-out on phone-local history when Supabase is not configured.
-- Engineering rigor: GitHub Actions CI running test, lint, and typecheck; zero-env tests proving every route renders usefully with no keys and no Supabase; demo mode (`MOCK_META=1`) and a `/api/diag` deployment probe; 260-test suite, all green.
-- One-tap anonymous accounts with email-plus-password as the cross-device path; sign-out is hidden for anonymous users so plants can never be stranded.
+- Engineering rigor: GitHub Actions CI running test, lint, and typecheck; zero-env tests proving every route renders usefully with no keys and no Supabase; demo mode (`MOCK_META=1`) and a `/api/diag` deployment probe; 257-test suite, all green.
 - Open-weights fallback: Muse Spark Open answers follow-up Q&A through Baseten when the Model API fails, with a per-answer engine marker and a `/api/open-models` verification probe.
 - Creative reference card: a Muse Image "what to look for" illustration for the named suspect, labeled so it can never read as a diagnosis, with prompts constrained to the known suspect list.
 
