@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { POST as analyzePOST } from "@/app/api/analyze/route";
 import { POST as askPOST } from "@/app/api/ask/route";
 import { GET as diagGET } from "@/app/api/diag/route";
+import { GET as openModelsGET } from "@/app/api/open-models/route";
 import { GET as plantsGET } from "@/app/api/plants/route";
 import { serverSupabase, sessionUser, supabaseConfigured } from "@/lib/server/supabase";
 import { browserSupabase } from "@/lib/supabase-browser";
@@ -15,6 +16,9 @@ function clearEnv() {
   vi.stubEnv("MODEL_API_KEY", "");
   for (let index = 0; index < 6; index += 1) vi.stubEnv(`MODEL_API_KEY_${index}`, "");
   vi.stubEnv("MOCK_META", "");
+  vi.stubEnv("OPEN_MODELS_BASE_URL", "");
+  vi.stubEnv("OPEN_MODELS_API_KEY", "");
+  vi.stubEnv("OPEN_MODELS_MODEL", "");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "");
 }
@@ -78,6 +82,22 @@ describe("zero-env API routes", () => {
     expect(body.ok).toBe(false);
     expect(body.reason).toBe("missing_key");
     expect(JSON.stringify(body)).not.toContain("sk-");
+  });
+
+  it("answers /api/open-models from the mock path with empty env", async () => {
+    clearEnv();
+    const fetchMock = vi.fn(() => {
+      throw new Error("network");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await openModelsGET();
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { ok: boolean; mock: boolean; model: string; configured: boolean };
+    expect(body.ok).toBe(true);
+    expect(body.mock).toBe(true);
+    expect(body.configured).toBe(false);
+    expect(body.model.length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("answers /api/diag with JSON when the catalog read fails", async () => {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { GET as openModelsGET } from "@/app/api/open-models/route";
 import {
   completeOpenModels,
   isOpenModelsConfigured,
@@ -54,6 +55,7 @@ describe("open-weights adapter", () => {
   });
 
   it("refuses without a key and never touches the network", async () => {
+    vi.stubEnv("MOCK_META", "0");
     const calls = stubFetch(() => jsonResponse({}));
     await expect(completeOpenModels([{ role: "user", content: "hi" }])).rejects.toMatchObject({
       name: "OpenModelsError",
@@ -63,6 +65,7 @@ describe("open-weights adapter", () => {
   });
 
   it("posts chat completions with Bearer auth and returns the text", async () => {
+    vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
     const calls = stubFetch(() =>
       jsonResponse({ choices: [{ message: { content: "Use the label rate." } }] }),
@@ -79,18 +82,21 @@ describe("open-weights adapter", () => {
   });
 
   it("maps auth and missing-model failures to unavailable", async () => {
+    vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
     stubFetch(() => jsonResponse({ error: { code: "unauthorized" } }, 401));
     await expect(completeOpenModels([{ role: "user", content: "hi" }])).rejects.toMatchObject({ code: "unavailable" });
   });
 
   it("maps rate limits distinctly from other upstream failures", async () => {
+    vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
     stubFetch(() => jsonResponse({ error: { code: "rate_limit" } }, 429));
     await expect(completeOpenModels([{ role: "user", content: "hi" }])).rejects.toMatchObject({ code: "rate_limited" });
   });
 
   it("maps server errors and dropped connections to upstream", async () => {
+    vi.stubEnv("MOCK_META", "0");
     vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
     stubFetch(() => jsonResponse({ error: { code: "bad_gateway" } }, 502));
     await expect(completeOpenModels([{ role: "user", content: "hi" }])).rejects.toMatchObject({ code: "upstream" });
@@ -116,5 +122,97 @@ describe("open-weights adapter", () => {
     const error = new OpenModelsError("upstream");
     expect(error).toBeInstanceOf(Error);
     expect(error.code).toBe("upstream");
+  });
+
+  it("answers keyless with no network in mock mode", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    vi.stubEnv("OPEN_MODELS_API_KEY", "");
+    const calls = stubFetch(() => jsonResponse({}));
+    const text = await completeOpenModels([{ role: "user", content: "Can I spray?" }]);
+    expect(text).toContain("Mock open-model answer");
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("open-model verification probe", () => {
+  function probeFetch(handler: (url: string, init: RequestInit) => Response) {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push(String(url));
+        return handler(String(url), init);
+      }),
+    );
+    return calls;
+  }
+
+  it("resolves the path in mock mode with no key and no network", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    vi.stubEnv("OPEN_MODELS_API_KEY", "");
+    const calls = probeFetch(() => jsonResponse({}));
+    const response = await openModelsGET();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.ok).toBe(true);
+    expect(body.mock).toBe(true);
+    expect(body.model).toBe("meta-models/muse-spark-open-1026");
+    expect(body.base).toBe("https://inference.baseten.co/v1");
+    expect(typeof body.latencyMs).toBe("number");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("reports missing_key live with no open key and never throws", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "");
+    const calls = probeFetch(() => jsonResponse({}));
+    const response = await openModelsGET();
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.reason).toBe("missing_key");
+    expect(body.configured).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("probes the partner endpoint live and fingerprints the key", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key-1234567890");
+    const calls = probeFetch(() => jsonResponse({ choices: [{ message: { content: "ok" } }] }));
+    const response = await openModelsGET();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.ok).toBe(true);
+    expect(body.mock).toBe(false);
+    expect(body.configured).toBe(true);
+    expect(body.key).toEqual({ length: 19, prefix: "open", suffix: "7890" });
+    expect(JSON.stringify(body)).not.toContain("open-key-1234567890");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toBe("https://inference.baseten.co/v1/chat/completions");
+  });
+
+  it("reports the mapped reason when the partner endpoint fails", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    probeFetch(() => jsonResponse({ error: { code: "bad_gateway" } }, 502));
+    const response = await openModelsGET();
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+    expect(body.reason).toBe("upstream");
+  });
+
+  it("honors endpoint and model overrides in the probe", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    vi.stubEnv("OPEN_MODELS_BASE_URL", "https://proxy.example/v1");
+    vi.stubEnv("OPEN_MODELS_MODEL", "meta-models/muse-glimmer-x");
+    probeFetch(() => jsonResponse({}));
+    const response = await openModelsGET();
+    const body = await response.json();
+    expect(body.base).toBe("https://proxy.example/v1");
+    expect(body.model).toBe("meta-models/muse-glimmer-x");
   });
 });

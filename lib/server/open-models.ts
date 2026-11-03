@@ -1,5 +1,6 @@
 import {
   errorReason,
+  isMockMode,
   MetaHttpError,
   type MetaPayload,
   parseSse,
@@ -14,6 +15,8 @@ import { chatOutputText } from "@/lib/server/muse";
  */
 export const OPEN_MODELS_BASE_DEFAULT = "https://inference.baseten.co/v1";
 export const OPEN_MODELS_MODEL_DEFAULT = "meta-models/muse-spark-open-1026";
+/** Demo answer when the open-model path runs keyless. Never invents advice. */
+export const OPEN_MOCK_ANSWER = "Mock open-model answer: show an agrovet the photo and this check.";
 
 export class OpenModelsError extends Error {
   readonly code: "missing_key" | "unavailable" | "rate_limited" | "upstream";
@@ -53,6 +56,8 @@ export async function completeOpenModels(
   messages: readonly OpenModelsMessage[],
   options?: { maxTokens?: number; timeoutMs?: number },
 ): Promise<string> {
+  // Mock parity: the open-model path resolves with no key and no network, like every other route.
+  if (isMockMode()) return OPEN_MOCK_ANSWER;
   const apiKey = readOpenModelsKey();
   if (!apiKey) throw new OpenModelsError("missing_key");
   try {
