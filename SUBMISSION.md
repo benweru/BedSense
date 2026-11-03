@@ -16,8 +16,10 @@ Everything below was built October 26–November 4, 2026 (the October 25 commits
 - Voice notes (`POST /api/transcribe`): tap-to-talk context in English or Kiswahili.
 - Share card (`/share`) plus an X share-intent button with prefilled demo text on every result.
 - Plant memory: Supabase-backed saved plants, re-check timeline, and practice log, with Row-Level Security per farmer; the app runs signed-out on phone-local history when Supabase is not configured.
-- Engineering rigor: GitHub Actions CI running test, lint, and typecheck; zero-env tests proving every route renders usefully with no keys and no Supabase; demo mode (`MOCK_META=1`) and a `/api/diag` deployment probe; 213-test suite, all green.
-- Open-weights and creative builds (Muse Spark Open fallback via a partner endpoint with a `/api/open-models` probe, and a Muse Image "what to look for" reference card) live on the `polishing-open-weights` and `polishing-creative` sub-branches, green but unmerged at submission time unless the merge is approved below.
+- Engineering rigor: GitHub Actions CI running test, lint, and typecheck; zero-env tests proving every route renders usefully with no keys and no Supabase; demo mode (`MOCK_META=1`) and a `/api/diag` deployment probe; 260-test suite, all green.
+- One-tap anonymous accounts with email-plus-password as the cross-device path; sign-out is hidden for anonymous users so plants can never be stranded.
+- Open-weights fallback: Muse Spark Open answers follow-up Q&A through Baseten when the Model API fails, with a per-answer engine marker and a `/api/open-models` verification probe.
+- Creative reference card: a Muse Image "what to look for" illustration for the named suspect, labeled so it can never read as a diagnosis, with prompts constrained to the known suspect list.
 
 ## Meta models used
 
@@ -26,13 +28,13 @@ All calls go through `https://api.meta.ai/v1` from the server unless noted; keys
 - `sam-3.1` — segmentation masks for the named plant, yellow leaf, and weed (`lib/server/sam.ts`).
 - `muse-spark-1.3-contributor`, `muse-spark-1.3` — triage readings and follow-up Q&A, chosen from the live catalog with Muse Wonder accepted as a fallback chat id (`lib/server/meta.ts`).
 - `muse-voice-transcribe-1.0` — push-to-talk voice notes (`lib/server/transcribe.ts`).
-- `meta-models/muse-spark-open-1026` — open-weights fallback for Q&A through Baseten (`lib/server/open-models.ts`, on `polishing-open-weights`).
-- `muse-image-1.0` — reference illustrations through the Responses API (`lib/server/illustrate.ts`, on `polishing-creative`).
+- `meta-models/muse-spark-open-1026` — open-weights fallback for Q&A through Baseten (`lib/server/open-models.ts`).
+- `muse-image-1.0` — reference illustrations through the Responses API (`lib/server/illustrate.ts`).
 
 ## Safety rails
 
 - The server strips numeric spray rates, mixing rates, and doses from model output and lowers confidence when it does.
 - Chemicals and fertilizers appear only with a verify-with-a-local-agroveterinary-officer note and a product-label-follows rate rule.
 - Uncertain readings name no chemical and ask for more evidence instead of guessing.
-- Generated reference illustrations are labeled "illustration, not your plant" in every state, and generation prompts can only name suspects from the known research list (on `polishing-creative`).
+- Generated reference illustrations are labeled "illustration, not your plant" in every state, and generation prompts can only name suspects from the known research list.
 - Demo mode is the default with no key, so a fresh clone runs without calling Meta.
