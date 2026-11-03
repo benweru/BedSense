@@ -340,17 +340,17 @@ export function PlantMemory({
                   </span>
                 ) : null}
                 <span className="relative block p-3">
-                  <span className="block truncate text-lg font-semibold leading-tight text-paper [text-shadow:0_1px_8px_rgba(7,17,12,0.9)]">
+                  <span className="block truncate text-lg font-semibold leading-tight text-cream [text-shadow:0_1px_8px_rgba(7,17,12,0.9)]">
                     {plant.name}
-                    {plant.bedLabel ? <span className="font-normal text-paper/90"> · {plant.bedLabel}</span> : null}
+                    {plant.bedLabel ? <span className="font-normal text-cream/90"> · {plant.bedLabel}</span> : null}
                   </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-paper/90 [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">
+                  <span className="mt-0.5 block text-xs leading-5 text-cream/90 [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">
                     {health ? `${ui.severity[health]} · ` : ""}{days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
                   </span>
                   {nextDate ? (
                     <span className="mt-0.5 block text-xs leading-5 text-sun [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">
                       {words.nextCheck(nextDate)}
-                      {plant.recheckReason ? <span className="block text-paper/85">{plant.recheckReason}</span> : null}
+                      {plant.recheckReason ? <span className="block text-cream/85">{plant.recheckReason}</span> : null}
                     </span>
                   ) : null}
                 </span>
