@@ -2,7 +2,7 @@
 
 import { relocalizeResult, relocalizeText } from "@/lib/relocalize";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { CheckMark, EmptyIllustration } from "@/components/premium";
 import { VoiceNote } from "@/components/voice-context";
@@ -44,11 +44,13 @@ const WORDS = {
     usePhone: "Use a phone number",
     email: "Email",
     sendCode: "Send code",
+    sendLink: "Send sign-in link",
     code: "Code from the SMS",
-    emailCode: "Code from the email",
     verify: "Sign in",
     codeSent: "We sent a code to your phone.",
-    emailSent: "We sent a code to your email.",
+    emailSent: "We sent a sign-in link to your email. Open it on this device to sign in - it expires shortly and works once.",
+    resendLink: "Send the link again",
+    linkExpired: "That sign-in link did not work - it may have expired or already been used. Send a new one below.",
     signOut: "Sign out",
     authError: "Sign-in did not work. Check the email or number and try again.",
     authUnavailable: "Sign-in is not switched on for this site yet. Your checks still work - they are saved on this phone.",
@@ -97,11 +99,13 @@ const WORDS = {
     usePhone: "Tumia nambari ya simu",
     email: "Barua pepe",
     sendCode: "Tuma nambari",
+    sendLink: "Tuma kiungo cha kuingia",
     code: "Nambari uliyotumiwa kwa SMS",
-    emailCode: "Nambari uliyotumiwa kwa barua pepe",
     verify: "Ingia",
     codeSent: "Tumekutumia nambari kwa SMS.",
-    emailSent: "Tumekutumia nambari kwa barua pepe.",
+    emailSent: "Tumekutumia kiungo cha kuingia kwa barua pepe. Kifungue kwenye kifaa hiki ili kuingia - kinaisha muda si mrefu na kinatumika mara moja tu.",
+    resendLink: "Tuma kiungo tena",
+    linkExpired: "Kiungo hicho cha kuingia hakikufanya kazi - huenda kimeisha muda au kimeshatumika. Tuma kingine hapa chini.",
     signOut: "Ondoka",
     authError: "Imeshindwa kuingia. Hakikisha barua pepe au nambari ni sahihi, kisha jaribu tena.",
     authUnavailable: "Kuingia bado hakujawashwa kwenye tovuti hii. Ukaguzi wako unaendelea kufanya kazi - umehifadhiwa kwenye simu hii.",
@@ -430,6 +434,14 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
+  // The email link lands on /profile?auth_error=1 when it cannot be used.
+  const linkFailedParam = useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).has("auth_error"),
+    () => false,
+  );
+  const [linkFailed, setLinkFailed] = useState<boolean | null>(null);
+  const showLinkFailed = linkFailed ?? linkFailedParam;
   const phone = byEmail ? null : kenyaPhone(target);
 
   useEffect(() => {
@@ -483,11 +495,16 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
     <section id="plant-memory">
       {heading ? <h2 className="font-semibold text-2xl leading-tight text-paper">{words.title}</h2> : null}
       <p className={`text-base leading-6 text-mute ${heading ? "mt-2" : ""}`}>{words.signInLead}</p>
+      {showLinkFailed ? (
+        <p className="mt-3 text-base leading-6 text-danger" role="alert">
+          {words.linkExpired}
+        </p>
+      ) : null}
       <form
         className="mt-3 flex flex-col gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          void (sent ? verify() : send());
+          void (!byEmail && sent ? verify() : send());
         }}
       >
         <label className="text-sm font-semibold text-paper" htmlFor="account-contact">
@@ -508,22 +525,20 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
           className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
         />
         {byEmail ? null : <p className="text-sm leading-6 text-mute">{words.phoneHint}</p>}
-        {sent ? (
-          <>
-            <p className="text-sm text-mute">{byEmail ? words.emailSent : words.codeSent}</p>
-            <input
-              aria-label={byEmail ? words.emailCode : words.code}
-              placeholder={byEmail ? words.emailCode : words.code}
-              value={code}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              onChange={(event) => setCode(event.target.value)}
-              className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
-            />
-          </>
+        {sent ? <p className="text-sm leading-6 text-mute">{byEmail ? words.emailSent : words.codeSent}</p> : null}
+        {sent && !byEmail ? (
+          <input
+            aria-label={words.code}
+            placeholder={words.code}
+            value={code}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            onChange={(event) => setCode(event.target.value)}
+            className="press min-h-12 rounded-full border border-ink/20 bg-field px-4 text-base text-paper placeholder:text-mute"
+          />
         ) : null}
         <button type="submit" disabled={busy} className="press min-h-12 rounded-[10px] bg-leaf px-4 text-base font-semibold text-cream disabled:opacity-60">
-          {sent ? words.verify : words.sendCode}
+          {byEmail ? (sent ? words.resendLink : words.sendLink) : sent ? words.verify : words.sendCode}
         </button>
         <button
           type="button"
@@ -533,6 +548,7 @@ function SignIn({ words, heading = true }: { words: Words; heading?: boolean }) 
             setCode("");
             setSent(false);
             setError(false);
+            setLinkFailed(false);
           }}
           className="min-h-11 text-sm font-semibold text-mute hover:text-paper"
         >

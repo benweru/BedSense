@@ -39,6 +39,13 @@ BedSense reads `GET /v1/models` and calls only a Muse Spark or Muse Wonder chat 
 
 Optional context is one note under the plant name. The farmer types it, or taps once to talk and taps again to finish. The note can mention plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else. The phone converts that recording to mono 16-bit PCM WAV at 16 kHz, and `POST /api/transcribe` uploads it to `muse-voice-transcribe-1.0` with `audioEncoding: "WAV"` and `mode: "PUSH_TO_TALK"`. The JSON `transcript` is appended to that same note (`notes`, up to 1500 characters). The other context fields are left empty. Muse reads the note. English sends `languageBias: ["English"]`. Kiswahili sends `["Swahili", "English"]`. Meta's published voice list does not include Swahili, so a 400 on that bias is retried with English only, and the farmer can edit the text. A realtime WebSocket is not used. `MOCK_META=1` returns a short sample sentence and does not call Meta.
 
+## Accounts (Supabase)
+
+Email sign-in is a magic link, not a code: `/api/auth` sends it with `emailRedirectTo` pointing at `/api/auth/callback?next=/profile`, and that route exchanges the link's one-time `code` for the session cookie. Phone sign-in stays an SMS code verified in place. For the email link to work, the Supabase project must allow the callback URL:
+
+1. Authentication → URL Configuration: set **Site URL** to the production origin (for example `https://bedsense.vercel.app`).
+2. Add `https://bedsense.vercel.app/api/auth/callback` (and `http://localhost:3000/api/auth/callback` for local testing) to **Redirect URLs**. Supabase silently falls back to the Site URL for unlisted redirects, which lands the farmer on a page that never completes sign-in.
+
 ## Pipeline
 
 ```mermaid
