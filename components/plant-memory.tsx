@@ -330,7 +330,7 @@ export function PlantMemory({
                     <EmptyIllustration />
                   </span>
                 )}
-                <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,12,0)_35%,rgba(7,17,12,0.92)_100%)]" aria-hidden="true" />
+                <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,12,0)_20%,rgba(7,17,12,0.72)_55%,rgba(7,17,12,0.96)_100%)]" aria-hidden="true" />
                 <span className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
                   {due ? <span className="eyebrow text-sun">{words.recheckDue}</span> : null}
                 </span>
@@ -340,17 +340,17 @@ export function PlantMemory({
                   </span>
                 ) : null}
                 <span className="relative block p-3">
-                  <span className="block truncate text-lg leading-tight text-paper">
+                  <span className="block truncate text-lg font-semibold leading-tight text-paper [text-shadow:0_1px_8px_rgba(7,17,12,0.9)]">
                     {plant.name}
-                    {plant.bedLabel ? <span className="text-mute"> · {plant.bedLabel}</span> : null}
+                    {plant.bedLabel ? <span className="font-normal text-paper/90"> · {plant.bedLabel}</span> : null}
                   </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-paper/75">
+                  <span className="mt-0.5 block text-xs leading-5 text-paper/90 [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">
                     {health ? `${ui.severity[health]} · ` : ""}{days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
                   </span>
                   {nextDate ? (
-                    <span className="mt-0.5 block text-xs leading-5 text-sun">
+                    <span className="mt-0.5 block text-xs leading-5 text-sun [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">
                       {words.nextCheck(nextDate)}
-                      {plant.recheckReason ? <span className="block text-paper/75">{plant.recheckReason}</span> : null}
+                      {plant.recheckReason ? <span className="block text-paper/85">{plant.recheckReason}</span> : null}
                     </span>
                   ) : null}
                 </span>
@@ -850,19 +850,21 @@ function Timeline({
         })}
       </ol>
 
-      <div className="mt-4">
+      <div className="mt-6 border-t border-ink/10 pt-4">
         {confirmDelete ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm text-paper">{words.confirmDelete}</span>
-            <button type="button" onClick={() => void remove()} className="min-h-11 rounded-full bg-danger px-4 text-sm font-semibold text-cream">
-              {words.deletePlant}
-            </button>
-            <button type="button" onClick={() => setConfirmDelete(false)} className="min-h-11 rounded-full px-4 text-sm font-semibold text-mute">
-              {words.cancel}
-            </button>
+          <div className="rounded-lg border border-danger/60 bg-danger/10 p-3" role="alert">
+            <p className="text-base font-semibold text-paper">{words.confirmDelete}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => void remove()} className="press min-h-12 rounded-[10px] bg-danger px-4 text-base font-semibold text-cream">
+                {words.deletePlant}
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="press min-h-12 rounded-full px-4 text-base font-semibold text-paper">
+                {words.cancel}
+              </button>
+            </div>
           </div>
         ) : (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="min-h-11 text-sm font-semibold text-danger hover:underline">
+          <button type="button" onClick={() => setConfirmDelete(true)} className="press min-h-11 text-sm font-semibold text-danger hover:underline">
             {words.deletePlant}
           </button>
         )}

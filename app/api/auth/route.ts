@@ -31,7 +31,13 @@ export async function POST(request: Request): Promise<Response> {
   if (!contact) return badRequest();
 
   if (action === "send") {
-    const { error } = await client.auth.signInWithOtp({ ...contact, options: { shouldCreateUser: true } });
+    // The confirmation link in the email must land on the domain the farmer
+    // is actually using, not the project's default Site URL.
+    const origin = new URL(request.url).origin;
+    const { error } = await client.auth.signInWithOtp({
+      ...contact,
+      options: { shouldCreateUser: true, ...(email ? { emailRedirectTo: `${origin}/profile` } : {}) },
+    });
     if (!error) return Response.json({ ok: true });
     return error.status === 429
       ? Response.json({ error: "rate_limited" }, { status: 429 })
