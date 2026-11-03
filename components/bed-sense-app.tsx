@@ -988,7 +988,23 @@ function FollowUpChat({
   const [failed, setFailed] = useState(false);
   const [limited, setLimited] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [pending, setPending] = useState<{ question: string; reason: string } | null>(null);
+  const photoRef = useRef<HTMLInputElement | null>(null);
   const thread = result.thread ?? [];
+
+  function groundingOf() {
+    return {
+      plant: result.detectedPlant,
+      observations: result.observations,
+      likelyCauses: result.likelyCauses ?? [],
+      mitigations: result.mitigations ?? [],
+      actions: [...result.actions],
+      suspect: result.chemicals?.suspect ?? null,
+      actives: result.chemicals?.products.map((product) => product.activeIngredient) ?? [],
+      needsInfo: Boolean(result.needsInfo),
+      followUp: result.contextAsk,
+    };
+  }
 
   async function ask() {
     const question = draft.replace(/\s+/g, " ").trim();
@@ -997,29 +1013,15 @@ function FollowUpChat({
     onThread(asked);
     setDraft("");
     setFailed(false);
+    setPending(null);
     setBusy(true);
     try {
       const response = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          locale,
-          question,
-          thread,
-          grounding: {
-            plant: result.detectedPlant,
-            observations: result.observations,
-            likelyCauses: result.likelyCauses ?? [],
-            mitigations: result.mitigations ?? [],
-            actions: [...result.actions],
-            suspect: result.chemicals?.suspect ?? null,
-            actives: result.chemicals?.products.map((product) => product.activeIngredient) ?? [],
-            needsInfo: Boolean(result.needsInfo),
-            followUp: result.contextAsk,
-          },
-        }),
+        body: JSON.stringify({ locale, question, thread, grounding: groundingOf() }),
       });
-      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string };
+      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string; photoRequested?: boolean; reason?: string };
       if (!response.ok || !body.answer) {
         if (body.error === "rate_limited") {
           // Explain the pause in plain words and hold the button briefly so rapid taps stop hammering.
@@ -1032,6 +1034,33 @@ function FollowUpChat({
       }
       if (body.demo) setDemo(true);
       onThread([...asked, { role: "bedsense", text: body.answer }]);
+      if (body.photoRequested) setPending({ question, reason: typeof body.reason === "string" ? body.reason : "" });
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendPhoto(file: File | undefined) {
+    if (!file || !pending || busy || limited) return;
+    setFailed(false);
+    setBusy(true);
+    try {
+      const made = await preparePhoto(file);
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ locale, question: pending.question, thread, grounding: groundingOf(), photo: made.dataUrl }),
+      });
+      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string };
+      if (!response.ok || !body.answer) {
+        setFailed(true);
+        return;
+      }
+      if (body.demo) setDemo(true);
+      onThread([...thread, { role: "bedsense", text: body.answer }]);
+      setPending(null);
     } catch {
       setFailed(true);
     } finally {
@@ -1069,6 +1098,29 @@ function FollowUpChat({
         <p className="mt-2 text-sm leading-6 text-danger" role="alert">
           {text.askFailed}
         </p>
+      ) : null}
+      {pending ? (
+        <div className="mt-3 rounded-lg border border-sun/50 bg-sun/10 px-4 py-3">
+          <button
+            type="button"
+            disabled={busy || limited}
+            onClick={() => photoRef.current?.click()}
+            className="press min-h-12 w-full rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream disabled:opacity-60"
+          >
+            {busy ? text.askThinking : text.askPhotoSend}
+          </button>
+          <input
+            ref={photoRef}
+            className="sr-only"
+            type="file"
+            accept="image/*"
+            aria-label={text.askPhotoSend}
+            onChange={(event) => {
+              void sendPhoto(event.target.files?.[0]);
+              event.target.value = "";
+            }}
+          />
+        </div>
       ) : null}
       <div className="mt-3 flex items-end gap-2">
         <textarea

@@ -112,6 +112,8 @@ export type Copy = {
   askRateLimited: string;
   askUnavailable: string;
   askDemoNote: string;
+  askPhotoAsk: (reason: string) => string;
+  askPhotoSend: string;
   contextNoted: string;
   contextFields: {
     stage: string;
@@ -283,7 +285,7 @@ const en: Copy = {
   needsInfoNote:
     "No chemical is named yet because this photo does not separate the likely causes. The checks below gather what is missing; the safe steps above can start now.",
   askTitle: "Ask about this feedback",
-  askHint: "Questions about this check only. Asking does not re-run the check or use another photo.",
+  askHint: "Questions about this check only. If your question needs a fresh look, I will ask for one new photo.",
   askPlaceholder: "e.g. Can I use ash instead of a spray?",
   askSend: "Ask",
   askThinking: "Thinking…",
@@ -293,6 +295,8 @@ const en: Copy = {
   askUnavailable:
     "Muse is not available for questions right now. The checks above still stand; show this photo to an agrovet for more.",
   askDemoNote: "Demo answer from this check. Live answers need a model key.",
+  askPhotoAsk: (reason) => `I need a fresh look to answer that. Take ${reason} and send it here.`,
+  askPhotoSend: "Send a new photo",
   contextNoted: "The notes you added are part of this check.",
   contextFields: {
     stage: "Plant age or stage",
@@ -487,7 +491,7 @@ const sw: Copy = {
   needsInfoNote:
     "Hakuna dawa iliyotajwa bado kwa sababu picha hii haitenganishi sababu zinazowezekana. Ukaguzi ulio hapa chini unakusanya kinachokosekana; hatua salama zilizo juu zinaweza kuanza sasa.",
   askTitle: "Uliza kuhusu maoni haya",
-  askHint: "Maswali kuhusu ukaguzi huu pekee. Kuuliza hakurudii ukaguzi wala kutumia picha nyingine.",
+  askHint: "Maswali kuhusu ukaguzi huu pekee. Swali lako likihitaji kuangaliwa upya, nitaomba picha moja mpya.",
   askPlaceholder: "mf. Naweza kutumia majivu badala ya dawa?",
   askSend: "Uliza",
   askThinking: "Inafikiria…",
@@ -497,6 +501,8 @@ const sw: Copy = {
   askUnavailable:
     "Muse haipatikani kwa maswali kwa sasa. Ukaguzi ulio juu bado unafaa; mwonyeshe agrovet picha hii kwa zaidi.",
   askDemoNote: "Jibu la onyesho kutoka ukaguzi huu. Majibu ya moja kwa moja yanahitaji ufunguo wa modeli.",
+  askPhotoAsk: (reason) => `Ninahitaji kuangalia upya ili kujibu hilo. Piga ${reason} kisha uitume hapa.`,
+  askPhotoSend: "Tuma picha mpya",
   contextNoted: "Maelezo yako yametumika kwenye ukaguzi huu.",
   contextFields: {
     stage: "Umri au hatua ya mmea",

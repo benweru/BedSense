@@ -182,3 +182,134 @@ describe("follow-up Q&A endpoint", () => {
     expect(chats).toBe(1);
   });
 });
+
+describe("follow-up photo re-check tool", () => {
+  const photo = `data:image/png;base64,${Buffer.alloc(16, 7).toString("base64")}`;
+
+  function stubToolLoop(answer: string, seen: Array<Record<string, unknown>>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3" }] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        seen.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return new Response(JSON.stringify({ choices: [{ message: { content: answer } }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+  }
+
+  it("asks for one photo in demo mode when the question needs fresh evidence", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading to the new leaves?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.demo).toBe(true);
+    expect(body.photoRequested).toBe(true);
+    expect(body.reason).toContain("worst leaf");
+    expect(body.answer).toContain(body.reason);
+  });
+
+  it("asks in Kiswahili when the reading is Swahili", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(askRequest({ locale: "sw", question: "Je, imeenea kwenye majani mapya?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(true);
+    expect(body.answer).toContain("Ninahitaji kuangalia upya");
+  });
+
+  it("answers from the reading in demo mode when no fresh evidence is needed", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(askRequest({ locale: "en", question: "Can I use ash instead of a spray?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(body.reason).toBeNull();
+  });
+
+  it("answers from the new photo once it arrives in demo mode", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(
+      askRequest({ locale: "en", question: "Is it spreading to the new leaves?", grounding, thread: [], photo }),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(body.answer).toContain("new photo");
+  });
+
+  it("turns a live request_photo reply into a photo ask with the model reason", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop('{"request_photo": "a close photo of the worst leaf"}', seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(true);
+    expect(body.reason).toBe("a close photo of the worst leaf");
+    expect(body.answer).toContain("a close photo of the worst leaf");
+    expect(seen).toHaveLength(1);
+    const developer = (seen[0]?.messages as Array<{ content: string }>)[0]?.content ?? "";
+    expect(developer).toContain("request_photo");
+  });
+
+  it("sends the fresh photo to the model as a vision message on the second round", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop("The new photo shows the blisters only on old growth.", seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(body.answer).toContain("old growth");
+    const messages = seen[0]?.messages as Array<{ content: unknown }>;
+    const last = messages[messages.length - 1]?.content as Array<Record<string, unknown>>;
+    expect(Array.isArray(last)).toBe(true);
+    expect(last.some((part) => part.type === "image_url")).toBe(true);
+    const developer = (messages[0]?.content as string) ?? "";
+    expect(developer).toContain("Do not request another photo");
+  });
+
+  it("stops after one photo round instead of looping on a second request", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop('{"request_photo": "one more angle"}', seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(seen).toHaveLength(1);
+    expect(body.answer).toContain("agrovet");
+  });
+
+  it("rejects a bad re-check photo without calling the model", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop("unused", seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo: "not-a-photo" }));
+    expect(response.status).toBe(415);
+    const body = await response.json();
+    expect(body.error).toBe("unsupported_image");
+    expect(seen).toHaveLength(0);
+  });
+
+  it("rejects an oversized re-check photo", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const big = `data:image/jpeg;base64,${Buffer.alloc(7_500_001, 7).toString("base64")}`;
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo: big }));
+    expect(response.status).toBe(413);
+    const body = await response.json();
+    expect(body.error).toBe("image_too_large");
+  });
+});
