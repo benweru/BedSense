@@ -114,6 +114,10 @@ export type Copy = {
   askDemoNote: string;
   askPhotoAsk: (reason: string) => string;
   askPhotoSend: string;
+  decisionWorsening: (suggestion: string) => string;
+  decisionOverdue: (suggestion: string) => string;
+  decisionPhotoRequested: (reason: string) => string;
+  decisionPhotoAnswered: (detail: string) => string;
   contextNoted: string;
   contextFields: {
     stage: string;
@@ -297,6 +301,10 @@ const en: Copy = {
   askDemoNote: "Demo answer from this check. Live answers need a model key.",
   askPhotoAsk: (reason) => `I need a fresh look to answer that. Take ${reason} and send it here.`,
   askPhotoSend: "Send a new photo",
+  decisionWorsening: (suggestion) => `Worsening detected → suggested: ${suggestion}`,
+  decisionOverdue: (suggestion) => `Re-check overdue → suggested: ${suggestion}`,
+  decisionPhotoRequested: (reason) => `Evidence stale → asked for a fresh photo (${reason}).`,
+  decisionPhotoAnswered: () => "Fresh photo received → answered from the new photo.",
   contextNoted: "The notes you added are part of this check.",
   contextFields: {
     stage: "Plant age or stage",
@@ -503,6 +511,10 @@ const sw: Copy = {
   askDemoNote: "Jibu la onyesho kutoka ukaguzi huu. Majibu ya moja kwa moja yanahitaji ufunguo wa modeli.",
   askPhotoAsk: (reason) => `Ninahitaji kuangalia upya ili kujibu hilo. Piga ${reason} kisha uitume hapa.`,
   askPhotoSend: "Tuma picha mpya",
+  decisionWorsening: (suggestion) => `Kuzorota kumegunduliwa → pendekezo: ${suggestion}`,
+  decisionOverdue: (suggestion) => `Ukaguzi umechelewa → pendekezo: ${suggestion}`,
+  decisionPhotoRequested: (reason) => `Ushahidi umepitwa na wakati → niliomba picha mpya (${reason}).`,
+  decisionPhotoAnswered: () => "Picha mpya imepokelewa → jibu linatokana na picha mpya.",
   contextNoted: "Maelezo yako yametumika kwenye ukaguzi huu.",
   contextFields: {
     stage: "Umri au hatua ya mmea",

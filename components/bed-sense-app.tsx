@@ -1,5 +1,7 @@
 "use client";
 
+import { ChatThread } from "@/components/chat-thread";
+import { threadWithDecision } from "@/lib/decisions";
 import { relocalizeResult } from "@/lib/relocalize";
 import { buildShareIntent, selectShareSummary } from "@/lib/share";
 import { watcherChecksFor, watchTimeline, type WatcherVerdict } from "@/lib/watcher";
@@ -732,6 +734,18 @@ function ResultCard({
     () => watchTimeline(watcherChecksFor(history, plantLabel), plantLabel, new Date()),
     [history, plantLabel],
   );
+  useEffect(() => {
+    // Trace the volunteered verdict in this check's thread once, in the check's own language.
+    if (verdict.kind === "ok") return;
+    const storedThread = stored.thread ?? [];
+    const words = WATCHER_WORDS[stored.locale];
+    const suggestion =
+      verdict.kind === "worsening"
+        ? words.worseningBody(verdict.plant, verdict.streak)
+        : words.overdueBody(verdict.plant, verdict.daysSince);
+    const next = threadWithDecision(storedThread, stored.locale, verdict.kind, suggestion);
+    if (next !== storedThread) onThread(next);
+  }, [verdict, stored, onThread]);
   const [detailOpen, setDetailOpen] = useState(true);
   return (
     <section id="result" className="space-y-6 lg:space-y-7" aria-live="polite">
@@ -971,7 +985,7 @@ function WatcherCard({ locale, verdict }: { locale: Locale; verdict: Exclude<Wat
   );
 }
 
-/** Follow-up Q&A about this reading. Text-only: it never re-runs the check or touches a photo. */
+/** Follow-up Q&A about this reading. It can ask for one fresh photo when the question needs new evidence. */
 function FollowUpChat({
   locale,
   text,
@@ -1033,8 +1047,13 @@ function FollowUpChat({
         return;
       }
       if (body.demo) setDemo(true);
-      onThread([...asked, { role: "bedsense", text: body.answer }]);
-      if (body.photoRequested) setPending({ question, reason: typeof body.reason === "string" ? body.reason : "" });
+      if (body.photoRequested) {
+        const reason = typeof body.reason === "string" ? body.reason : "";
+        onThread([...threadWithDecision(asked, locale, "photo_requested", reason), { role: "bedsense", text: body.answer }]);
+        setPending({ question, reason });
+      } else {
+        onThread([...asked, { role: "bedsense", text: body.answer }]);
+      }
     } catch {
       setFailed(true);
     } finally {
@@ -1059,7 +1078,7 @@ function FollowUpChat({
         return;
       }
       if (body.demo) setDemo(true);
-      onThread([...thread, { role: "bedsense", text: body.answer }]);
+      onThread([...threadWithDecision(thread, locale, "photo_answered", ""), { role: "bedsense", text: body.answer }]);
       setPending(null);
     } catch {
       setFailed(true);
@@ -1072,22 +1091,7 @@ function FollowUpChat({
     <div className="mt-5 border-t border-ink/10 pt-4">
       <h4 className="font-semibold text-xl leading-tight text-paper">{text.askTitle}</h4>
       <p className="mt-1 text-sm leading-6 text-mute">{text.askHint}</p>
-      {thread.length > 0 ? (
-        <ul className="mt-3 space-y-2">
-          {thread.map((turn, index) => (
-            <li
-              key={`${index}-${turn.text.slice(0, 24)}`}
-              className={
-                turn.role === "farmer"
-                  ? "rounded-lg border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper"
-                  : "rounded-lg border border-ink/10 bg-field px-4 py-3 text-base leading-6 text-paper"
-              }
-            >
-              {turn.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ChatThread thread={thread} />
       {demo ? <p className="mt-2 text-sm leading-6 text-mute">{text.askDemoNote}</p> : null}
       {limited ? (
         <p className="mt-2 text-sm leading-6 text-danger" role="alert">

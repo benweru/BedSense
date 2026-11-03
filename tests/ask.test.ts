@@ -304,6 +304,21 @@ describe("follow-up photo re-check tool", () => {
     expect(seen).toHaveLength(0);
   });
 
+  it("keeps system decision turns in the thread instead of dropping them", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop("The reading still stands.", seen);
+    const thread = [
+      { role: "farmer", text: "Is it spreading?" },
+      { role: "system", text: "Evidence stale → asked for a fresh photo (a close photo)." },
+    ];
+    const response = await POST(askRequest({ locale: "en", question: "What now?", grounding, thread }));
+    expect(response.status).toBe(200);
+    const messages = seen[0]?.messages as Array<{ role: string; content: string }>;
+    expect(messages.some((message) => message.content.includes("Evidence stale"))).toBe(true);
+  });
+
   it("rejects an oversized re-check photo", async () => {
     vi.stubEnv("MOCK_META", "1");
     const big = `data:image/jpeg;base64,${Buffer.alloc(7_500_001, 7).toString("base64")}`;

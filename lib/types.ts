@@ -78,9 +78,9 @@ export type MaskMark = {
 
 export type ConceptCounts = Record<ConceptId, number>;
 
-/** One turn in the follow-up Q&A thread attached to a check. Never triggers a re-scan. */
+/** One turn in the follow-up Q&A thread attached to a check. Never triggers a re-scan. System turns trace agent decisions. */
 export type AskTurn = {
-  role: "farmer" | "bedsense";
+  role: "farmer" | "bedsense" | "system";
   text: string;
 };
 

@@ -290,7 +290,7 @@ function readThread(value: unknown): AskTurn[] {
     const turn = item as Record<string, unknown>;
     const text = cleanText(turn.text, TURN_LIMIT);
     if (!text) continue;
-    turns.push({ role: turn.role === "farmer" ? "farmer" : "bedsense", text });
+    turns.push({ role: turn.role === "farmer" ? "farmer" : turn.role === "system" ? "system" : "bedsense", text });
   }
   return turns;
 }
