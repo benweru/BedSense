@@ -23,6 +23,8 @@ export type ShopOffer = {
   place: string;
   priceMinKes: number;
   priceMaxKes: number;
+  /** Where the farmer can look this exact brand and pack up. A curated product page when one is verified, otherwise a Kenya-scoped search. */
+  productLink: { url: string; curated: boolean };
 };
 
 export type ChemicalProduct = {

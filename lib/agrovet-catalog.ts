@@ -15,7 +15,19 @@ export type CatalogOffer = {
   place: string;
   priceMinKes: number;
   priceMaxKes: number;
+  /**
+   * Optional hand-verified product page for this brand and pack. Only add a
+   * URL after opening it in a browser and confirming it shows this product;
+   * offers without one fall back to a Kenya-scoped search link.
+   */
+  productUrl?: string;
 };
+
+/** Kenya-scoped search for one brand and pack, used when no product page is verified. */
+export function searchUrlFor(offer: Pick<CatalogOffer, "brand" | "pack">): string {
+  const query = `"${offer.brand}" ${offer.pack} buy Kenya agrovet`;
+  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+}
 
 export type CatalogKind = "chemical" | "fertilizer";
 

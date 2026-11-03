@@ -1,4 +1,4 @@
-import { AGROVET_CATALOG, type CatalogEntry } from "@/lib/agrovet-catalog";
+import { AGROVET_CATALOG, searchUrlFor, type CatalogEntry } from "@/lib/agrovet-catalog";
 import { copy } from "@/lib/copy";
 import { containsDosage } from "@/lib/triage";
 import { repairSentence, repairSuspect } from "@/lib/translate";
@@ -81,6 +81,9 @@ function catalogOffers(entry: CatalogEntry, locale: Locale): ShopOffer[] {
     place: offer.place,
     priceMinKes: offer.priceMinKes,
     priceMaxKes: offer.priceMaxKes,
+    productLink: offer.productUrl
+      ? { url: offer.productUrl, curated: true }
+      : { url: searchUrlFor(offer), curated: false },
   }));
 }
 

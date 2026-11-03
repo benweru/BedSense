@@ -50,6 +50,10 @@ export type Copy = {
   chemicalsSuspect: string;
   chemicalsWhere: string;
   chemicalsNoShop: string;
+  /** Link to a verified product page for one offer. */
+  productLinkView: string;
+  /** Link to a Kenya-scoped search for one offer, when no product page is verified. */
+  productLinkSearch: string;
   chemicalsSuspectFallback: string;
   chemicalClassFallback: string;
   chemicalUseFallback: string;
@@ -236,6 +240,8 @@ const en: Copy = {
   chemicalsSuspect: "Suspected problem",
   chemicalsWhere: "Where to buy in Kenya",
   chemicalsNoShop: "This active ingredient is not in the Kenya catalog yet. Ask an agrovet to match the name.",
+  productLinkView: "View this product",
+  productLinkSearch: "Search for this product",
   chemicalsSuspectFallback: "A disease or pest looks likely.",
   chemicalClassFallback: "crop protection product",
   chemicalUseFallback: "Typical use for this active ingredient. The rate must follow the product label.",
@@ -463,6 +469,8 @@ const sw: Copy = {
   chemicalsSuspect: "Tatizo linaloshukiwa",
   chemicalsWhere: "Unapoweza kununua Kenya",
   chemicalsNoShop: "Dawa hii bado haiko kwenye orodha yetu ya Kenya. Muulize muuzaji wa agrovet akupe yenye kiambato hicho.",
+  productLinkView: "Tazama bidhaa hii",
+  productLinkSearch: "Tafuta bidhaa hii",
   chemicalsSuspectFallback: "Huenda kuna ugonjwa au wadudu.",
   chemicalClassFallback: "dawa ya kulinda mimea",
   chemicalUseFallback: "Matumizi ya kawaida ya dawa hii. Fuata kipimo kilicho kwenye kibandiko.",
