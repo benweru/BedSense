@@ -31,12 +31,12 @@ export async function POST(request: Request): Promise<Response> {
   if (!contact) return badRequest();
 
   if (action === "send") {
-    // The confirmation link in the email must land on the domain the farmer
-    // is actually using, not the project's default Site URL.
+    // The sign-in link in the email must land on the domain the farmer is
+    // actually using, at the callback that exchanges its code for a session.
     const origin = new URL(request.url).origin;
     const { error } = await client.auth.signInWithOtp({
       ...contact,
-      options: { shouldCreateUser: true, ...(email ? { emailRedirectTo: `${origin}/profile` } : {}) },
+      options: { shouldCreateUser: true, ...(email ? { emailRedirectTo: `${origin}/api/auth/callback?next=/profile` } : {}) },
     });
     if (!error) return Response.json({ ok: true });
     return error.status === 429
