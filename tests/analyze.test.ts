@@ -410,6 +410,55 @@ describe("analyze pipeline", () => {
     expect(visible).not.toMatch(/onion|beetroot|chili|pilipili/);
   });
 
+  it("names the recommended spray inside How to mitigate, not only in the chemicals card", async () => {
+    const result = await liveReading({
+      plantName: "tomato",
+      muse: {
+        detectedPlant: "tomato",
+        symptom: "spots",
+        observations: ["Dark spots with yellow halos on the lower tomato leaves."],
+        likelyCauses: ["Bacterial spot is likely after the wet week."],
+        mitigations: ["Take the worst spotted leaves off the bed."],
+        actions: ["Compare a spotted leaf with a clean one.", "Water the soil, not the leaves.", "Show this photo to an agrovet."],
+        confidence: "medium",
+        confidenceScore: 0.7,
+        sprayIndicated: true,
+        diseaseIndicated: true,
+        suspect: "bacterial spot",
+        chemicals: [{ activeIngredient: "copper oxychloride", productClass: "fungicide", useNote: "Bactericide for bacterial spot." }],
+      },
+    });
+    expect(result.chemicals?.products[0]?.activeIngredient).toBe("Copper oxychloride");
+    const mitigationText = result.mitigations.join(" ").toLowerCase();
+    expect(mitigationText).toContain("copper oxychloride");
+    expect(mitigationText).toContain("product label");
+    expect(mitigationText).not.toMatch(/\b\d+(?:[.,]\d+)?\s*ml\b/);
+    // The cultural steps stay; the spray is added, not substituted.
+    expect(result.mitigations.join(" ")).toContain("worst spotted leaves");
+  });
+
+  it("keeps curl alone free of any spray step in mitigations", async () => {
+    const result = await liveReading({
+      plantName: "chili",
+      muse: {
+        detectedPlant: "chili",
+        symptom: "curl",
+        observations: ["New chili leaves are curling at the edges."],
+        likelyCauses: ["A sharp change in water can curl new growth."],
+        mitigations: ["Keep the water even while fruit is setting."],
+        actions: ["Check under a leaf for mites.", "Compare old and new growth.", "Photograph again in two days."],
+        confidence: "medium",
+        confidenceScore: 0.7,
+        sprayIndicated: false,
+        diseaseIndicated: false,
+        suspect: "",
+        chemicals: [],
+      },
+    });
+    expect(result.chemicals).toBeNull();
+    expect(result.mitigations.join(" ").toLowerCase()).not.toMatch(/spray|abamectin|lambda/);
+  });
+
   it("salvages a prose reply that describes the symptom instead of falling back to generic checks", async () => {
     const result = await liveReading({
       plantName: "chili",

@@ -960,6 +960,13 @@ function ResultCard({
         </div>
       </section>
 
+      <ReferenceCard
+        plant={plantLabel}
+        suspect={result.chemicals?.suspect ?? null}
+        symptom={result.observations[0] ?? null}
+        text={text}
+      />
+
       {pair ? (
         <div className="grid gap-4 xl:grid-cols-2">
           <AdviceList id="result-causes" title={text.likelyCauses} hint={text.likelyCausesHint} items={result.likelyCauses ?? []} />
@@ -979,12 +986,6 @@ function ResultCard({
         </p>
       </div>
       ) : null}
-      <ReferenceCard
-        plant={plantLabel}
-        suspect={result.chemicals?.suspect ?? null}
-        symptom={result.observations[0] ?? null}
-        text={text}
-      />
       </>
       ) : null}
       </div>
@@ -1251,7 +1252,7 @@ function AdviceList({
 }
 
 function ChemicalCard({ text, words, advice }: { text: Copy; words: UiWords; advice: ChemicalAdvice }) {
-  const [shopsOpen, setShopsOpen] = useState(false);
+  const [shopsOpen, setShopsOpen] = useState(true);
   return (
     <div className="space-y-4">
       <div id="result-chemicals">

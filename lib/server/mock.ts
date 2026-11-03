@@ -7,7 +7,7 @@ import { chooseCropFocus } from "@/lib/crop-focus";
 import { areaFractionFromGrid, ellipseGrid } from "@/lib/grid";
 import { displayPlantName, matchPlant, type KnownPlant } from "@/lib/plants";
 import { researchFertilizers, researchFor } from "@/lib/research";
-import { followUpFor } from "@/lib/server/muse";
+import { followUpFor, mitigationsWithChemicalStep } from "@/lib/server/muse";
 import { finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
@@ -124,7 +124,7 @@ export function buildMockResult(options: {
     masks,
     observations: triage.observations,
     likelyCauses: triage.likelyCauses,
-    mitigations: triage.mitigations,
+    mitigations: mitigationsWithChemicalStep(options.locale, triage.mitigations, chemicals),
     actions: triage.actions,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,
@@ -204,7 +204,7 @@ function issueResult(options: {
     masks: [],
     observations: triage.observations,
     likelyCauses: triage.likelyCauses,
-    mitigations: triage.mitigations,
+    mitigations: mitigationsWithChemicalStep(options.locale, triage.mitigations, chemicals),
     actions: triage.actions,
     confidence: triage.confidence,
     confidenceScore: triage.confidenceScore,

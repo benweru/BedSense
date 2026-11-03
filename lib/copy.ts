@@ -55,6 +55,10 @@ export type Copy = {
   chemicalUseFallback: string;
   verifyNote: string;
   fertilizerVerifyNote: string;
+  /** Mitigation step naming the recommended spray, so it is not only in the chemicals card. */
+  sprayStep: (actives: string) => string;
+  /** Same, when every recommended product is a fertilizer. */
+  fertilizerStep: (actives: string) => string;
   priceNote: string;
   quality: Record<QualityBand, string>;
   confidence: string;
@@ -239,6 +243,10 @@ const en: Copy = {
     "Check this with a local agroveterinary officer before you buy or spray. The rate must follow the product label.",
   fertilizerVerifyNote:
     "Check this with a local agroveterinary officer before you buy or apply fertilizer. The rate must follow the product label.",
+  sprayStep: (actives: string) =>
+    `If the spots keep spreading, a spray with ${actives} is the usual next step. Confirm with an agrovet first, and follow the product label for the rate.`,
+  fertilizerStep: (actives: string) =>
+    `Feeding with ${actives} is the usual next step for this. Confirm with an agrovet first, and follow the product label for the rate.`,
   priceNote:
     "Example Kenyan shops and KES price bands by quality, from the BedSense catalog. Not a live quote. Ask the shop for today’s price.",
   quality: { economy: "Economy", mid: "Mid", premium: "Premium" },
@@ -462,6 +470,10 @@ const sw: Copy = {
     "Uliza mtaalamu wa agroveterinary wa eneo lako kabla ya kununua au kunyunyizia. Fuata kipimo kilicho kwenye kibandiko.",
   fertilizerVerifyNote:
     "Uliza mtaalamu wa agroveterinary wa eneo lako kabla ya kununua au kutumia mbolea. Fuata kipimo kilicho kwenye kibandiko.",
+  sprayStep: (actives: string) =>
+    `Ikiwa madoa yanaendelea kuenea, dawa yenye ${actives} ndiyo hatua ya kawaida inayofuata. Uliza agrovet kwanza, na fuata kipimo kilicho kwenye kibandiko.`,
+  fertilizerStep: (actives: string) =>
+    `Kulisha kwa ${actives} ndiyo hatua ya kawaida inayofuata kwa hili. Uliza agrovet kwanza, na fuata kipimo kilicho kwenye kibandiko.`,
   priceNote:
     "Mifano ya maduka ya Kenya na bei kwa KES kulingana na ubora, kutoka orodha ya BedSense. Hizi si bei za leo. Uliza dukani bei ya sasa.",
   quality: { economy: "Bei nafuu", mid: "Ya kati", premium: "Ya juu" },

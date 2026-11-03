@@ -1,4 +1,4 @@
-import { adviseChemicals } from "@/lib/agrovet";
+import { adviseChemicals, matchCatalog } from "@/lib/agrovet";
 import { cleanContextAsk, cleanPlantName, contextIsEmpty, contextPromptBlock, fallbackPlantName } from "@/lib/context";
 import { copy, normalizeLocale } from "@/lib/copy";
 import { contextText, inferIssue, issueActives, sprayIsUsual, type IssueId } from "@/lib/issues";
@@ -305,6 +305,7 @@ async function completeModel(
   const modelAsk = repairAsk(options.locale, cleanContextAsk(parsed.contextAsk));
   return {
     ...finalized,
+    mitigations: mitigationsWithChemicalStep(options.locale, finalized.mitigations, chemicals),
     model,
     triageSource: "muse",
     confidenceStated: typeof parsed.confidenceScore === "number",
@@ -358,6 +359,7 @@ export function localFallback(
   });
   return {
     ...finalized,
+    mitigations: mitigationsWithChemicalStep(locale, finalized.mitigations, chemicals),
     model: null,
     triageSource: "local-fallback",
     confidenceStated: false,
@@ -506,6 +508,23 @@ function chemicalsFromReading(options: {
     suspect: options.fallbackSuspect || suspect,
     chemicals: actives,
   });
+}
+
+/**
+ * The chemicals card sits below the follow-up chat, so a farmer who stops at
+ * "How to mitigate" never sees the spray. Name it there too, as a step.
+ */
+export function mitigationsWithChemicalStep(
+  locale: Locale,
+  mitigations: readonly string[],
+  chemicals: ChemicalAdvice | null,
+): string[] {
+  if (!chemicals || chemicals.products.length === 0) return [...mitigations];
+  const actives = chemicals.products.map((product) => product.activeIngredient);
+  const fertilizerOnly = actives.every((active) => matchCatalog(active)?.kind === "fertilizer");
+  const step = fertilizerOnly ? copy[locale].fertilizerStep(actives.join(", ")) : copy[locale].sprayStep(actives.join(", "));
+  const named = mitigations.some((line) => actives.some((active) => line.toLowerCase().includes(active.toLowerCase())));
+  return named ? [...mitigations] : [...mitigations, step];
 }
 
 export function developerPrompt(locale: Locale): string {
