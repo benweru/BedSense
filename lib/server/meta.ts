@@ -194,7 +194,8 @@ export function parseSse(raw: string): Record<string, unknown>[] {
   return events;
 }
 
-function errorReason(status: number, raw: string): string {
+/** Shared by the Model API and open-weights callers so both map the same error envelope. Exported for reuse. */
+export function errorReason(status: number, raw: string): string {
   try {
     const parsed = JSON.parse(raw) as { error?: { code?: unknown; type?: unknown } };
     const code = parsed.error?.code ?? parsed.error?.type;

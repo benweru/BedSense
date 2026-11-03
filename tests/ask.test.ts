@@ -182,3 +182,299 @@ describe("follow-up Q&A endpoint", () => {
     expect(chats).toBe(1);
   });
 });
+
+describe("follow-up photo re-check tool", () => {
+  const photo = `data:image/png;base64,${Buffer.alloc(16, 7).toString("base64")}`;
+
+  function stubToolLoop(answer: string, seen: Array<Record<string, unknown>>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (String(url).endsWith("/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3" }] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        seen.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return new Response(JSON.stringify({ choices: [{ message: { content: answer } }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+  }
+
+  it("asks for one photo in demo mode when the question needs fresh evidence", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading to the new leaves?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.demo).toBe(true);
+    expect(body.photoRequested).toBe(true);
+    expect(body.reason).toContain("worst leaf");
+    expect(body.answer).toContain(body.reason);
+  });
+
+  it("asks in Kiswahili when the reading is Swahili", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(askRequest({ locale: "sw", question: "Je, imeenea kwenye majani mapya?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(true);
+    expect(body.answer).toContain("Ninahitaji kuangalia upya");
+  });
+
+  it("answers from the reading in demo mode when no fresh evidence is needed", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(askRequest({ locale: "en", question: "Can I use ash instead of a spray?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(body.reason).toBeNull();
+  });
+
+  it("answers from the new photo once it arrives in demo mode", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const response = await POST(
+      askRequest({ locale: "en", question: "Is it spreading to the new leaves?", grounding, thread: [], photo }),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(body.answer).toContain("new photo");
+  });
+
+  it("turns a live request_photo reply into a photo ask with the model reason", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop('{"request_photo": "a close photo of the worst leaf"}', seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(true);
+    expect(body.reason).toBe("a close photo of the worst leaf");
+    expect(body.answer).toContain("a close photo of the worst leaf");
+    expect(seen).toHaveLength(1);
+    const developer = (seen[0]?.messages as Array<{ content: string }>)[0]?.content ?? "";
+    expect(developer).toContain("request_photo");
+  });
+
+  it("sends the fresh photo to the model as a vision message on the second round", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop("The new photo shows the blisters only on old growth.", seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(body.answer).toContain("old growth");
+    const messages = seen[0]?.messages as Array<{ content: unknown }>;
+    const last = messages[messages.length - 1]?.content as Array<Record<string, unknown>>;
+    expect(Array.isArray(last)).toBe(true);
+    expect(last.some((part) => part.type === "image_url")).toBe(true);
+    const developer = (messages[0]?.content as string) ?? "";
+    expect(developer).toContain("Do not request another photo");
+  });
+
+  it("stops after one photo round instead of looping on a second request", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop('{"request_photo": "one more angle"}', seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(false);
+    expect(seen).toHaveLength(1);
+    expect(body.answer).toContain("agrovet");
+  });
+
+  it("rejects a bad re-check photo without calling the model", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop("unused", seen);
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo: "not-a-photo" }));
+    expect(response.status).toBe(415);
+    const body = await response.json();
+    expect(body.error).toBe("unsupported_image");
+    expect(seen).toHaveLength(0);
+  });
+
+  it("keeps system decision turns in the thread instead of dropping them", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    const seen: Array<Record<string, unknown>> = [];
+    stubToolLoop("The reading still stands.", seen);
+    const thread = [
+      { role: "farmer", text: "Is it spreading?" },
+      { role: "system", text: "Evidence stale → asked for a fresh photo (a close photo)." },
+    ];
+    const response = await POST(askRequest({ locale: "en", question: "What now?", grounding, thread }));
+    expect(response.status).toBe(200);
+    const messages = seen[0]?.messages as Array<{ role: string; content: string }>;
+    expect(messages.some((message) => message.content.includes("Evidence stale"))).toBe(true);
+  });
+
+  it("rejects an oversized re-check photo", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    const big = `data:image/jpeg;base64,${Buffer.alloc(7_500_001, 7).toString("base64")}`;
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [], photo: big }));
+    expect(response.status).toBe(413);
+    const body = await response.json();
+    expect(body.error).toBe("image_too_large");
+  });
+});
+
+describe("open-model fallback", () => {
+  function stubBoth(meta: (url: string) => Response, open: (url: string, init: RequestInit) => Response) {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push(String(url));
+        if (String(url).includes("inference.baseten.co")) return open(String(url), init);
+        return meta(String(url));
+      }),
+    );
+    return calls;
+  }
+
+  function catalog(): Response {
+    return new Response(JSON.stringify({ data: [{ id: "muse-spark-1.3" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  function chatAnswer(text: string): Response {
+    return new Response(JSON.stringify({ choices: [{ message: { content: text } }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  function failure(status: number, code: string): Response {
+    return new Response(JSON.stringify({ error: { code } }), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  it("falls back to the open model when the Model API is unreachable", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    let openModel = "";
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      (_url, init) => {
+        openModel = (JSON.parse(String(init.body)) as { model: string }).model;
+        return chatAnswer("Open answer: check the underside first.");
+      },
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain("Open answer");
+    expect(body.via).toBe("open-model");
+    expect(body.demo).toBe(false);
+    expect(openModel).toBe("meta-models/muse-spark-open-1026");
+    expect(calls.some((url) => url.includes("api.meta.ai"))).toBe(true);
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(true);
+  });
+
+  it("never touches the open model when the Model API answers", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : chatAnswer("Meta answer: check the underside.")),
+      () => chatAnswer("must not be called"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain("Meta answer");
+    expect(body.via).toBe("model-api");
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(false);
+  });
+
+  it("keeps the original failure when no open key is configured", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "");
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      () => chatAnswer("must not be called"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe("upstream");
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(false);
+  });
+
+  it("does not fall back on rate limits", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    const calls = stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(429, "rate_limit")),
+      () => chatAnswer("must not be called"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(429);
+    const body = await response.json();
+    expect(body.error).toBe("rate_limited");
+    expect(calls.some((url) => url.includes("inference.baseten.co"))).toBe(false);
+  });
+
+  it("falls back when the key has no Muse chat model", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(404, "model_not_found")),
+      () => chatAnswer("Open answer: show an agrovet the photo."),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.answer).toContain("Open answer");
+    expect(body.via).toBe("open-model");
+  });
+
+  it("reports the Model API failure when the open model fails too", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      () => failure(503, "overloaded"),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Should I spray now?", grounding, thread: [] }));
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe("upstream");
+  });
+
+  it("honors the photo tool loop on fallback answers", async () => {
+    vi.stubEnv("MOCK_META", "0");
+    vi.stubEnv("MODEL_API_KEY", "k".repeat(40));
+    vi.stubEnv("OPEN_MODELS_API_KEY", "open-key");
+    stubBoth(
+      (url) => (url.endsWith("/models") ? catalog() : failure(502, "bad_gateway")),
+      () => chatAnswer('{"request_photo": "a close photo of the worst leaf"}'),
+    );
+    const response = await POST(askRequest({ locale: "en", question: "Is it spreading?", grounding, thread: [] }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.photoRequested).toBe(true);
+    expect(body.reason).toBe("a close photo of the worst leaf");
+    expect(body.via).toBe("open-model");
+  });
+});

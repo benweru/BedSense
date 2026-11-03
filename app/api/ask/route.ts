@@ -6,6 +6,8 @@ export const maxDuration = 30;
 
 const MESSAGES = {
   bad_request: "Send a question about this check.",
+  unsupported_image: "Use a JPEG, PNG, or WebP photo.",
+  image_too_large: "That photo is too large. Try a closer shot or a smaller file.",
   missing_key: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
   muse_unavailable: "Muse is not available for questions with this key.",
   rate_limited: "Too many questions at once. Wait a few seconds, then ask again.",
@@ -27,6 +29,7 @@ export async function POST(request: Request): Promise<Response> {
       question: input.question,
       grounding: input.grounding,
       thread: input.thread,
+      photo: input.photo,
     });
     return Response.json(result);
   } catch (error) {
@@ -37,6 +40,16 @@ export async function POST(request: Request): Promise<Response> {
 
 function jsonError(code: AskError["code"]): Response {
   const status =
-    code === "bad_request" ? 400 : code === "rate_limited" ? 429 : code === "missing_key" || code === "muse_unavailable" ? 503 : 502;
+    code === "bad_request"
+      ? 400
+      : code === "unsupported_image"
+        ? 415
+        : code === "image_too_large"
+          ? 413
+          : code === "rate_limited"
+            ? 429
+            : code === "missing_key" || code === "muse_unavailable"
+              ? 503
+              : 502;
   return Response.json({ error: code, message: MESSAGES[code] }, { status });
 }

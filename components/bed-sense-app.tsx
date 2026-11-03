@@ -1,6 +1,11 @@
 "use client";
 
+import { ChatThread } from "@/components/chat-thread";
+import { ReferenceCard } from "@/components/reference-card";
+import { threadWithDecision } from "@/lib/decisions";
 import { relocalizeResult } from "@/lib/relocalize";
+import { buildShareIntent, selectShareSummary } from "@/lib/share";
+import { watcherChecksFor, watchTimeline, type WatcherVerdict } from "@/lib/watcher";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MaskCanvas } from "@/components/mask-canvas";
@@ -547,6 +552,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             key={result.id}
             locale={locale}
             result={result}
+            history={history}
             words={words}
             signedIn={signedIn}
             onRescan={rescan}
@@ -676,6 +682,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 function ResultCard({
   locale,
   result: stored,
+  history,
   words,
   signedIn,
   onRescan,
@@ -687,6 +694,7 @@ function ResultCard({
 }: {
   locale: Locale;
   result: AnalyzeResult;
+  history: readonly HistoryEntry[];
   words: UiWords;
   signedIn: boolean | null;
   onRescan: () => void;
@@ -720,6 +728,23 @@ function ResultCard({
   }
   const score = Math.round(result.confidenceScore * 100);
   const pair = (result.likelyCauses?.length ?? 0) > 0 && (result.mitigations?.length ?? 0) > 0;
+  const plantLabel = result.farmerPlant || result.detectedPlant;
+  const verdict = useMemo(
+    () => watchTimeline(watcherChecksFor(history, plantLabel), plantLabel, new Date()),
+    [history, plantLabel],
+  );
+  useEffect(() => {
+    // Trace the volunteered verdict in this check's thread once, in the check's own language.
+    if (verdict.kind === "ok") return;
+    const storedThread = stored.thread ?? [];
+    const words = WATCHER_WORDS[stored.locale];
+    const suggestion =
+      verdict.kind === "worsening"
+        ? words.worseningBody(verdict.plant, verdict.streak)
+        : words.overdueBody(verdict.plant, verdict.daysSince);
+    const next = threadWithDecision(storedThread, stored.locale, verdict.kind, suggestion);
+    if (next !== storedThread) onThread(next);
+  }, [verdict, stored, onThread]);
   const [detailOpen, setDetailOpen] = useState(true);
   return (
     <section id="result" className="space-y-6 lg:space-y-7" aria-live="polite">
@@ -735,6 +760,7 @@ function ResultCard({
       ) : (
       <div id="result-reading" className="space-y-4 lg:space-y-5">
       {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
+      {verdict.kind !== "ok" ? <WatcherCard locale={locale} verdict={verdict} /> : null}
       {result.plantMismatch ? (
         <p id="plant-mismatch" className="rounded-lg border border-sun/60 bg-sun/15 px-4 py-3 text-base font-semibold leading-6 text-paper" role="status">
           {text.plantMismatchNote(result.farmerPlant, result.detectedPlant)}
@@ -892,6 +918,12 @@ function ResultCard({
         </p>
       </div>
       ) : null}
+      <ReferenceCard
+        plant={plantLabel}
+        suspect={result.chemicals?.suspect ?? null}
+        symptom={result.observations[0] ?? null}
+        text={text}
+      />
       </>
       ) : null}
       </div>
@@ -904,11 +936,61 @@ function ResultCard({
       {result.chemicals ? <ChemicalCard text={text} words={words} advice={result.chemicals} /> : null}
 
       {result.note === "local-fallback" ? <p className="text-base leading-6 text-mute">{text.backupNote}</p> : null}
+
+      <div>
+        <a
+          href={buildShareIntent(locale, selectShareSummary(result))}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex min-h-12 items-center rounded-2xl border border-white/15 px-5 text-base font-semibold text-paper"
+        >
+          {text.shareResult}
+        </a>
+      </div>
     </section>
   );
 }
 
-/** Follow-up Q&A about this reading. Text-only: it never re-runs the check or touches a photo. */
+const WATCHER_WORDS = {
+  en: {
+    worseningTitle: "Getting worse",
+    worseningBody: (plant: string, streak: number) =>
+      `The last ${streak} check${streak === 1 ? "" : "s"} trend${streak === 1 ? "s" : ""} down for ${plant}. Take today's worst leaf to an agrovet.`,
+    overdueTitle: "Overdue for a re-check",
+    overdueBody: (plant: string, days: number) =>
+      `${plant} was last checked ${days} days ago. A fresh photo shows whether the advice helped.`,
+  },
+  sw: {
+    worseningTitle: "Inazidi kuwa mbaya",
+    worseningBody: (plant: string, streak: number) =>
+      `Ukaguzi ${streak} wa mwisho unaelekea chini kwa ${plant}. Peleka jani baya la leo kwa agrovet.`,
+    overdueTitle: "Umechelewa kufanya ukaguzi",
+    overdueBody: (plant: string, days: number) =>
+      `${plant} ilikaguliwa mara ya mwisho siku ${days} zilizopita. Picha mpya inaonyesha kama ushauri ulisaidia.`,
+  },
+} as const;
+
+/** The progress-watcher's verdict, volunteered by the system. Rendered only when there is something to say. */
+function WatcherCard({ locale, verdict }: { locale: Locale; verdict: Exclude<WatcherVerdict, { kind: "ok" }> }) {
+  const words = WATCHER_WORDS[locale];
+  const worsening = verdict.kind === "worsening";
+  return (
+    <div
+      id="watcher-card"
+      role="status"
+      className={`rounded-lg border px-4 py-3 ${worsening ? "border-danger/40 bg-danger/10" : "border-sun/60 bg-sun/15"}`}
+    >
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">
+        {worsening ? words.worseningTitle : words.overdueTitle}
+      </p>
+      <p className="mt-1 text-base leading-7 text-paper [overflow-wrap:anywhere]">
+        {worsening ? words.worseningBody(verdict.plant, verdict.streak) : words.overdueBody(verdict.plant, verdict.daysSince)}
+      </p>
+    </div>
+  );
+}
+
+/** Follow-up Q&A about this reading. It can ask for one fresh photo when the question needs new evidence. */
 function FollowUpChat({
   locale,
   text,
@@ -925,7 +1007,23 @@ function FollowUpChat({
   const [failed, setFailed] = useState(false);
   const [limited, setLimited] = useState(false);
   const [demo, setDemo] = useState(false);
+  const [pending, setPending] = useState<{ question: string; reason: string } | null>(null);
+  const photoRef = useRef<HTMLInputElement | null>(null);
   const thread = result.thread ?? [];
+
+  function groundingOf() {
+    return {
+      plant: result.detectedPlant,
+      observations: result.observations,
+      likelyCauses: result.likelyCauses ?? [],
+      mitigations: result.mitigations ?? [],
+      actions: [...result.actions],
+      suspect: result.chemicals?.suspect ?? null,
+      actives: result.chemicals?.products.map((product) => product.activeIngredient) ?? [],
+      needsInfo: Boolean(result.needsInfo),
+      followUp: result.contextAsk,
+    };
+  }
 
   async function ask() {
     const question = draft.replace(/\s+/g, " ").trim();
@@ -934,29 +1032,15 @@ function FollowUpChat({
     onThread(asked);
     setDraft("");
     setFailed(false);
+    setPending(null);
     setBusy(true);
     try {
       const response = await fetch("/api/ask", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          locale,
-          question,
-          thread,
-          grounding: {
-            plant: result.detectedPlant,
-            observations: result.observations,
-            likelyCauses: result.likelyCauses ?? [],
-            mitigations: result.mitigations ?? [],
-            actions: [...result.actions],
-            suspect: result.chemicals?.suspect ?? null,
-            actives: result.chemicals?.products.map((product) => product.activeIngredient) ?? [],
-            needsInfo: Boolean(result.needsInfo),
-            followUp: result.contextAsk,
-          },
-        }),
+        body: JSON.stringify({ locale, question, thread, grounding: groundingOf() }),
       });
-      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string };
+      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string; photoRequested?: boolean; reason?: string };
       if (!response.ok || !body.answer) {
         if (body.error === "rate_limited") {
           // Explain the pause in plain words and hold the button briefly so rapid taps stop hammering.
@@ -968,7 +1052,39 @@ function FollowUpChat({
         return;
       }
       if (body.demo) setDemo(true);
-      onThread([...asked, { role: "bedsense", text: body.answer }]);
+      if (body.photoRequested) {
+        const reason = typeof body.reason === "string" ? body.reason : "";
+        onThread([...threadWithDecision(asked, locale, "photo_requested", reason), { role: "bedsense", text: body.answer }]);
+        setPending({ question, reason });
+      } else {
+        onThread([...asked, { role: "bedsense", text: body.answer }]);
+      }
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendPhoto(file: File | undefined) {
+    if (!file || !pending || busy || limited) return;
+    setFailed(false);
+    setBusy(true);
+    try {
+      const made = await preparePhoto(file);
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ locale, question: pending.question, thread, grounding: groundingOf(), photo: made.dataUrl }),
+      });
+      const body = (await response.json()) as { answer?: string; demo?: boolean; error?: string };
+      if (!response.ok || !body.answer) {
+        setFailed(true);
+        return;
+      }
+      if (body.demo) setDemo(true);
+      onThread([...threadWithDecision(thread, locale, "photo_answered", ""), { role: "bedsense", text: body.answer }]);
+      setPending(null);
     } catch {
       setFailed(true);
     } finally {
@@ -980,22 +1096,7 @@ function FollowUpChat({
     <div className="mt-5 border-t border-ink/10 pt-4">
       <h4 className="font-semibold text-xl leading-tight text-paper">{text.askTitle}</h4>
       <p className="mt-1 text-sm leading-6 text-mute">{text.askHint}</p>
-      {thread.length > 0 ? (
-        <ul className="mt-3 space-y-2">
-          {thread.map((turn, index) => (
-            <li
-              key={`${index}-${turn.text.slice(0, 24)}`}
-              className={
-                turn.role === "farmer"
-                  ? "rounded-lg border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper"
-                  : "rounded-lg border border-ink/10 bg-field px-4 py-3 text-base leading-6 text-paper"
-              }
-            >
-              {turn.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ChatThread thread={thread} />
       {demo ? <p className="mt-2 text-sm leading-6 text-mute">{text.askDemoNote}</p> : null}
       {limited ? (
         <p className="mt-2 text-sm leading-6 text-danger" role="alert">
@@ -1006,6 +1107,29 @@ function FollowUpChat({
         <p className="mt-2 text-sm leading-6 text-danger" role="alert">
           {text.askFailed}
         </p>
+      ) : null}
+      {pending ? (
+        <div className="mt-3 rounded-lg border border-sun/50 bg-sun/10 px-4 py-3">
+          <button
+            type="button"
+            disabled={busy || limited}
+            onClick={() => photoRef.current?.click()}
+            className="press min-h-12 w-full rounded-[10px] bg-leaf px-5 text-base font-semibold text-cream disabled:opacity-60"
+          >
+            {busy ? text.askThinking : text.askPhotoSend}
+          </button>
+          <input
+            ref={photoRef}
+            className="sr-only"
+            type="file"
+            accept="image/*"
+            aria-label={text.askPhotoSend}
+            onChange={(event) => {
+              void sendPhoto(event.target.files?.[0]);
+              event.target.value = "";
+            }}
+          />
+        </div>
       ) : null}
       <div className="mt-3 flex items-end gap-2">
         <textarea
