@@ -131,9 +131,7 @@ export function VoiceContext({
         aria-label={phase === "idle" ? `${text.voiceHold}. ${words.holdToTalk}` : label}
         {...gesture}
         onContextMenu={(event) => event.preventDefault()}
-        className={`press flex min-h-14 w-full touch-none items-center justify-center gap-3 rounded-full px-4 text-base font-semibold select-none disabled:opacity-60 ${
-          phase === "listening" ? "bg-leaf text-cream shadow-[0_0_0_6px_rgba(31,122,77,0.25)]" : "bg-leaf text-cream"
-        }`}
+        className="press flex min-h-14 w-full touch-none items-center justify-center gap-3 rounded-full bg-leaf px-4 text-base font-semibold text-cream select-none disabled:opacity-60"
       >
         {phase === "listening" ? <Waveform levels={wave.levels} /> : <MicIcon />}
         <span>{label}</span>

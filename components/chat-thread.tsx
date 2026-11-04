@@ -12,7 +12,7 @@ export function ChatThread({ thread }: { thread: readonly AskTurn[] }) {
             turn.role === "farmer"
               ? "rounded-lg border border-leaf/40 bg-leaf/10 px-4 py-3 text-base leading-6 text-paper"
               : turn.role === "system"
-                ? "rounded-lg border border-dashed border-sun/60 bg-sun/10 px-4 py-3 text-base leading-6 text-paper"
+                ? "rounded-lg border border-dashed border-ink/25 bg-sun/10 px-4 py-3 text-base leading-6 text-paper"
                 : "rounded-lg border border-ink/10 bg-field px-4 py-3 text-base leading-6 text-paper"
           }
         >

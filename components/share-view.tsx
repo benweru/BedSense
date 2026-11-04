@@ -40,12 +40,12 @@ export function ShareView() {
     const missing = Boolean(requestedId) && history.length > 0;
     return (
       <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-5 px-4 py-10">
-        <div className="rounded-[26px] border border-white/10 bg-card p-6 text-center shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)]">
+        <div className="rounded-lg border border-ink/20 bg-card p-6 text-center">
           <p className="font-serif text-2xl leading-tight tracking-[-0.02em] text-paper">{missing ? words.missingTitle : words.emptyTitle}</p>
           <p className="mt-2 text-base leading-7 text-mute">{missing ? words.missingBody : words.emptyBody}</p>
           <Link
             href="/"
-            className="mt-5 inline-flex min-h-12 items-center rounded-2xl bg-soil px-5 text-base font-semibold text-paper"
+            className="mt-5 inline-flex min-h-12 items-center rounded-full bg-leaf px-5 text-base font-semibold text-cream"
           >
             {words.runCheck}
           </Link>
@@ -62,16 +62,16 @@ export function ShareView() {
   const summary = selectShareSummary(entry.result);
   return (
     <main className="mx-auto grid min-h-dvh w-full max-w-sm content-center gap-5 px-4 py-10">
-      <div className="rounded-[26px] border border-white/10 bg-card p-6 text-center shadow-[0_18px_50px_-32px_rgba(0,0,0,0.8)]">
+      <div className="rounded-lg border border-ink/20 bg-card p-6 text-center">
         <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">BedSense</p>
         <p className="mt-2 font-serif text-3xl leading-tight tracking-[-0.02em] text-paper [overflow-wrap:anywhere]">
           {summary.plant}
         </p>
-        <div className="my-4 h-px bg-white/10" aria-hidden="true" />
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-dusk">{words.finding}</p>
+        <div className="my-4 h-px bg-ink/10" aria-hidden="true" />
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{words.finding}</p>
         <p className="mt-1 text-base leading-7 text-paper [overflow-wrap:anywhere]">{summary.finding || "–"}</p>
-        <div className="my-4 h-px bg-white/10" aria-hidden="true" />
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-dusk">{words.nextStep}</p>
+        <div className="my-4 h-px bg-ink/10" aria-hidden="true" />
+        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-mute">{words.nextStep}</p>
         <p className="mt-1 text-base font-semibold leading-7 text-paper [overflow-wrap:anywhere]">{summary.action || "–"}</p>
         <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.18em] text-mute">{SHARE_SITE_URL.replace(/^https?:\/\//, "")}</p>
       </div>
