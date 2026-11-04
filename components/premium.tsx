@@ -52,21 +52,10 @@ export function ResultSkeleton() {
   );
 }
 
-const TONE: Record<Severity, string> = {
-  healthy: "border-l-leaf",
-  watch: "border-l-sun",
-  act: "border-l-danger",
-};
-
-/** Left-border tone for the diagnosis card. */
-export function severityBorder(severity: Severity | null): string {
-  return severity ? `border-l-[3px] ${TONE[severity]}` : "";
-}
-
 /** Quiet uppercase line, muted text, no pill or dot. */
 export function SeverityLine({ severity, words }: { severity: Severity; words: UiWords }) {
   return (
-    <p id="severity-line" data-severity={severity} className="eyebrow text-mute">
+    <p id="severity-line" data-severity={severity} className="eyebrow font-semibold text-paper">
       {words.severityLine[severity]}
     </p>
   );

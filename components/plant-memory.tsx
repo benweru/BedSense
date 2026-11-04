@@ -336,7 +336,7 @@ export function PlantMemory({
                 )}
                 <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,17,12,0)_20%,rgba(7,17,12,0.72)_55%,rgba(7,17,12,0.96)_100%)]" aria-hidden="true" />
                 <span className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
-                  {due ? <span className="eyebrow text-sun">{words.recheckDue}</span> : null}
+                  {due ? <span className="eyebrow text-cream [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">{words.recheckDue}</span> : null}
                 </span>
                 {active ? (
                   <span className="absolute top-2.5 right-2.5 flex h-7 w-7 items-center justify-center rounded-[10px] bg-leaf text-cream">
@@ -352,7 +352,7 @@ export function PlantMemory({
                     {health ? `${ui.severity[health]} · ` : ""}{days === null ? words.never : words.lastChecked(days)} · {words.checks(plant.checkCount)}
                   </span>
                   {nextDate ? (
-                    <span className="mt-0.5 block text-xs leading-5 text-sun [text-shadow:0_1px_6px_rgba(7,17,12,0.9)]">
+                    <span className="mt-0.5 block text-xs font-semibold leading-5 text-cream">
                       {words.nextCheck(nextDate)}
                       {plant.recheckReason ? <span className="block text-cream/85">{plant.recheckReason}</span> : null}
                     </span>

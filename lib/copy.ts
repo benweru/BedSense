@@ -50,6 +50,15 @@ export type Copy = {
   chemicalsSuspect: string;
   chemicalsWhere: string;
   chemicalsNoShop: string;
+  chemicalsWhy: string;
+  chemicalsType: string;
+  chemicalsHow: string;
+  chemicalsBrands: string;
+  chemicalsSafety: string;
+  shopsShop: string;
+  shopsPack: string;
+  shopsPrice: string;
+  shopsGrade: string;
   /** Link to a verified product page for one offer. */
   productLinkView: string;
   /** Link to a Kenya-scoped search for one offer, when no product page is verified. */
@@ -239,6 +248,15 @@ const en: Copy = {
   chemicalsTitle: "Chemicals and fertilizer to consider",
   chemicalsSuspect: "Suspected problem",
   chemicalsWhere: "Where to buy in Kenya",
+  chemicalsWhy: "Why this",
+  chemicalsType: "Type",
+  chemicalsHow: "How to use",
+  chemicalsBrands: "Ask for",
+  chemicalsSafety: "Before you spray",
+  shopsShop: "Shop",
+  shopsPack: "Brand and pack",
+  shopsPrice: "Price (KES)",
+  shopsGrade: "Grade",
   chemicalsNoShop: "This active ingredient is not in the Kenya catalog yet. Ask an agrovet to match the name.",
   productLinkView: "View this product",
   productLinkSearch: "Search for this product",
@@ -468,6 +486,15 @@ const sw: Copy = {
   chemicalsTitle: "Dawa na mbolea unazoweza kutumia",
   chemicalsSuspect: "Tatizo linaloshukiwa",
   chemicalsWhere: "Unapoweza kununua Kenya",
+  chemicalsWhy: "Kwa nini hii",
+  chemicalsType: "Aina",
+  chemicalsHow: "Jinsi ya kutumia",
+  chemicalsBrands: "Ulizia",
+  chemicalsSafety: "Kabla ya kunyunyiza",
+  shopsShop: "Duka",
+  shopsPack: "Chapa na kipimo",
+  shopsPrice: "Bei (KES)",
+  shopsGrade: "Daraja",
   chemicalsNoShop: "Dawa hii bado haiko kwenye orodha yetu ya Kenya. Muulize muuzaji wa agrovet akupe yenye kiambato hicho.",
   productLinkView: "Tazama bidhaa hii",
   productLinkSearch: "Tafuta bidhaa hii",
