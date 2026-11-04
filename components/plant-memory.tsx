@@ -841,7 +841,7 @@ function Timeline({
                 // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL
                 <img src={check.photoUrl} alt="" className="h-16 w-16 shrink-0 rounded-[14px] object-cover lg:h-36 lg:w-full" />
               ) : (
-                <span className="h-16 w-16 shrink-0 rounded-[14px] bg-white/5 lg:h-36 lg:w-full" />
+                <span className="h-16 w-16 shrink-0 rounded-[14px] bg-ink/10 lg:h-36 lg:w-full" />
               )}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-paper">

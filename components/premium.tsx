@@ -20,7 +20,7 @@ export function ScanStatus({ words, count = 1 }: { words: UiWords; count?: numbe
     return () => window.clearInterval(timer);
   }, []);
   return (
-    <div id="check-progress" className="mt-4 rounded-lg border border-sun/50 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
+    <div id="check-progress" className="mt-4 rounded-lg border border-ink/20 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
       <p className="text-2xl font-semibold leading-tight text-paper">
         {count > 1 ? words.readingPhotos(count) : words.readingPhoto}
         {elapsed >= 3 ? <span className="ml-2 align-middle font-mono text-sm font-medium text-mute">{elapsed}s</span> : null}
@@ -223,7 +223,7 @@ export function FirstVisitIntro({ locale }: { locale: Locale }) {
           <button type="button" onClick={finish} className="press min-h-12 rounded-full px-4 text-base font-semibold text-mute hover:text-paper">
             {words.skip}
           </button>
-          <div className="h-px w-16 overflow-hidden bg-white/15" aria-hidden="true">
+          <div className="h-px w-16 overflow-hidden bg-ink/15" aria-hidden="true">
             <span className="block h-full origin-left bg-paper/70" style={{ transform: `scaleX(${(card + 1) / words.intro.length})`, transition: "transform 300ms cubic-bezier(.22,1,.36,1)" }} />
           </div>
           <button

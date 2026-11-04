@@ -414,7 +414,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             type="button"
             disabled={busy}
             onClick={() => cameraRef.current?.click()}
-            className="press min-h-14 rounded-[10px] bg-leaf px-3 text-base font-semibold leading-tight text-cream transition-colors hover:bg-sun hover:text-ink disabled:opacity-60"
+            className="press min-h-14 rounded-[10px] bg-leaf px-3 text-base font-semibold leading-tight text-cream transition-colors hover:bg-leaf/90 disabled:opacity-60"
           >
             {text.capture}
           </button>
@@ -509,7 +509,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         {phase === "analyzing" ? (
           <ScanStatus words={words} count={photos.length} />
         ) : phase === "preparing" ? (
-          <div id="check-preparing" className="mt-4 rounded-lg border border-sun/50 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
+          <div id="check-preparing" className="mt-4 rounded-lg border border-ink/20 bg-card px-4 py-4" role="status" aria-live="polite" aria-busy="true">
             <p className="tick-label text-2xl font-semibold leading-tight text-paper">{words.preparing}</p>
             <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-ink/10" aria-hidden="true">
               <span className="bedsense-indeterminate block h-full w-1/2 rounded-[10px] bg-sun" />
@@ -676,7 +676,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             <button
               type="button"
               onClick={() => void submitPrepared()}
-              className="press min-h-14 w-full rounded-[10px] bg-sun px-4 text-base font-semibold tracking-tight text-ink shadow-[0_10px_24px_-10px_rgba(245,184,0,0.8)] lg:max-w-[28rem]"
+              className="press min-h-14 w-full rounded-[10px] bg-sun px-4 text-base font-semibold tracking-tight text-ink lg:max-w-[28rem]"
             >
               {photos.length > 1 ? text.checkPhotos : text.checkPhoto}
             </button>
@@ -816,7 +816,7 @@ function ResultCard({
       {result.progress ? <ProgressNote locale={locale} progress={result.progress} /> : null}
       {verdict.kind !== "ok" ? <WatcherCard locale={locale} verdict={verdict} /> : null}
       {result.plantMismatch ? (
-        <p id="plant-mismatch" className="rounded-lg border border-sun/60 bg-sun/15 px-4 py-3 text-base font-semibold leading-6 text-paper" role="status">
+        <p id="plant-mismatch" className="rounded-lg border border-ink/20 bg-sun/15 px-4 py-3 text-base font-semibold leading-6 text-paper" role="status">
           {text.plantMismatchNote(result.farmerPlant, result.detectedPlant)}
         </p>
       ) : null}
@@ -836,7 +836,7 @@ function ResultCard({
           <p className="shrink-0 sm:text-right">
             <span className="eyebrow block text-mute">{text.confidence}</span>
             <span className="text-base font-semibold">{text.levelLabel(result.confidence)}</span>
-            <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-white/15">
+            <span className="mt-1.5 block h-2 w-24 overflow-hidden rounded-full bg-ink/10">
               <span className="block h-full origin-left bg-leaf" style={{ width: `${score}%` }} />
             </span>
           </p>
@@ -1004,7 +1004,7 @@ function ResultCard({
           href={buildShareIntent(locale, selectShareSummary(result))}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex min-h-12 items-center rounded-2xl border border-white/15 px-5 text-base font-semibold text-paper"
+          className="inline-flex min-h-12 items-center rounded-full border border-ink/20 px-5 text-base font-semibold text-paper"
         >
           {text.shareResult}
         </a>
@@ -1040,7 +1040,7 @@ function WatcherCard({ locale, verdict }: { locale: Locale; verdict: Exclude<Wat
     <div
       id="watcher-card"
       role="status"
-      className={`rounded-lg border px-4 py-3 ${worsening ? "border-danger/40 bg-danger/10" : "border-sun/60 bg-sun/15"}`}
+      className={`rounded-lg border px-4 py-3 ${worsening ? "border-danger/40 bg-danger/10" : "border-ink/20 bg-sun/15"}`}
     >
       <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">
         {worsening ? words.worseningTitle : words.overdueTitle}
@@ -1171,7 +1171,7 @@ function FollowUpChat({
         </p>
       ) : null}
       {pending ? (
-        <div className="mt-3 rounded-lg border border-sun/50 bg-sun/10 px-4 py-3">
+        <div className="mt-3 rounded-lg border border-ink/20 bg-sun/10 px-4 py-3">
           <button
             type="button"
             disabled={busy || limited}
@@ -1547,7 +1547,7 @@ function RecentCheck({
           }
           onOpen();
         }}
-        className={`w-full touch-manipulation overflow-hidden rounded-xl border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-sun lg:group-hover:border-sun" : "border-ink/10 lg:group-hover:border-leaf/50"}`}
+        className={`w-full touch-manipulation overflow-hidden rounded-xl border bg-field text-left select-none transition-[border-color,box-shadow] duration-500 ease-out-soft ${current ? "border-leaf/60 lg:group-hover:border-leaf" : "border-ink/10 lg:group-hover:border-leaf/50"}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={entry.thumbnail} alt="" className="h-28 w-full object-cover" />
