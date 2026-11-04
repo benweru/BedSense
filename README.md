@@ -6,11 +6,13 @@ Your plants can’t talk, but your phone can listen - photograph any plant and g
 
 **Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app)
 
+**Video Link** [BedSense](https://drive.google.com/file/d/1JCkEP5gLpZGZd5rtJh-4MGWajfvqC-zI/view?usp=drive_link)
+
 Just photograph the plant — BedSense names it from the photo. If it names the wrong plant, you can correct it on the result and re-check. You can also add one optional note: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.
 
 ## Who it is for
 
-Farmers on small vegetable beds, and the extension officers who walk those beds with them.
+Farmers on farm beds, and the extension officers who walk those beds with them.
 
 BedSense is an indie entry for the **Meta Global AI Developer Hackathon**, **Indie** track, **Build for Your World**. The screen is in English or Kiswahili.
 
