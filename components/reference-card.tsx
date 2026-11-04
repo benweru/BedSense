@@ -70,7 +70,7 @@ export function ReferenceLook({
   return (
     <section id="reference-look" style={{ animationDelay: "320ms" }} className="rise">
       <h3 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{text.refTitle}</h3>
-      <p className="mt-2 text-base font-semibold leading-6 text-sun">{text.refNotPlant}</p>
+      <p className="mt-2 text-base font-semibold leading-6 text-paper">{text.refNotPlant}</p>
       {phase.kind === "loading" ? (
         <div className="mt-4 rounded-xl border border-ink/20 bg-card p-5 sm:p-6" aria-busy="true" aria-label={text.refDrawing}>
           <div className="skeleton h-48 w-full" />

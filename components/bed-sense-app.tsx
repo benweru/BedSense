@@ -17,7 +17,6 @@ import {
   SavedBurst,
   ScanStatus,
   SeverityLine,
-  severityBorder,
   buzz,
   prefersReducedMotion,
   replayIntro,
@@ -317,7 +316,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           <button
             type="button"
             onClick={startFresh}
-            className="lift mt-5 min-h-14 rounded-full border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper transition-[border-color,background-color,box-shadow] duration-500 ease-out-soft hover:border-leaf hover:shadow-[0_0_32px_-12px_rgba(31,157,85,0.8)]"
+            className="lift mt-5 min-h-14 rounded-full border border-leaf/50 bg-leaf/15 px-5 text-base font-semibold text-paper transition-[border-color,background-color] duration-500 ease-out-soft hover:border-leaf"
           >
             {text.newCheck}
           </button>
@@ -423,7 +422,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             type="button"
             disabled={busy}
             onClick={() => libraryRef.current?.click()}
-            className="press min-h-14 rounded-full border border-ink/10 bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-sun hover:text-sun disabled:opacity-60"
+            className="press min-h-14 rounded-full border border-ink/10 bg-field px-3 text-base font-semibold leading-tight text-paper transition-colors hover:border-leaf hover:text-leaf disabled:opacity-60"
           >
             {text.upload}
           </button>
@@ -797,7 +796,7 @@ function ResultCard({
       ) : null}
       {result.qualityHold ? (
         <div className="space-y-4">
-          <div id="quality-hold" className="rounded-[1.5rem] border-2 border-[#c56a00] bg-[#fff4dc] px-5 py-5" role="status">
+          <div id="quality-hold" className="rounded-xl border border-ink/20 bg-field px-5 py-5" role="status">
             <p className="text-2xl leading-[1.04] tracking-[-0.01em] text-ink sm:text-3xl">{result.qualityMessage}</p>
           </div>
           <div id="hold-steps" className="rounded-xl border border-ink/20 bg-card p-5 sm:p-6">
@@ -821,7 +820,7 @@ function ResultCard({
           {text.plantMismatchNote(result.farmerPlant, result.detectedPlant)}
         </p>
       ) : null}
-      <div id="diagnosis-card" className={`rise scroll-mt-4 rounded-xl border border-ink/20 ${severityBorder(severity)} bg-card p-5 sm:p-6`}>
+      <div id="diagnosis-card" className={`rise scroll-mt-4 rounded-xl border border-ink/20 bg-card p-5 sm:p-6`}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           {severity ? <SeverityLine severity={severity} words={words} /> : <p className="eyebrow text-mute">{words.diagnosis}</p>}
         </div>
@@ -947,16 +946,17 @@ function ResultCard({
         <h3 className="font-semibold text-2xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-3xl">{text.observations}</h3>
         <div className="mt-4 space-y-4">
           {result.masks.length === 0 ? <p className="text-base leading-6 text-mute">{text.noMasks}</p> : null}
-          <ul className="space-y-3">
+          <ol className="divide-y divide-ink/10">
             {result.observations.map((item, index) => (
               <li
                 key={item}
-                className={`border-l-4 border-sun px-4 py-1 text-paper ${index === 0 ? "text-lg leading-8" : "text-base leading-7"}`}
+                className={`flex gap-4 py-3 text-paper first:pt-0 ${index === 0 ? "text-lg leading-8" : "text-base leading-7"}`}
               >
-                {item}
+                <span aria-hidden="true" className="w-5 shrink-0 font-mono text-sm font-semibold leading-8 text-leaf tabular-nums">{index + 1}</span>
+                <span>{item}</span>
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       </section>
 
@@ -1253,24 +1253,42 @@ function AdviceList({
 
 function ChemicalCard({ text, words, advice }: { text: Copy; words: UiWords; advice: ChemicalAdvice }) {
   const [shopsOpen, setShopsOpen] = useState(true);
+  const eyebrow = "font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf";
+  const term = "text-sm font-semibold leading-6 text-mute";
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div id="result-chemicals">
-        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{text.chemicalsTitle}</h3>
-        <p className="mt-2 text-base leading-7">
-          <span className="font-semibold">{text.chemicalsSuspect}. </span>
+        <h3 className={eyebrow}>{text.chemicalsTitle}</h3>
+        <p className="mt-3 text-lg leading-7 text-paper">
+          <span className="font-semibold">{text.chemicalsWhy}: </span>
           {advice.suspect}
         </p>
-        <p className="mt-2 text-base leading-7 text-paper/85">{advice.verifyNote}</p>
-        <ul className="mt-4 divide-y divide-ink/10">
-          {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="py-3 first:pt-0">
-              <p className="text-base font-semibold">{product.activeIngredient}</p>
-              <p className="text-sm leading-6 text-mute">{product.productClass}</p>
-              <p className="mt-1 text-base leading-7">{product.useNote}</p>
-            </li>
-          ))}
+        <ul className="mt-4 divide-y divide-ink/10 border-y border-ink/10">
+          {advice.products.map((product) => {
+            const brands = [...new Set(product.offers.map((offer) => offer.brand))];
+            return (
+              <li key={product.activeIngredient} className="py-4">
+                <h4 className="font-serif text-xl leading-tight tracking-[-0.01em] text-paper sm:text-2xl">{product.activeIngredient}</h4>
+                <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-[9rem_1fr] sm:gap-y-2">
+                  <dt className={term}>{text.chemicalsType}</dt>
+                  <dd className="text-base leading-6 text-paper first-letter:uppercase">{product.productClass}</dd>
+                  <dt className={`${term} mt-2 sm:mt-0`}>{text.chemicalsHow}</dt>
+                  <dd className="text-base leading-6 text-paper">{product.useNote}</dd>
+                  {brands.length > 0 ? (
+                    <>
+                      <dt className={`${term} mt-2 sm:mt-0`}>{text.chemicalsBrands}</dt>
+                      <dd className="text-base leading-6 text-paper">{brands.join(", ")}</dd>
+                    </>
+                  ) : null}
+                </dl>
+              </li>
+            );
+          })}
         </ul>
+        <div id="chemicals-safety" className="mt-4 rounded-lg border border-ink/10 bg-field px-4 py-3">
+          <p className="text-sm font-semibold leading-6 text-paper">{text.chemicalsSafety}</p>
+          <p className="text-base leading-6 text-paper">{advice.verifyNote}</p>
+        </div>
       </div>
 
       <div id="result-shops" className="border-t border-ink/10 pt-4">
@@ -1280,44 +1298,66 @@ function ChemicalCard({ text, words, advice }: { text: Copy; words: UiWords; adv
           onClick={() => setShopsOpen((open) => !open)}
           className="flex min-h-11 w-full items-center justify-between gap-3 text-left"
         >
-          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-leaf">{words.shopsDetail}</span>
+          <span className={eyebrow}>{words.shopsDetail}</span>
           <span aria-hidden="true" className="text-leaf">{shopsOpen ? "–" : "+"}</span>
         </button>
         {shopsOpen ? (
-        <>
-        <ul className="mt-3 space-y-3">
-          {advice.products.map((product) => (
-            <li key={product.activeIngredient} className="rounded-lg border border-ink/10 bg-field px-4 py-3">
-              <p className="text-base font-semibold">{product.activeIngredient}</p>
-              {product.offers.length === 0 ? <p className="mt-1 text-base leading-6">{text.chemicalsNoShop}</p> : null}
-              <ul className="mt-2 space-y-2">
-                {orderedOffers(product.offers).map((offer) => (
-                  <li key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`} className="rounded-xl border border-ink/10 bg-card px-3 py-3 text-base leading-6">
-                    <span className="block text-lg font-semibold text-paper">{kesRange(offer.priceMinKes, offer.priceMaxKes)}</span>
-                    <span className="mt-0.5 block font-semibold">
-                      {offer.shopName} · {offer.shopKind} · {offer.place}
-                    </span>
-                    <span className="mt-0.5 block text-sm text-mute">
-                      <span className="font-semibold text-sun">{text.quality[offer.quality]}</span> · {offer.brand} · {offer.pack}
-                    </span>
-                    {offer.productLink?.url ? (
-                    <a
-                      href={offer.productLink.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-block text-sm font-semibold text-leaf underline decoration-leaf/50 underline-offset-2"
-                    >
-                      {offer.productLink.curated ? text.productLinkView : text.productLinkSearch}
-                    </a>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-base leading-6 text-mute">{advice.priceNote}</p>
-        </>
+          <div className="mt-2 space-y-6">
+            {advice.products.map((product) => (
+              <section key={product.activeIngredient} aria-label={product.activeIngredient}>
+                <h4 className="text-base font-semibold leading-6 text-paper">{product.activeIngredient}</h4>
+                {product.offers.length === 0 ? (
+                  <p className="mt-1 text-base leading-6 text-mute">{text.chemicalsNoShop}</p>
+                ) : (
+                  <div className="mt-2 border-t border-ink/20">
+                    <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_6rem_9rem] gap-4 border-b border-ink/10 py-2 text-sm font-semibold text-mute sm:grid">
+                      <span>{text.shopsShop}</span>
+                      <span>{text.shopsPack}</span>
+                      <span>{text.shopsGrade}</span>
+                      <span className="text-right">{text.shopsPrice}</span>
+                    </div>
+                    <ul className="divide-y divide-ink/10">
+                      {orderedOffers(product.offers).map((offer) => (
+                        <li
+                          key={`${product.activeIngredient}-${offer.quality}-${offer.brand}`}
+                          className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 py-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_6rem_9rem] sm:items-baseline"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-base font-semibold leading-6 text-paper">{offer.shopName}</p>
+                            <p className="text-sm leading-5 text-mute">{offer.shopKind} · {offer.place}</p>
+                          </div>
+                          <p className="col-start-2 row-start-1 text-right text-base font-semibold leading-6 text-paper tabular-nums sm:col-start-4">
+                            <span className="font-normal text-mute sm:hidden">KES </span>
+                            {kesRange(offer.priceMinKes, offer.priceMaxKes)}
+                          </p>
+                          <div className="col-span-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                            <p className="text-base leading-6 text-paper">
+                              {offer.brand} <span className="text-mute">· {offer.pack}</span>
+                            </p>
+                            {offer.productLink?.url ? (
+                              <a
+                                href={offer.productLink.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm font-semibold text-leaf underline decoration-leaf/50 underline-offset-2 hover:decoration-leaf"
+                              >
+                                {offer.productLink.curated ? text.productLinkView : text.productLinkSearch}
+                              </a>
+                            ) : null}
+                          </div>
+                          <p className="col-span-2 text-sm leading-5 text-mute sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:text-base sm:text-paper">
+                            <span className="sm:hidden">{text.shopsGrade}: </span>
+                            {text.quality[offer.quality]}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            ))}
+            <p className="text-sm leading-6 text-mute">{advice.priceNote}</p>
+          </div>
         ) : null}
       </div>
     </div>
@@ -1330,7 +1370,7 @@ function orderedOffers(offers: readonly ShopOffer[]): ShopOffer[] {
 
 function kesRange(min: number, max: number): string {
   const format = new Intl.NumberFormat("en-KE");
-  return `KES ${format.format(min)}–${format.format(max)}`;
+  return `${format.format(min)}–${format.format(max)}`;
 }
 
 function ContextForm({
@@ -1514,7 +1554,7 @@ function RecentCheck({
         <span className="block px-4 py-4 text-sm font-semibold leading-5 text-paper">
           {label}
           <span className="mt-1 block font-normal text-mute">{confidence}</span>
-          {current ? <span className="mt-1 hidden text-sm text-sun lg:group-hover:block">{currentLabel}</span> : null}
+          {current ? <span className="mt-1 hidden text-sm font-semibold text-paper lg:group-hover:block">{currentLabel}</span> : null}
         </span>
       </button>
       <button
