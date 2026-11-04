@@ -16,6 +16,10 @@ Open [http://localhost:3000](http://localhost:3000) on your phone, or in a narro
 
 `.env.example` sets `MOCK_META=1` and leaves `MODEL_API_KEY` empty. That path returns synthetic masks and advice and does not call Meta. Use it for the demo, for judges without a key, and for `npm test`. If `MOCK_META` is unset and no key is available, BedSense stays in demo mode so a fresh clone still runs. Live calls happen only when `MOCK_META=0` and a server key is set.
 
+## OS notes
+
+Install Node.js 22 with Homebrew or nvm on macOS, the LTS installer or nvm-windows on Windows, or NodeSource/nvm on Linux; any Node ≥ 20.17 works. In PowerShell, `copy .env.example .env.local` replaces the `cp` line above; in Git Bash `cp` works as written. To test from a real phone on the same Wi-Fi, run `npx next dev -H 0.0.0.0` and open `http://<your-computer-ip>:3000` on the phone (allow Node through the firewall if asked). If port 3000 is busy, stop the other server or run `npx next dev -p 3001`; find the holder with `lsof -ti:3000 | xargs kill` on macOS/Linux or `Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess | Stop-Process` in PowerShell. If `npm install` fails writing its cache, rerun with `npm install --cache /tmp/npm-cache` (Linux/macOS) or `%TEMP%\npm-cache` (Windows). If the dev server 404s on `/profile` or `/plants` while `/` works, it predates those routes: stop it, confirm the branch, restart, and hard-refresh.
+
 ## Environment
 
 | Variable | Purpose |
