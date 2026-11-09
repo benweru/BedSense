@@ -6,7 +6,7 @@ Your plants can’t talk, but your phone can listen - photograph any plant and g
 
 **Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app)
 
-The live site runs in **demo mode** (sample results, no live Meta calls) now that the hackathon has ended. To run with live models, clone the repo and set `MOCK_META=0` and `MODEL_API_KEY` — see [docs/development.md](docs/development.md).
+The live site runs in **demo mode** (sample results, no live Meta calls) now that the hackathon has ended. To run with live models, clone the repo and follow the live-mode steps in [docs/development.md](docs/development.md).
 
 **Demo video:** [BedSense](https://drive.google.com/file/d/1JCkEP5gLpZGZd5rtJh-4MGWajfvqC-zI/view?usp=drive_link)
 
