@@ -6,7 +6,9 @@ Your plants can’t talk, but your phone can listen - photograph any plant and g
 
 **Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app)
 
-**Video Link** [BedSense](https://drive.google.com/file/d/1JCkEP5gLpZGZd5rtJh-4MGWajfvqC-zI/view?usp=drive_link)
+The live site runs in **demo mode** (sample results, no live Meta calls) now that the hackathon has ended. To run with live models, clone the repo and set `MOCK_META=0` and `MODEL_API_KEY` — see [docs/development.md](docs/development.md).
+
+**Demo video:** [BedSense](https://drive.google.com/file/d/1JCkEP5gLpZGZd5rtJh-4MGWajfvqC-zI/view?usp=drive_link)
 
 Just photograph the plant — BedSense names it from the photo. If it names the wrong plant, you can correct it on the result and re-check. You can also add one optional note: plant age or stage, current practices, chemicals already used, recent fertilizer, irrigation or weather, known issues, or anything else.
 
@@ -14,7 +16,7 @@ Just photograph the plant — BedSense names it from the photo. If it names the 
 
 Farmers on farm beds, and the extension officers who walk those beds with them.
 
-BedSense is an indie entry for the **Meta Global AI Developer Hackathon**, **Indie** track, **Build for Your World**. The screen is in English or Kiswahili.
+Built for the **Cerebral Valley Meta Global AI Developer Hackathon**, **Indie** track, **Build for Your World**. The screen is in English or Kiswahili.
 
 ## What a photo becomes
 
@@ -62,6 +64,11 @@ npm install
 ```
 
 Copy the repo's example environment file to `.env.local`, start the dev server, and open http://localhost:3000 — on your phone or in a narrow browser window. The exact commands, the settings table, mock versus live mode, accounts, scripts, and troubleshooting are in [docs/development.md](docs/development.md).
+
+## Team
+
+- [Ben Maina](https://github.com/benweru) ([@benweru](https://github.com/benweru))
+- [Ian Karanja](https://github.com/iankaranja13) ([@iankaranja13](https://github.com/iankaranja13))
 
 ## License
 
