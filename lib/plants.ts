@@ -44,6 +44,13 @@ const PLANTS: readonly PlantRecord[] = [
     surfaces: ["tomato", "tomatoes", "nyanya"],
   },
   {
+    en: "Potato",
+    sw: "Viazi",
+    cropId: null,
+    samPhrase: "potato plant",
+    surfaces: ["potato", "potatoes", "kiazi", "viazi"],
+  },
+  {
     en: "Kale",
     sw: "Sukuma wiki",
     cropId: null,

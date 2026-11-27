@@ -4,7 +4,7 @@
 
 Your plants can’t talk, but your phone can listen - photograph any plant and get quick, practical advice
 
-**Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app)
+**Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app) — click any built-in sample farm photo (chili, tomato, or potato) on the home screen to try a full check in one tap, no camera needed.
 
 The live site runs in **demo mode** (sample results, no live Meta calls) now that the hackathon has ended. To run with live models, clone the repo and follow the live-mode steps in [docs/development.md](docs/development.md).
 
@@ -44,6 +44,40 @@ The photo is read with the plant name you gave. When a symptom is visible, you g
 ## Saved plants remember
 
 Sign in and save a plant, and later checks are read against its history: earlier findings, what you sprayed or fed, and whether things improved. Each check also sets when to look again - the model judges how soon improvement or worsening would show, so a treated plant is re-checked after the spray has had time to work, and a healthy one only weekly.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  photo["Phone photo(s) + optional voice note"] --> resize["On-device resize & JPEG check"]
+  resize --> gate["Blur / distance / non-plant gate"]
+  gate --> sam["Meta SAM segmentation<br/>(plant, yellow leaf, weed)"]
+  sam --> muse["Muse Spark multimodal triage<br/>(up to 3 angles + plant history)"]
+  muse --> guard["Dosage guard &<br/>Kiswahili drift repair"]
+  guard --> catalog["Kenya agrovet catalog &<br/>KES price bands"]
+  catalog --> ui["Masks, causes, 3 checks,<br/>grounded Q&A & saved timeline"]
+```
+
+## Engineering highlights
+
+- **Multi-model AI pipeline:** Combines Meta SAM segmentation masks, Muse Spark multi-angle vision triage, push-to-talk Muse Voice transcription (English and Kiswahili), Muse Image visual reference cards, and an open-weights fallback for follow-up Q&A.
+- **Grounded Q&A with on-demand evidence:** Follow-up questions stay grounded in the rendered check. When a question requires fresh visual evidence, the model requests one new photo via a tool loop and answers from it; every system decision is logged transparently in the thread.
+- **Agricultural safety & quality rails:**
+  - Strips numeric spray dosages and mixing rates from model output and lowers confidence when triggered.
+  - Refuses to name chemicals when visual evidence does not separate likely causes (`needsInfo`), giving safe cultural steps instead.
+  - Blocks blurry, overly distant, or non-plant photos before diagnosing, and repairs English drift inside Kiswahili readings.
+  - Budgets segmentation and chat timeouts to finish reliably inside Vercel serverless limits, with per-IP rate limiting on live model routes.
+- **Zero-env resilience & Supabase plant memory:** Signed-in farmers get Supabase-backed saved plants, re-check timelines, proactive worsening/overdue alerts, and Row-Level Security per user. With no keys or database configured, every route degrades cleanly to demo mode and on-device check history.
+- **Field evaluation & automated tests:** Benchmarked against six real Kenyan chili bed photos under harsh sun, canopy occlusion, and distance ([`docs/messy-chili-live.md`](docs/messy-chili-live.md): 5/6 SAM crop detection, 6/6 Muse diagnoses), backed by 275+ Vitest tests and GitHub Actions CI covering lint, typecheck, unit tests, and production builds.
+
+## Tech stack
+
+| Layer | Technologies |
+| --- | --- |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 |
+| AI & Vision | Meta SAM, Muse Spark, Muse Voice, Muse Image, open-weights Q&A fallback |
+| Data & Auth | Supabase (Postgres, magic-link auth, Row-Level Security), browser device storage |
+| Quality & Deploy | Vitest, ESLint, GitHub Actions CI, Vercel |
 
 ## Run it on your machine
 

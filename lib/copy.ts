@@ -91,6 +91,7 @@ export type Copy = {
   noMasks: string;
   errorGeneric: string;
   errorFormat: string;
+  errorRateLimited: string;
   language: string;
   english: string;
   swahili: string;
@@ -101,6 +102,16 @@ export type Copy = {
   backupNote: string;
   museUnavailable: string;
   footer: string;
+  sourceOnGitHub: string;
+  sampleHeading: string;
+  sampleHint: string;
+  demoTopNotice: string;
+  demoBannerTitle: string;
+  demoBannerBody: string;
+  demoBannerLink: string;
+  demoSampleTitle: string;
+  demoSampleUploadNote: string;
+  demoTryAnother: string;
   back: string;
   profile: string;
   account: string;
@@ -291,6 +302,7 @@ const en: Copy = {
   noMasks: "Few marks landed in this frame. The named plant is still checked.",
   errorGeneric: "The check did not finish. Try another photo.",
   errorFormat: "This photo did not open. Take it again or choose a JPEG.",
+  errorRateLimited: "Too many checks at once. Wait a few seconds, then try again.",
   language: "Language",
   english: "English",
   swahili: "Kiswahili",
@@ -302,6 +314,17 @@ const en: Copy = {
   museUnavailable:
     "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
   footer: "Triage, not a diagnosis. Spray rates follow the product label.",
+  sourceOnGitHub: "Source on GitHub",
+  sampleHeading: "Or try a sample farm photo",
+  sampleHint: "Real farm photos — chili, tomato, and potato.",
+  demoTopNotice: "Sample readings only — live AI models are paused on this hosted preview.",
+  demoBannerTitle: "Why is this in demo mode?",
+  demoBannerBody:
+    "Live AI models are paused on this hosted preview because of API credit limits, so the sample photos above walk through the full check flow (masks, causes, three next checks, Kenyan agrovet prices, and follow-up Q&A). Want to test your own photos with live vision models?",
+  demoBannerLink: "Run with live models",
+  demoSampleTitle: "Try BedSense with a sample farm photo",
+  demoSampleUploadNote: "Custom photo uploads are disabled in demo mode so the demo never guesses on your own photo.",
+  demoTryAnother: "Try another sample photo",
   back: "Back",
   profile: "Profile",
   account: "Account",
@@ -529,6 +552,7 @@ const sw: Copy = {
   noMasks: "Hakuna alama nyingi kwenye picha hii. Bado tunakagua mmea uliotaja.",
   errorGeneric: "Ukaguzi haukukamilika. Jaribu picha nyingine.",
   errorFormat: "Picha hii haikufunguka. Piga picha tena au chagua JPEG.",
+  errorRateLimited: "Ukaguzi ni mwingi kwa wakati mmoja. Subiri sekunde chache, kisha jaribu tena.",
   language: "Lugha",
   english: "English",
   swahili: "Kiswahili",
@@ -540,6 +564,17 @@ const sw: Copy = {
   museUnavailable:
     "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya Muse Spark au Muse Wonder, kisha jaribu kukagua tena.",
   footer: "Uchunguzi wa awali, si utambuzi. Fuata kipimo cha dawa kilicho kwenye kibandiko.",
+  sourceOnGitHub: "Msimbo kwenye GitHub",
+  sampleHeading: "Au jaribu picha ya mfano",
+  sampleHint: "Picha halisi za shamba — pilipili, nyanya, na viazi.",
+  demoTopNotice: "Matokeo ya mfano pekee — modeli za AI za moja kwa moja zimesitishwa kwenye onyesho hili.",
+  demoBannerTitle: "Kwa nini hii iko kwenye hali ya onyesho?",
+  demoBannerBody:
+    "Modeli za AI za moja kwa moja zimesitishwa kwenye onyesho hili kwa sababu ya kikomo cha salio la API, kwa hivyo picha za mfano zilizo juu zinaonyesha ukaguzi kamili (alama, sababu, mambo matatu ya kukagua, bei za agrovet Kenya, na maswali). Ungependa kujaribu picha zako kwa modeli za moja kwa moja?",
+  demoBannerLink: "Endesha kwa modeli za moja kwa moja",
+  demoSampleTitle: "Jaribu BedSense kwa picha ya mfano",
+  demoSampleUploadNote: "Kupakia picha yako kumezimwa katika hali ya onyesho ili mfumo usibashiri kwenye picha yako.",
+  demoTryAnother: "Jaribu picha nyingine ya mfano",
   back: "Rudi",
   profile: "Wasifu",
   account: "Akaunti",

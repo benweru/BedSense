@@ -25,6 +25,8 @@ describe("farmer plant name", () => {
     expect(scenarioForPlant("onion", bytes)).toBe(0);
     expect(scenarioForPlant("beetroot", bytes)).toBe(1);
     expect(scenarioForPlant("pilipili hoho", bytes)).toBe(2);
-    expect(scenarioForPlant("tomato", bytes)).toBe(demoScenario(bytes));
+    expect(scenarioForPlant("tomato", bytes)).toBe(3);
+    expect(scenarioForPlant("potato", bytes)).toBe(4);
+    expect(scenarioForPlant("kale", bytes)).toBe(demoScenario(bytes));
   });
 });
