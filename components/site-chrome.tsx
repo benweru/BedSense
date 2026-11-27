@@ -54,6 +54,16 @@ export function SiteChrome({ children, pad }: { children: ReactNode; pad?: strin
       <footer className="mt-10 space-y-1 text-center text-sm leading-6 text-mute">
         <p className="eyebrow">{text.kicker}</p>
         <p>{text.footer}</p>
+        <p>
+          <a
+            href="https://github.com/benweru/BedSense"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center underline decoration-ink/25 underline-offset-4 hover:text-leaf"
+          >
+            {text.sourceOnGitHub}
+          </a>
+        </p>
       </footer>
     </div>
   );

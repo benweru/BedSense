@@ -91,6 +91,7 @@ export type Copy = {
   noMasks: string;
   errorGeneric: string;
   errorFormat: string;
+  errorRateLimited: string;
   language: string;
   english: string;
   swahili: string;
@@ -101,6 +102,9 @@ export type Copy = {
   backupNote: string;
   museUnavailable: string;
   footer: string;
+  sourceOnGitHub: string;
+  sampleHeading: string;
+  sampleHint: string;
   back: string;
   profile: string;
   account: string;
@@ -291,6 +295,7 @@ const en: Copy = {
   noMasks: "Few marks landed in this frame. The named plant is still checked.",
   errorGeneric: "The check did not finish. Try another photo.",
   errorFormat: "This photo did not open. Take it again or choose a JPEG.",
+  errorRateLimited: "Too many checks at once. Wait a few seconds, then try again.",
   language: "Language",
   english: "English",
   swahili: "Kiswahili",
@@ -302,6 +307,9 @@ const en: Copy = {
   museUnavailable:
     "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
   footer: "Triage, not a diagnosis. Spray rates follow the product label.",
+  sourceOnGitHub: "Source on GitHub",
+  sampleHeading: "Or try a sample farm photo",
+  sampleHint: "Real Kenyan chili bed photos — no camera needed.",
   back: "Back",
   profile: "Profile",
   account: "Account",
@@ -529,6 +537,7 @@ const sw: Copy = {
   noMasks: "Hakuna alama nyingi kwenye picha hii. Bado tunakagua mmea uliotaja.",
   errorGeneric: "Ukaguzi haukukamilika. Jaribu picha nyingine.",
   errorFormat: "Picha hii haikufunguka. Piga picha tena au chagua JPEG.",
+  errorRateLimited: "Ukaguzi ni mwingi kwa wakati mmoja. Subiri sekunde chache, kisha jaribu tena.",
   language: "Lugha",
   english: "English",
   swahili: "Kiswahili",
@@ -540,6 +549,9 @@ const sw: Copy = {
   museUnavailable:
     "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya Muse Spark au Muse Wonder, kisha jaribu kukagua tena.",
   footer: "Uchunguzi wa awali, si utambuzi. Fuata kipimo cha dawa kilicho kwenye kibandiko.",
+  sourceOnGitHub: "Msimbo kwenye GitHub",
+  sampleHeading: "Au jaribu picha ya mfano",
+  sampleHint: "Picha halisi za shamba la pilipili — bila kamera.",
   back: "Rudi",
   profile: "Wasifu",
   account: "Akaunti",

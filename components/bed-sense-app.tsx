@@ -28,6 +28,7 @@ import { NOTES_LIMIT, contextIsEmpty, emptyFarmerContext } from "@/lib/context";
 import { copy, type Copy } from "@/lib/copy";
 import { HISTORY_LIMIT, forgetCheck, rememberCheck } from "@/lib/history";
 import { parseFarmerPlant } from "@/lib/plant-name";
+import { SAMPLE_PHOTOS, type SamplePhoto } from "@/lib/samples";
 import { severityFor } from "@/lib/severity";
 import { fetchSession, onAuthChanged } from "@/lib/auth-client";
 import { UI, type UiWords } from "@/lib/ui-copy";
@@ -137,6 +138,30 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     await runCheck(photos);
   }
 
+  async function loadSample(sample: SamplePhoto) {
+    const ticket = runRef.current;
+    setPhase("preparing");
+    setError(null);
+    setResult(null);
+    try {
+      const response = await fetch(sample.src);
+      if (!response.ok) throw new Error("format");
+      const blob = await response.blob();
+      const file = new File([blob], `${sample.id}.jpg`, { type: blob.type || "image/jpeg" });
+      const prepared = await preparePhoto(file);
+      if (ticket !== runRef.current) return;
+      const next = [prepared];
+      setPhotos(next);
+      setFrame(0);
+      setPreview(prepared.dataUrl);
+      await runCheck(next, sample.plantName);
+    } catch {
+      if (ticket !== runRef.current) return;
+      setPhase("error");
+      setError(text.errorFormat);
+    }
+  }
+
   /** Photo-only by default. `namedPlant` is set only by the result's correction re-run. */
   async function runCheck(batch: PreparedPhoto[], namedPlant?: string) {
     const ticket = runRef.current;
@@ -166,9 +191,11 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         setError(
           body.error === "unsupported_image" || body.error === "image_too_large"
             ? text.errorFormat
-            : body.error === "muse_unavailable"
-              ? text.museUnavailable
-              : text.errorGeneric,
+            : body.error === "rate_limited"
+              ? text.errorRateLimited
+              : body.error === "muse_unavailable"
+                ? text.museUnavailable
+                : text.errorGeneric,
         );
         return;
       }
@@ -377,17 +404,17 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             scanning={phase === "analyzing"}
           />
         ) : (
-          <div id="empty-state" className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-leaf/40 px-6 py-10 text-center">
+          <div id="empty-state" className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-leaf/40 px-6 py-10 text-center lg:px-5 lg:py-7">
             <EmptyIllustration />
-            <p className="mt-4 text-3xl leading-[1.04] tracking-[-0.01em]">
+            <p className="mt-4 text-3xl leading-[1.04] tracking-[-0.01em] lg:mt-3">
               {words.emptyTitle}
             </p>
-            <p className="mt-3 max-w-xs text-sm leading-6 text-mute">{text.photoOnlyHint}</p>
+            <p className="mt-3 max-w-xs text-sm leading-6 text-mute lg:mt-2">{text.photoOnlyHint}</p>
             <button
               type="button"
               disabled={busy}
               onClick={() => cameraRef.current?.click()}
-              className="lift mt-5 min-h-14 rounded-[10px] bg-sun px-6 text-base font-semibold text-ink"
+              className="lift mt-5 min-h-14 rounded-[10px] bg-sun px-6 text-base font-semibold text-ink lg:mt-4"
             >
               {history.length > 0 ? words.emptyCtaAgain : words.emptyCta}
             </button>
@@ -400,6 +427,38 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
               {text.upload}
             </button>
             <p className="mt-3 hidden text-sm font-semibold text-leaf lg:block">{text.dropPhoto}</p>
+            <div className="mt-6 w-full border-t border-ink/10 pt-5 text-left lg:mt-4 lg:pt-4">
+              <p className="text-sm font-semibold text-paper">{text.sampleHeading}</p>
+              <p className="mt-0.5 text-sm leading-5 text-mute">{text.sampleHint}</p>
+              <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                {SAMPLE_PHOTOS.map((sample) => {
+                  const sampleCopy = sample.copy[locale];
+                  return (
+                    <button
+                      key={sample.id}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void loadSample(sample)}
+                      className="press lift flex min-h-14 items-center overflow-hidden rounded-lg border border-ink/10 bg-card text-left hover:border-leaf disabled:opacity-60 sm:flex-col sm:items-stretch"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={sample.src}
+                        alt={sampleCopy.alt}
+                        width={160}
+                        height={120}
+                        loading="lazy"
+                        className="h-16 w-16 shrink-0 object-cover sm:h-16 sm:w-full"
+                      />
+                      <span className="min-w-0 flex-1 px-3 py-2 sm:px-2.5">
+                        <span className="block text-sm font-semibold leading-5 text-paper sm:text-xs sm:leading-4">{sampleCopy.label}</span>
+                        <span className="mt-0.5 block text-xs leading-4 text-mute">{sampleCopy.detail}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
         {result && !busy && result.masks.length > 0 && preview ? (
@@ -823,6 +882,7 @@ function ResultCard({
       <div id="diagnosis-card" className={`rise scroll-mt-4 rounded-xl border border-ink/20 bg-card p-5 sm:p-6`}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           {severity ? <SeverityLine severity={severity} words={words} /> : <p className="eyebrow text-mute">{words.diagnosis}</p>}
+          {result.mode === "mock" ? <p className="eyebrow text-mute">{text.modeMock}</p> : null}
         </div>
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <h2 className="min-w-0 font-serif text-3xl leading-[1.04] tracking-[-0.01em] text-paper sm:text-4xl">
