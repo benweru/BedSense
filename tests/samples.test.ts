@@ -10,8 +10,9 @@ afterEach(() => {
 });
 
 describe("built-in sample farm photos", () => {
-  it("ships existing, lightweight JPEGs with English and Kiswahili copy", () => {
-    expect(SAMPLE_PHOTOS.length).toBeGreaterThanOrEqual(3);
+  it("ships three distinct crop JPEGs (chili, onion, beetroot) with English and Kiswahili copy", () => {
+    expect(SAMPLE_PHOTOS).toHaveLength(3);
+    const scenarios = new Set<number>();
     for (const sample of SAMPLE_PHOTOS) {
       expect(sample.src.startsWith("/samples/")).toBe(true);
       const diskPath = path.join("public", sample.src.replace(/^\/+/, ""));
@@ -31,9 +32,10 @@ describe("built-in sample farm photos", () => {
       expect(sample.copy.sw.detail.trim().length).toBeGreaterThan(0);
       expect(sample.copy.sw.alt.trim().length).toBeGreaterThan(0);
 
-      // Demo mode matches the chili bed photo to the chili scenario (2)
-      expect(scenarioForPlant(sample.plantName, bytes)).toBe(2);
+      scenarios.add(scenarioForPlant(sample.plantName, bytes));
     }
+    // Each sample covers a different built-in demo crop scenario (onion=0, beetroot=1, chili=2)
+    expect([...scenarios].sort()).toEqual([0, 1, 2]);
   });
 });
 

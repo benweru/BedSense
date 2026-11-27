@@ -4,7 +4,7 @@
 
 Your plants can’t talk, but your phone can listen - photograph any plant and get quick, practical advice
 
-**Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app) — click any built-in sample Kenyan chili photo on the home screen to try a full check in one tap, no camera needed.
+**Live demo:** [https://bedsense.vercel.app](https://bedsense.vercel.app) — click any built-in sample farm photo (chili, onion, or beetroot) on the home screen to try a full check in one tap, no camera needed.
 
 The live site runs in **demo mode** (sample results, no live Meta calls) now that the hackathon has ended. To run with live models, clone the repo and follow the live-mode steps in [docs/development.md](docs/development.md).
 

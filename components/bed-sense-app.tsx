@@ -375,23 +375,6 @@ export function BedSenseApp({
         ) : null}
       </div>
 
-      {demoMode ? (
-        <aside id="demo-mode-banner" className="mt-5 rounded-lg border border-ink/10 bg-field px-4 py-3 text-sm leading-6 text-paper" role="note">
-          <p className="font-semibold text-paper">{text.demoBannerTitle}</p>
-          <p className="mt-0.5 text-mute">
-            {text.demoBannerBody}{" "}
-            <a
-              href="https://github.com/benweru/BedSense/blob/main/docs/development.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-leaf underline decoration-leaf/40 underline-offset-4 hover:decoration-leaf"
-            >
-              {text.demoBannerLink}
-            </a>
-          </p>
-        </aside>
-      ) : null}
-
       <div className={`mt-6 lg:mt-8 lg:grid lg:items-start lg:gap-6 ${plants && !result && !busy ? "lg:max-w-4xl lg:grid-cols-1" : "lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]"}`}>
       <div
         id="left-column"
@@ -822,6 +805,23 @@ export function BedSenseApp({
       ) : null}
       </div>
       </div>
+
+      {demoMode ? (
+        <aside id="demo-mode-banner" className="mt-8 rounded-lg border border-ink/10 bg-field px-4 py-3 text-sm leading-6 text-paper" role="note">
+          <p className="font-semibold text-paper">{text.demoBannerTitle}</p>
+          <p className="mt-0.5 text-mute">
+            {text.demoBannerBody}{" "}
+            <a
+              href="https://github.com/benweru/BedSense/blob/main/docs/development.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-leaf underline decoration-leaf/40 underline-offset-4 hover:decoration-leaf"
+            >
+              {text.demoBannerLink}
+            </a>
+          </p>
+        </aside>
+      ) : null}
 
       {!demoMode && !preview && !busy && (!plants || savedPlant) ? (
         <div id="mobile-action-bar" className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-page/95 pt-3  backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
