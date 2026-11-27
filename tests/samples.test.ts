@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("built-in sample farm photos", () => {
-  it("ships three distinct crop JPEGs (chili, onion, beetroot) with English and Kiswahili copy", () => {
+  it("ships three distinct crop JPEGs (chili, tomato, potato) with English and Kiswahili copy", () => {
     expect(SAMPLE_PHOTOS).toHaveLength(3);
     const scenarios = new Set<number>();
     for (const sample of SAMPLE_PHOTOS) {
@@ -34,8 +34,8 @@ describe("built-in sample farm photos", () => {
 
       scenarios.add(scenarioForPlant(sample.plantName, bytes));
     }
-    // Each sample covers a different built-in demo crop scenario (onion=0, beetroot=1, chili=2)
-    expect([...scenarios].sort()).toEqual([0, 1, 2]);
+    // Each sample covers a different built-in demo crop scenario (chili=2, tomato=3, potato=4)
+    expect([...scenarios].sort()).toEqual([2, 3, 4]);
   });
 });
 

@@ -11,7 +11,7 @@ import { followUpFor, mitigationsWithChemicalStep } from "@/lib/server/muse";
 import { finalizeTriage } from "@/lib/triage";
 import type { AnalyzeResult, ConceptId, CropId, FarmerContext, Locale, MaskMark } from "@/lib/types";
 
-export type DemoScenario = 0 | 1 | 2;
+export type DemoScenario = 0 | 1 | 2 | 3 | 4;
 
 type Placed = {
   conceptId: ConceptId;
@@ -51,6 +51,8 @@ function scenarioForKnown(plant: KnownPlant | null): DemoScenario | null {
   if (plant?.cropId === "onion") return 0;
   if (plant?.cropId === "beetroot") return 1;
   if (plant?.cropId === "chili") return 2;
+  if (plant?.en === "Tomato") return 3;
+  if (plant?.en === "Potato") return 4;
   return null;
 }
 
@@ -89,6 +91,8 @@ export function buildMockResult(options: {
     locale: options.locale,
     observations: story.observations,
     actions: story.actions,
+    likelyCauses: story.likelyCauses,
+    mitigations: story.mitigations,
     confidence: story.confidence,
     confidenceScore: story.confidenceScore,
     counts,
@@ -96,12 +100,15 @@ export function buildMockResult(options: {
     context,
     issue: "none",
   });
-  const chemicals = adviseChemicals({
-    locale: options.locale,
-    diseaseIndicated: true,
-    suspect: problem.suspect,
-    chemicals: problem.chemicals,
-  });
+  const chemicals =
+    problem.chemicals.length > 0
+      ? adviseChemicals({
+          locale: options.locale,
+          diseaseIndicated: true,
+          suspect: problem.suspect,
+          chemicals: problem.chemicals,
+        })
+      : null;
 
   return {
     id: options.id,
@@ -114,7 +121,9 @@ export function buildMockResult(options: {
     primaryCrop: focus.primaryCrop,
     detectedPlant:
       (farmerPlant ? displayPlantName(options.locale, farmerPlant) : "") ||
-      (focus.primaryCrop ? text.concepts[focus.primaryCrop] : text.unknownPlant),
+      (focus.primaryCrop
+        ? text.concepts[focus.primaryCrop]
+        : scenarioPlantName(options.locale, options.scenario) || text.unknownPlant),
     farmerPlant,
     contextAsk: followUpFor(options.locale, { issue: null, chemicals, needsInfo: false }),
     needsInfo: false,
@@ -326,6 +335,64 @@ function placements(scenario: DemoScenario, width: number, height: number): Plac
     ];
   }
 
+  if (scenario === 3) {
+    return [
+      {
+        conceptId: "yellow-leaf",
+        x: col(0.23, Math.max(1, Math.round(width * 0.32))),
+        y: row(0.34, Math.max(1, Math.round(height * 0.44))),
+        width: Math.max(1, Math.round(width * 0.32)),
+        height: Math.max(1, Math.round(height * 0.44)),
+        confidence: 0.86,
+      },
+      {
+        conceptId: "plant",
+        x: col(0.12, Math.max(1, Math.round(width * 0.28))),
+        y: row(0.02, Math.max(1, Math.round(height * 0.3))),
+        width: Math.max(1, Math.round(width * 0.28)),
+        height: Math.max(1, Math.round(height * 0.3)),
+        confidence: 0.78,
+      },
+      {
+        conceptId: "plant",
+        x: col(0.62, Math.max(1, Math.round(width * 0.2))),
+        y: row(0.52, Math.max(1, Math.round(height * 0.32))),
+        width: Math.max(1, Math.round(width * 0.2)),
+        height: Math.max(1, Math.round(height * 0.32)),
+        confidence: 0.74,
+      },
+    ];
+  }
+
+  if (scenario === 4) {
+    return [
+      {
+        conceptId: "plant",
+        x: col(0.08, Math.max(1, Math.round(width * 0.66))),
+        y: row(0.32, Math.max(1, Math.round(height * 0.56))),
+        width: Math.max(1, Math.round(width * 0.66)),
+        height: Math.max(1, Math.round(height * 0.56)),
+        confidence: 0.88,
+      },
+      {
+        conceptId: "plant",
+        x: col(0.22, Math.max(1, Math.round(width * 0.48))),
+        y: row(0.02, Math.max(1, Math.round(height * 0.3))),
+        width: Math.max(1, Math.round(width * 0.48)),
+        height: Math.max(1, Math.round(height * 0.3)),
+        confidence: 0.81,
+      },
+      {
+        conceptId: "plant",
+        x: col(0.68, Math.max(1, Math.round(width * 0.3))),
+        y: row(0.18, Math.max(1, Math.round(height * 0.68))),
+        width: Math.max(1, Math.round(width * 0.3)),
+        height: Math.max(1, Math.round(height * 0.68)),
+        confidence: 0.77,
+      },
+    ];
+  }
+
   return [
     onion(col(0.12, w), row(0.16, h), 0.86),
     onion(col(0.38, w), row(0.18, h), 0.83),
@@ -341,10 +408,22 @@ function placements(scenario: DemoScenario, width: number, height: number): Plac
   ];
 }
 
-function stories(locale: Locale): Record<
-  DemoScenario,
-  { observations: string[]; actions: [string, string, string]; confidence: "low" | "medium" | "high"; confidenceScore: number }
-> {
+function scenarioPlantName(locale: Locale, scenario: DemoScenario): string | null {
+  if (scenario === 3) return locale === "sw" ? "Nyanya" : "Tomato";
+  if (scenario === 4) return locale === "sw" ? "Viazi" : "Potato";
+  return null;
+}
+
+type MockStory = {
+  observations: string[];
+  actions: [string, string, string];
+  likelyCauses?: string[];
+  mitigations?: string[];
+  confidence: "low" | "medium" | "high";
+  confidenceScore: number;
+};
+
+function stories(locale: Locale): Record<DemoScenario, MockStory> {
   if (locale === "sw") {
     return {
       0: {
@@ -385,6 +464,50 @@ function stories(locale: Locale): Record<
         ],
         confidence: "medium",
         confidenceScore: 0.57,
+      },
+      3: {
+        observations: [
+          "Jani la nyanya lina njano na madoa meusi ya mviringo yenye kingo zilizokauka, dalili ya early blight au Septoria.",
+          "Matunda mabichi bado yanakua vizuri, kwa hivyo kudhibiti majani ya chini mapema kutalinda mazao.",
+        ],
+        likelyCauses: [
+          "Early blight (Alternaria) au madoa ya Septoria yanayosambazwa na matone ya maji kwenye majani ya chini.",
+          "Unyevu mwingi usiku na majani yanayogusana karibu na udongo.",
+        ],
+        mitigations: [
+          "Ng'oa majani ya chini yenye madoa na uyatoe mbali na kitanda cha nyanya.",
+          "Mwagilia udongo asubuhi pekee na epuka kulowesha majani jioni.",
+          "Weka matandazo chini ya mimea ili kuzuia udongo kurukia majani wakati wa mvua au umwagiliaji.",
+        ],
+        actions: [
+          "Kagua chini ya majani ya chini kwenye mimea ya jirani kuona kama madoa mapya yanaenea.",
+          "Ondoa majani yaliyoharibika sana na osha mikono au vifaa kabla ya kugusa mimea mingine.",
+          "Piga picha tena baada ya siku tatu ili kuona kama madoa yanaacha kupanda juu.",
+        ],
+        confidence: "medium",
+        confidenceScore: 0.72,
+      },
+      4: {
+        observations: [
+          "Viazi vilivyovunwa vina madoa meusi ya duara yaliyobonyea kwenye ganda, yanayofanana na common scab au madoa ya late blight.",
+          "Viazi kadhaa kwenye fungu hili vina alama hizi, na vikihifadhiwa kwenye unyevu vinaweza kuoza haraka.",
+        ],
+        likelyCauses: [
+          "Common scab au magonjwa ya ganda yanayopatikana udongoni wakati viazi vinapoanza kutengenezwa.",
+          "Maambukizi ya late blight kwenye viazi au unyevu mwingi udongoni kabla ya kuvuna.",
+        ],
+        mitigations: [
+          "Tenganisha viazi vyenye madoa na vilivyo safi kabla ya kuvihifadhi mahali pakavu na penye hewa.",
+          "Usitumie viazi vyenye madoa kama mbegu za msimu ujao; tumia mbegu zilizothibitishwa na zungusha mazao.",
+          "Usipulizie dawa ya ukungu kwenye viazi vilivyovunwa tayari kwa chakula.",
+        ],
+        actions: [
+          "Kata kiazi kimoja chenye madoa: ganda gumu la juu linaashiria scab, ilhali nyama ya kahawia chini ya ganda inaashiria late blight.",
+          "Kausha viazi safi kivulini kwenye hewa kabla ya kuviweka ghalani.",
+          "Onyesha picha ya kiazi kilichokatwa kwa afisa ugani kabla ya kuchagua mbegu za msimu ujao.",
+        ],
+        confidence: "medium",
+        confidenceScore: 0.68,
       },
     };
   }
@@ -428,6 +551,50 @@ function stories(locale: Locale): Record<
       confidence: "medium",
       confidenceScore: 0.57,
     },
+    3: {
+      observations: [
+        "This tomato leaflet is yellowing with dark sunken spots and dried edges, a classic pattern of early blight or Septoria leaf spot.",
+        "Green fruit are still developing nearby, so removing affected lower leaves early helps protect the rest of the canopy.",
+      ],
+      likelyCauses: [
+        "Early blight (Alternaria) or Septoria leaf spot splashed from soil onto lower tomato leaves.",
+        "Long overnight leaf wetness or crowded lower foliage holding moisture.",
+      ],
+      mitigations: [
+        "Remove the worst spotted lower leaves and carry them away from the tomato bed.",
+        "Water at the soil line in the morning so foliage dries before nightfall.",
+        "Mulch beneath the plants to reduce soil splash onto clean leaves.",
+      ],
+      actions: [
+        "Inspect the lower leaves of neighbouring tomato plants for fresh dark spots spreading upward.",
+        "Trim off heavily spotted leaves and wash your hands or shears before touching healthy rows.",
+        "Photograph the same canopy in three days to check whether new spots are still appearing.",
+      ],
+      confidence: "medium",
+      confidenceScore: 0.72,
+    },
+    4: {
+      observations: [
+        "Harvested potato tubers show dark, circular sunken spots across the skin, consistent with common scab or blight tuber lesions.",
+        "Several tubers in this lot are marked, which raises the risk of storage rot if they stay damp.",
+      ],
+      likelyCauses: [
+        "Common scab or skin-spot lesions picked up in soil during tuber set.",
+        "Late blight tuber infection or wet soil conditions before harvest.",
+      ],
+      mitigations: [
+        "Sort spotted tubers out from clean ones and cure the clean lot in a cool, dry, shaded spot.",
+        "Do not save spotted tubers as seed for next season; rotate to a fresh bed with certified seed.",
+        "Do not spray fungicides onto harvested potatoes meant for eating.",
+      ],
+      actions: [
+        "Slice one spotted tuber open: shallow corky pits point to scab, while reddish-brown flesh beneath the skin points to late blight.",
+        "Air-dry clean tubers in the shade before bagging or stacking in storage.",
+        "Show a photo of the sliced tuber to an extension officer before choosing next season's seed and bed.",
+      ],
+      confidence: "medium",
+      confidenceScore: 0.68,
+    },
   };
 }
 
@@ -446,6 +613,14 @@ function problems(locale: Locale): Record<DemoScenario, { suspect: string; chemi
         suspect: "Thrips kwenye pilipili",
         chemicals: [{ activeIngredient: "lambda-cyhalothrin" }, { activeIngredient: "abamectin" }],
       },
+      3: {
+        suspect: "Early blight kwenye nyanya",
+        chemicals: [{ activeIngredient: "mancozeb" }, { activeIngredient: "copper oxychloride" }],
+      },
+      4: {
+        suspect: "Common scab au madoa ya late blight kwenye viazi",
+        chemicals: [],
+      },
     };
   }
   return {
@@ -460,6 +635,14 @@ function problems(locale: Locale): Record<DemoScenario, { suspect: string; chemi
     2: {
       suspect: "Thrips on chili",
       chemicals: [{ activeIngredient: "lambda-cyhalothrin" }, { activeIngredient: "abamectin" }],
+    },
+    3: {
+      suspect: "Early blight on tomato",
+      chemicals: [{ activeIngredient: "mancozeb" }, { activeIngredient: "copper oxychloride" }],
+    },
+    4: {
+      suspect: "Common scab or blight lesions on potato",
+      chemicals: [],
     },
   };
 }

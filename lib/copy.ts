@@ -315,7 +315,7 @@ const en: Copy = {
   footer: "Triage, not a diagnosis. Spray rates follow the product label.",
   sourceOnGitHub: "Source on GitHub",
   sampleHeading: "Or try a sample farm photo",
-  sampleHint: "Three sample vegetable beds — no camera needed.",
+  sampleHint: "Real farm photos — chili, tomato, and potato.",
   demoBannerTitle: "Demo mode",
   demoBannerBody:
     "Live AI models are paused on this hosted demo, so the sample photos above walk through the full check flow (masks, causes, three next checks, Kenyan agrovet prices, and follow-up Q&A).",
@@ -564,7 +564,7 @@ const sw: Copy = {
   footer: "Uchunguzi wa awali, si utambuzi. Fuata kipimo cha dawa kilicho kwenye kibandiko.",
   sourceOnGitHub: "Msimbo kwenye GitHub",
   sampleHeading: "Au jaribu picha ya mfano",
-  sampleHint: "Mifano mitatu ya vitanda vya mboga — bila kamera.",
+  sampleHint: "Picha halisi za shamba — pilipili, nyanya, na viazi.",
   demoBannerTitle: "Hali ya onyesho",
   demoBannerBody:
     "Modeli za AI za moja kwa moja zimesitishwa kwenye tovuti hii ya onyesho, kwa hivyo picha za mfano zilizo juu zinaonyesha ukaguzi kamili (alama, sababu, mambo matatu ya kukagua, bei za agrovet Kenya, na maswali).",
