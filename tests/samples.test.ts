@@ -1,8 +1,13 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GET as modeGET } from "@/app/api/mode/route";
 import { SAMPLE_PHOTOS } from "@/lib/samples";
 import { scenarioForPlant } from "@/lib/server/mock";
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("built-in sample farm photos", () => {
   it("ships existing, lightweight JPEGs with English and Kiswahili copy", () => {
@@ -29,5 +34,15 @@ describe("built-in sample farm photos", () => {
       // Demo mode matches the chili bed photo to the chili scenario (2)
       expect(scenarioForPlant(sample.plantName, bytes)).toBe(2);
     }
+  });
+});
+
+describe("/api/mode", () => {
+  it("reports mock in zero-env or MOCK_META=1 and live in MOCK_META=0", async () => {
+    vi.stubEnv("MOCK_META", "1");
+    expect((await modeGET().json()) as { mode: string }).toEqual({ mode: "mock" });
+
+    vi.stubEnv("MOCK_META", "0");
+    expect((await modeGET().json()) as { mode: string }).toEqual({ mode: "live" });
   });
 });

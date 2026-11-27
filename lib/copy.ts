@@ -105,6 +105,12 @@ export type Copy = {
   sourceOnGitHub: string;
   sampleHeading: string;
   sampleHint: string;
+  demoBannerTitle: string;
+  demoBannerBody: string;
+  demoBannerLink: string;
+  demoSampleTitle: string;
+  demoSampleUploadNote: string;
+  demoTryAnother: string;
   back: string;
   profile: string;
   account: string;
@@ -310,6 +316,13 @@ const en: Copy = {
   sourceOnGitHub: "Source on GitHub",
   sampleHeading: "Or try a sample farm photo",
   sampleHint: "Real Kenyan chili bed photos — no camera needed.",
+  demoBannerTitle: "Demo mode",
+  demoBannerBody:
+    "Live AI models are paused on this hosted demo. Pick a sample farm photo below to explore masks, causes, three next checks, Kenyan agrovet prices, and follow-up Q&A.",
+  demoBannerLink: "Run with live models",
+  demoSampleTitle: "Try BedSense with a sample farm photo",
+  demoSampleUploadNote: "Custom photo uploads are disabled in demo mode so the demo never guesses on your own photo.",
+  demoTryAnother: "Try another sample photo",
   back: "Back",
   profile: "Profile",
   account: "Account",
@@ -552,6 +565,13 @@ const sw: Copy = {
   sourceOnGitHub: "Msimbo kwenye GitHub",
   sampleHeading: "Au jaribu picha ya mfano",
   sampleHint: "Picha halisi za shamba la pilipili — bila kamera.",
+  demoBannerTitle: "Hali ya onyesho",
+  demoBannerBody:
+    "Modeli za AI za moja kwa moja zimesitishwa kwenye tovuti hii ya onyesho. Chagua picha ya mfano hapa chini ili kuona alama, sababu, mambo matatu ya kukagua, bei za agrovet Kenya, na maswali.",
+  demoBannerLink: "Endesha kwa modeli za moja kwa moja",
+  demoSampleTitle: "Jaribu BedSense kwa picha ya mfano",
+  demoSampleUploadNote: "Kupakia picha yako kumezimwa katika hali ya onyesho ili mfumo usibashiri kwenye picha yako.",
+  demoTryAnother: "Jaribu picha nyingine ya mfano",
   back: "Rudi",
   profile: "Wasifu",
   account: "Akaunti",

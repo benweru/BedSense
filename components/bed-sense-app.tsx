@@ -52,7 +52,13 @@ type PreparedPhoto = {
 
 type Phase = "idle" | "preparing" | "analyzing" | "ready" | "error";
 
-export function BedSenseApp({ plants = false }: { plants?: boolean }) {
+export function BedSenseApp({
+  plants = false,
+  initialDemoMode = false,
+}: {
+  plants?: boolean;
+  initialDemoMode?: boolean;
+}) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
@@ -71,6 +77,8 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const [memoryRefresh, setMemoryRefresh] = useState(0);
   const [showMasks, setShowMasks] = useState(true);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [demoMode, setDemoMode] = useState(initialDemoMode);
+  const [activeSampleId, setActiveSampleId] = useState<string | null>(null);
   const router = useRouter();
   const text = copy[locale];
   const words = UI[locale];
@@ -79,6 +87,21 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     const load = () => void fetchSession().then((session) => setSignedIn(Boolean(session.user)));
     load();
     return onAuthChanged(load);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/mode")
+      .then((res) => (res.ok ? (res.json() as Promise<{ mode?: string }>) : null))
+      .then((body) => {
+        if (active && body?.mode) setDemoMode(body.mode === "mock");
+      })
+      .catch(() => {
+        /* keep initial server hint */
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const choosePlant = useCallback((plant: SavedPlant | null) => {
@@ -140,6 +163,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
 
   async function loadSample(sample: SamplePhoto) {
     const ticket = runRef.current;
+    setActiveSampleId(sample.id);
     setPhase("preparing");
     setError(null);
     setResult(null);
@@ -279,6 +303,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
     setFrame(0);
     setResult(null);
     setError(null);
+    setActiveSampleId(null);
     setContext(emptyFarmerContext());
 
     if (cameraRef.current) cameraRef.current.value = "";
@@ -309,7 +334,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
   const sessionLive = Boolean(context.notes.trim() || photos.length > 0 || preview || result || error);
 
   return (
-    <SiteChrome pad={(photos.length > 0 && !busy && !result) || (!preview && !busy && (!plants || savedPlant)) ? "pb-36 lg:pb-12" : "pb-12"}>
+    <SiteChrome pad={(!demoMode && ((photos.length > 0 && !busy && !result) || (!preview && !busy && (!plants || savedPlant)))) ? "pb-36 lg:pb-12" : "pb-12"}>
       {plants ? null : <FirstVisitIntro locale={locale} />}
       <div className="mt-6 sm:mt-8 lg:max-w-3xl">
         {plants ? (
@@ -350,6 +375,23 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         ) : null}
       </div>
 
+      {demoMode ? (
+        <aside id="demo-mode-banner" className="mt-5 rounded-lg border border-ink/10 bg-field px-4 py-3 text-sm leading-6 text-paper" role="note">
+          <p className="font-semibold text-paper">{text.demoBannerTitle}</p>
+          <p className="mt-0.5 text-mute">
+            {text.demoBannerBody}{" "}
+            <a
+              href="https://github.com/benweru/BedSense/blob/main/docs/development.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-leaf underline decoration-leaf/40 underline-offset-4 hover:decoration-leaf"
+            >
+              {text.demoBannerLink}
+            </a>
+          </p>
+        </aside>
+      ) : null}
+
       <div className={`mt-6 lg:mt-8 lg:grid lg:items-start lg:gap-6 ${plants && !result && !busy ? "lg:max-w-4xl lg:grid-cols-1" : "lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]"}`}>
       <div
         id="left-column"
@@ -377,13 +419,13 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
         className={`transition-colors duration-500 ease-out-soft ${dragging ? "rounded-xl bg-leaf/10" : ""}`}
         onDragOver={(event) => {
           event.preventDefault();
-          if (!busy) setDragging(true);
+          if (!busy && !demoMode) setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          if (!busy) void onFiles(event.dataTransfer.files, photos.length > 0 ? "append" : "replace");
+          if (!busy && !demoMode) void onFiles(event.dataTransfer.files, photos.length > 0 ? "append" : "replace");
         }}
       >
         {preview && photos.length > 0 && !result && !busy ? (
@@ -403,6 +445,44 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             showMasks={showMasks}
             scanning={phase === "analyzing"}
           />
+        ) : demoMode ? (
+          <div id="empty-state" className="rounded-lg border border-ink/10 bg-card px-5 py-6 text-left">
+            <p className="eyebrow text-leaf">{text.modeMock}</p>
+            <p className="mt-2 font-serif text-2xl leading-tight tracking-[-0.01em] text-paper">
+              {text.demoSampleTitle}
+            </p>
+            <p className="mt-1.5 text-sm leading-6 text-mute">{text.sampleHint}</p>
+            <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              {SAMPLE_PHOTOS.map((sample) => {
+                const sampleCopy = sample.copy[locale];
+                return (
+                  <button
+                    key={sample.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void loadSample(sample)}
+                    className="press lift flex min-h-14 items-center overflow-hidden rounded-lg border border-ink/10 bg-page text-left hover:border-leaf disabled:opacity-60 sm:flex-col sm:items-stretch"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={sample.src}
+                      alt={sampleCopy.alt}
+                      width={160}
+                      height={120}
+                      className="h-16 w-16 shrink-0 object-cover sm:h-20 sm:w-full"
+                    />
+                    <span className="min-w-0 flex-1 px-3 py-2 sm:px-2.5">
+                      <span className="block text-sm font-semibold leading-5 text-paper sm:text-xs sm:leading-4">{sampleCopy.label}</span>
+                      <span className="mt-0.5 block text-xs leading-4 text-mute">{sampleCopy.detail}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-4 border-t border-ink/10 pt-3 text-xs leading-5 text-mute">
+              {text.demoSampleUploadNote}
+            </p>
+          </div>
         ) : (
           <div id="empty-state" className="flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed border-leaf/40 px-6 py-10 text-center lg:px-5 lg:py-7">
             <EmptyIllustration />
@@ -468,6 +548,41 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
           </div>
         ) : null}
 
+        {demoMode ? (
+          preview ? (
+            <div className="mt-4 rounded-lg border border-ink/10 bg-card p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-mute">{text.demoTryAnother}</p>
+              <div className="mt-2.5 grid grid-cols-3 gap-2">
+                {SAMPLE_PHOTOS.map((sample) => {
+                  const sampleCopy = sample.copy[locale];
+                  const active = activeSampleId === sample.id;
+                  return (
+                    <button
+                      key={sample.id}
+                      type="button"
+                      disabled={busy}
+                      aria-pressed={active}
+                      onClick={() => void loadSample(sample)}
+                      className={`press flex flex-col overflow-hidden rounded-lg border text-left disabled:opacity-60 ${
+                        active ? "border-leaf bg-leaf/10" : "border-ink/10 bg-page hover:border-leaf"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={sample.src}
+                        alt={sampleCopy.alt}
+                        width={160}
+                        height={120}
+                        className="h-14 w-full object-cover"
+                      />
+                      <span className="block truncate px-2 py-1.5 text-xs font-semibold text-paper">{sampleCopy.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null
+        ) : (
         <div className={`mt-4 grid-cols-2 gap-3 ${preview ? "grid" : "hidden lg:grid"}`}>
           <button
             type="button"
@@ -486,6 +601,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             {text.upload}
           </button>
         </div>
+        )}
         <input
           ref={cameraRef}
           className="sr-only"
@@ -522,7 +638,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             event.target.value = "";
           }}
         />
-        {photos.length > 0 ? (
+        {!demoMode && photos.length > 0 ? (
           <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
             {photos.map((photo, index) => (
               <div key={`${photo.width}x${photo.height}-${index}`} className="w-20 shrink-0">
@@ -556,7 +672,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             ))}
           </div>
         ) : null}
-        {photos.length > 0 && photos.length < 3 && !busy ? (
+        {!demoMode && photos.length > 0 && photos.length < 3 && !busy ? (
           <button
             type="button"
             onClick={() => addRef.current?.click()}
@@ -613,7 +729,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
             history={history}
             words={words}
             signedIn={signedIn}
-            onRescan={rescan}
+            onRescan={demoMode ? undefined : rescan}
             onNewCheck={startFresh}
             onOpenProfile={() => router.push("/plants")}
             contextSlot={photos.length > 0 ? (
@@ -646,7 +762,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
               }
               setMemoryRefresh((count) => count + 1);
             }}
-            onCorrect={photos.length > 0 ? (name) => void runCheck(photos, name) : undefined}
+            onCorrect={!demoMode && photos.length > 0 ? (name) => void runCheck(photos, name) : undefined}
           />
         </div>
       ) : null}
@@ -707,7 +823,7 @@ export function BedSenseApp({ plants = false }: { plants?: boolean }) {
       </div>
       </div>
 
-      {!preview && !busy && (!plants || savedPlant) ? (
+      {!demoMode && !preview && !busy && (!plants || savedPlant) ? (
         <div id="mobile-action-bar" className="fixed inset-x-0 bottom-0 z-20 border-t border-ink/10 bg-page/95 pt-3  backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
           <div className="mx-auto grid w-full max-w-xl grid-cols-2 gap-3 px-4 sm:px-6">
             <button type="button" onClick={() => cameraRef.current?.click()} className="press min-h-14 rounded-[10px] bg-leaf px-3 text-base font-semibold text-cream">
@@ -766,7 +882,7 @@ function ResultCard({
   history: readonly HistoryEntry[];
   words: UiWords;
   signedIn: boolean | null;
-  onRescan: () => void;
+  onRescan?: () => void;
   onNewCheck: () => void;
   onOpenProfile: () => void;
   /** Context addition for this check (notes + update), rendered under the diagnosis. */
@@ -980,9 +1096,11 @@ function ResultCard({
               {words.saveFailed}
             </p>
           ) : null}
-          <button id="rescan" type="button" onClick={onRescan} className="lift min-h-12 rounded-full border border-ink/20 px-4 text-base font-semibold text-paper">
-            {words.rescan}
-          </button>
+          {onRescan ? (
+            <button id="rescan" type="button" onClick={onRescan} className="lift min-h-12 rounded-full border border-ink/20 px-4 text-base font-semibold text-paper">
+              {words.rescan}
+            </button>
+          ) : null}
           <button type="button" onClick={onNewCheck} className="press min-h-12 rounded-full px-3 text-base font-semibold text-mute hover:text-paper">
             {text.newCheck}
           </button>
