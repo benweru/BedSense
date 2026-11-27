@@ -336,6 +336,11 @@ export function BedSenseApp({
   return (
     <SiteChrome pad={(!demoMode && ((photos.length > 0 && !busy && !result) || (!preview && !busy && (!plants || savedPlant)))) ? "pb-36 lg:pb-12" : "pb-12"}>
       {plants ? null : <FirstVisitIntro locale={locale} />}
+      {demoMode ? (
+        <p id="demo-top-notice" role="note" className="mt-4 rounded-lg border border-ink/10 bg-field px-4 py-2.5 text-sm leading-5 text-mute">
+          <span className="font-semibold text-paper">{text.modeMock}:</span> {text.demoTopNotice}
+        </p>
+      ) : null}
       <div className="mt-6 sm:mt-8 lg:max-w-3xl">
         {plants ? (
           <>

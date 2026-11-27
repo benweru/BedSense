@@ -105,6 +105,7 @@ export type Copy = {
   sourceOnGitHub: string;
   sampleHeading: string;
   sampleHint: string;
+  demoTopNotice: string;
   demoBannerTitle: string;
   demoBannerBody: string;
   demoBannerLink: string;
@@ -316,9 +317,10 @@ const en: Copy = {
   sourceOnGitHub: "Source on GitHub",
   sampleHeading: "Or try a sample farm photo",
   sampleHint: "Real farm photos — chili, tomato, and potato.",
-  demoBannerTitle: "Demo mode",
+  demoTopNotice: "Sample readings only — live AI models are paused on this hosted preview.",
+  demoBannerTitle: "Why is this in demo mode?",
   demoBannerBody:
-    "Live AI models are paused on this hosted demo, so the sample photos above walk through the full check flow (masks, causes, three next checks, Kenyan agrovet prices, and follow-up Q&A).",
+    "Live AI models are paused on this hosted preview because of API credit limits, so the sample photos above walk through the full check flow (masks, causes, three next checks, Kenyan agrovet prices, and follow-up Q&A). Want to test your own photos with live vision models?",
   demoBannerLink: "Run with live models",
   demoSampleTitle: "Try BedSense with a sample farm photo",
   demoSampleUploadNote: "Custom photo uploads are disabled in demo mode so the demo never guesses on your own photo.",
@@ -565,9 +567,10 @@ const sw: Copy = {
   sourceOnGitHub: "Msimbo kwenye GitHub",
   sampleHeading: "Au jaribu picha ya mfano",
   sampleHint: "Picha halisi za shamba — pilipili, nyanya, na viazi.",
-  demoBannerTitle: "Hali ya onyesho",
+  demoTopNotice: "Matokeo ya mfano pekee — modeli za AI za moja kwa moja zimesitishwa kwenye onyesho hili.",
+  demoBannerTitle: "Kwa nini hii iko kwenye hali ya onyesho?",
   demoBannerBody:
-    "Modeli za AI za moja kwa moja zimesitishwa kwenye tovuti hii ya onyesho, kwa hivyo picha za mfano zilizo juu zinaonyesha ukaguzi kamili (alama, sababu, mambo matatu ya kukagua, bei za agrovet Kenya, na maswali).",
+    "Modeli za AI za moja kwa moja zimesitishwa kwenye onyesho hili kwa sababu ya kikomo cha salio la API, kwa hivyo picha za mfano zilizo juu zinaonyesha ukaguzi kamili (alama, sababu, mambo matatu ya kukagua, bei za agrovet Kenya, na maswali). Ungependa kujaribu picha zako kwa modeli za moja kwa moja?",
   demoBannerLink: "Endesha kwa modeli za moja kwa moja",
   demoSampleTitle: "Jaribu BedSense kwa picha ya mfano",
   demoSampleUploadNote: "Kupakia picha yako kumezimwa katika hali ya onyesho ili mfumo usibashiri kwenye picha yako.",
