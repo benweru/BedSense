@@ -1,8 +1,12 @@
+import { isMockMode } from "@/lib/server/meta";
+import { checkRateLimit, clientKey } from "@/lib/server/rate-limit";
 import { transcribeContextAudio, VoiceError } from "@/lib/server/transcribe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+
+const LIVE_RATE_LIMIT = { limit: 20, windowMs: 60_000 };
 
 const MESSAGES = {
   bad_request: "Send a voice note as audio.",
@@ -12,10 +16,21 @@ const MESSAGES = {
   missing_key: "Set MODEL_API_KEY on the server, or set MOCK_META=1 to run the demo.",
   voice_unavailable:
     "Muse Voice is not available for this key. In the Meta Model API dashboard, enable Muse Voice Transcribe, then try the note again.",
+  rate_limited: "Too many voice notes at once. Wait a few seconds, then try again.",
   upstream: "The voice note did not transcribe. Try again.",
 } as const;
 
 export async function POST(request: Request): Promise<Response> {
+  if (!isMockMode()) {
+    const verdict = checkRateLimit(clientKey(request, "transcribe"), LIVE_RATE_LIMIT);
+    if (!verdict.allowed) {
+      return Response.json(
+        { error: "rate_limited", message: MESSAGES.rate_limited },
+        { status: 429, headers: { "retry-after": String(verdict.retryAfterSeconds) } },
+      );
+    }
+  }
+
   let form: FormData;
   try {
     form = await request.formData();

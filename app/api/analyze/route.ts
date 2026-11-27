@@ -1,5 +1,7 @@
 import { normalizeLocale } from "@/lib/copy";
 import { analyzeBedPhoto } from "@/lib/server/analyze";
+import { isMockMode } from "@/lib/server/meta";
+import { checkRateLimit, clientKey } from "@/lib/server/rate-limit";
 import { AnalyzeError, type Locale } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -7,7 +9,9 @@ export const dynamic = "force-dynamic";
 // Hobby stops the function at 60s. SAM is capped and Muse keeps a deadline inside that clock.
 export const maxDuration = 60;
 
-const MESSAGES: Record<AnalyzeError["code"], Record<Locale, string>> = {
+const LIVE_RATE_LIMIT = { limit: 20, windowMs: 60_000 };
+
+const MESSAGES: Record<AnalyzeError["code"] | "rate_limited", Record<Locale, string>> = {
   bad_request: {
     en: "Send a photo as a data URL.",
     sw: "Tuma picha kama data URL.",
@@ -28,6 +32,10 @@ const MESSAGES: Record<AnalyzeError["code"], Record<Locale, string>> = {
     en: "Muse Spark is not available for this key. In the Meta Model API dashboard, enable a Muse Spark or Muse Wonder chat model, then run the check again.",
     sw: "Muse Spark haipatikani kwa ufunguo huu. Kwenye dashibodi ya Meta Model API, washa modeli ya Muse Spark au Muse Wonder, kisha jaribu kukagua tena.",
   },
+  rate_limited: {
+    en: "Too many checks at once. Wait a few seconds, then try again.",
+    sw: "Ukaguzi ni mwingi kwa wakati mmoja. Subiri sekunde chache, kisha jaribu tena.",
+  },
   upstream: {
     en: "The model call did not finish. Try the photo again.",
     sw: "Modeli haikujibu. Jaribu tena na picha.",
@@ -43,6 +51,16 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!body || typeof body !== "object") return jsonError("bad_request", "en");
   const locale = normalizeLocale((body as { locale?: unknown }).locale);
+
+  if (!isMockMode()) {
+    const verdict = checkRateLimit(clientKey(request, "analyze"), LIVE_RATE_LIMIT);
+    if (!verdict.allowed) {
+      return Response.json(
+        { error: "rate_limited", message: MESSAGES.rate_limited[locale] },
+        { status: 429, headers: { "retry-after": String(verdict.retryAfterSeconds) } },
+      );
+    }
+  }
 
   try {
     const result = await analyzeBedPhoto(body);
